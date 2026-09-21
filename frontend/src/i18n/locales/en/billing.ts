@@ -1,0 +1,63 @@
+/** 英文：计费：支付弹窗、余额卡、用量/充值记录、余额不足提示 */
+
+export const enBilling = {
+  billing: {
+    topupLink: 'Top up →',
+    topup: 'Top up',
+    alertTitle: 'Spending notice',
+    insufficientTitle: 'Insufficient balance',
+    insufficientMessage: 'Your balance is too low to start generating. Please top up first.',
+    creditAmount: 'You receive {amount}',
+    usageCard: {
+      title: 'This month’s usage',
+      subtitle: 'Billed by actual upstream token usage',
+      tokens: 'Tokens used',
+      monthCharge: 'This month’s charges',
+      frozen: 'On hold',
+      calls: '{count} calls',
+    },
+    wallet: {
+      frozenAmount: 'On hold',
+      viewHistory: 'View top-up history',
+    },
+    transfer: {
+      title: 'Top up by bank transfer',
+      amount: 'Amount to transfer',
+      bankName: 'Bank',
+      account: 'Account number',
+      holder: 'Account holder',
+      note: 'Transfer note',
+      noteHint: 'Put this order ID in the transfer note so an admin can match your payment',
+      qrAlt: 'VietQR transfer code',
+      scanHint: 'Scan the VietQR code with your banking app',
+      expiresIn: 'Order expires in {time}',
+      expired: 'This order has expired. Close and place a new one.',
+      confirmHint:
+        'After you transfer, an admin verifies the payment; credits usually land within 1 business day. Track it in Top-up history.',
+      waiting: 'Waiting for an admin to confirm the transfer',
+      paidWait: 'Transfer confirmed. Your balance has been updated.',
+      closed: 'Order closed',
+      copy: 'Copy',
+      copied: 'Copied',
+      transferred: 'I have transferred',
+      cancel: 'Cancel order',
+      done: 'Done',
+    },
+    history: {
+      empty: 'No top-ups yet',
+      orderStatus: {
+        pending: 'Awaiting confirmation',
+        paid: 'Credited',
+        closed: 'Closed',
+      },
+    },
+    records: {
+      title: 'Usage charges',
+      subtitle: 'Token usage and charges for every AI call',
+      loadFailed: 'Failed to load usage charges',
+      empty: 'No charges yet',
+      estimated: 'estimated',
+      pagination: 'Usage charges pagination',
+    },
+  },
+} as const

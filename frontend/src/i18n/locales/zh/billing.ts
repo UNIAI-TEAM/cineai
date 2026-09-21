@@ -1,0 +1,62 @@
+/** 中文：计费：银行转账弹窗、余额卡、用量/充值记录、余额不足提示 */
+
+export const zhBilling = {
+  billing: {
+    topupLink: '去充值 →',
+    topup: '去充值',
+    alertTitle: '消费提醒',
+    insufficientTitle: '余额不足',
+    insufficientMessage: '当前余额不足以开始生成，请先充值。',
+    creditAmount: '到账 {amount}',
+    usageCard: {
+      title: '本月使用情况',
+      subtitle: '按上游 token 实际用量计费',
+      tokens: 'Token 用量',
+      monthCharge: '本月费用',
+      frozen: '冻结中',
+      calls: '调用 {count} 次',
+    },
+    wallet: {
+      frozenAmount: '冻结金额',
+      viewHistory: '查看充值记录',
+    },
+    transfer: {
+      title: '银行转账充值',
+      amount: '转账金额',
+      bankName: '收款银行',
+      account: '收款账号',
+      holder: '户名',
+      note: '转账备注',
+      noteHint: '请务必在转账备注中填写此订单号，管理员据此核对到账',
+      qrAlt: 'VietQR 转账二维码',
+      scanHint: '可用银行 App 扫描 VietQR 完成转账',
+      expiresIn: '订单将在 {time} 后失效',
+      expired: '订单已失效，请关闭后重新下单',
+      confirmHint: '转账完成后由管理员核对，余额通常在 1 个工作日内入账；可在「充值记录」查看进度',
+      waiting: '等待管理员确认到账',
+      paidWait: '已确认到账，余额已更新',
+      closed: '订单已关闭',
+      copy: '复制',
+      copied: '已复制',
+      transferred: '我已转账',
+      cancel: '取消订单',
+      done: '完成',
+    },
+    history: {
+      empty: '暂无充值记录',
+      orderStatus: {
+        pending: '待确认到账',
+        paid: '已到账',
+        closed: '已关闭',
+      },
+    },
+    records: {
+      title: '使用扣费记录',
+      subtitle: '每次 AI 调用的 token 用量与扣费明细',
+      loadFailed: '加载扣费记录失败',
+      empty: '暂无扣费记录',
+      estimated: '估算',
+      pagination: '扣费记录分页',
+    },
+  },
+} as const
