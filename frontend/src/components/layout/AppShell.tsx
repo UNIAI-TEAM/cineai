@@ -29,7 +29,7 @@ export default function AppShell({ children, active, wide, flush, hideFooter }: 
             <Link to="/contact">{t('footer.contact')}</Link>
             <Link to="/help">{t('footer.help')}</Link>
           </nav>
-          <p>© {new Date().getFullYear()} PRINTFILM. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} CineAI. All rights reserved.</p>
         </footer>
       ) : null}
     </div>

@@ -2,8 +2,8 @@
 
 export const zhShell = {
   meta: {
-    title: 'PRINTFILM · AI短视频平台',
-    description: 'PRINTFILM：AI 漫剧从剧本到分集成片，AI短视频从卖点到分镜成片。',
+    title: 'CineAI · AI短视频平台',
+    description: 'CineAI：AI 漫剧从剧本到分集成片，AI短视频从卖点到分镜成片。',
   },
   common: {
     comingSoon: '即将推出',
@@ -77,7 +77,7 @@ export const zhShell = {
     registerTitle: '创建创作者账号',
     forgotTitle: '找回密码',
     resetTitle: '设置新密码',
-    lede: 'PRINTFILM · AI 漫剧与 AI短视频创作平台',
+    lede: 'CineAI · AI 漫剧与 AI短视频创作平台',
     nickname: '昵称',
     email: '邮箱',
     password: '密码',

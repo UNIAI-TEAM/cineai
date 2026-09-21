@@ -80,6 +80,9 @@ def ensure_browser_cors() -> None:
     ]
     # Production site + common local/dev（主站 www 优先）
     for extra in (
+        "https://cineai.vn",
+        "https://www.cineai.vn",
+        "https://admin.cineai.vn",
         "https://www.printfilm.com",
         "http://www.printfilm.com",
         "https://printfilm.com",

@@ -171,6 +171,8 @@ def is_local_static_url(url: str | None) -> bool:
         return True
     # 主站 / 旧站 / 历史拼写错误域名、本地调试地址
     for host in (
+        "cineai.vn",
+        "www.cineai.vn",
         "www.printfilm.com",
         "printfilm.com",
         "kepu.printfilm.com",

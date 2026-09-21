@@ -242,7 +242,7 @@ export default function PricingPage() {
 
           <footer className="pf-pricing-site-foot">
             <p className="pf-pricing-site-brand">
-              <Link to="/">PRINTFILM</Link>
+              <Link to="/">CineAI</Link>
               <span> · {t('pricing.footBrand')}</span>
             </p>
             <nav className="pf-pricing-site-links" aria-label={t('footer.links')}>
@@ -250,7 +250,7 @@ export default function PricingPage() {
               <Link to="/privacy">{t('footer.privacy')}</Link>
               <Link to="/contact">{t('footer.contact')}</Link>
             </nav>
-            <p className="pf-pricing-site-copy">© {new Date().getFullYear()} PRINTFILM. All rights reserved.</p>
+            <p className="pf-pricing-site-copy">© {new Date().getFullYear()} CineAI. All rights reserved.</p>
           </footer>
         </div>
       </div>

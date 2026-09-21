@@ -1,4 +1,4 @@
-/* 获客短视频宣传页：亮色纸面 + PRINTFILM 酸橙点缀 */
+/* 获客短视频宣传页：亮色纸面 + CineAI 酸橙点缀 */
 
 .pf-method {
   --m-bg: #f7f8fa;
@@ -8,15 +8,15 @@
   --m-txt: #111318;
   --m-soft: #4b5563;
   --m-muted: #6b7280;
-  --m-lime: #b6ff00;
+  --m-lime: #c4f53a;
   --m-lime-ink: #111318;
   --m-lime-deep: #5f8f00;
   --m-warn: #c67a12;
   min-height: 100vh;
   min-height: 100dvh;
   background:
-    radial-gradient(900px 420px at 8% -10%, rgba(182, 255, 0, 0.22), transparent 55%),
-    radial-gradient(640px 320px at 100% 0%, rgba(182, 255, 0, 0.12), transparent 50%),
+    radial-gradient(900px 420px at 8% -10%, rgba(196, 245, 58, 0.22), transparent 55%),
+    radial-gradient(640px 320px at 100% 0%, rgba(196, 245, 58, 0.12), transparent 50%),
     var(--m-bg);
   color: var(--m-txt);
   font-family: 'Noto Sans SC', 'PingFang SC', sans-serif;
@@ -83,7 +83,7 @@
 }
 
 .pf-method-word strong {
-  font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
+  font-family: 'Be Vietnam Pro', 'Noto Sans SC', sans-serif;
   font-size: 0.95rem;
   letter-spacing: 0.04em;
 }
@@ -130,7 +130,7 @@
 .pf-method-btn.is-lime {
   background: var(--m-lime);
   color: var(--m-lime-ink);
-  box-shadow: 0 8px 24px rgba(182, 255, 0, 0.18);
+  box-shadow: 0 8px 24px rgba(196, 245, 58, 0.18);
 }
 
 .pf-method-btn.is-ghost {
@@ -163,7 +163,7 @@
 
 .pf-method-kicker {
   margin: 0 0 0.7rem;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Be Vietnam Pro', sans-serif;
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.16em;
@@ -191,7 +191,7 @@
   font-style: normal;
   color: var(--m-txt);
   font-weight: 650;
-  box-shadow: inset 0 -0.42em 0 rgba(182, 255, 0, 0.28);
+  box-shadow: inset 0 -0.42em 0 rgba(196, 245, 58, 0.28);
 }
 
 .pf-method-notice,
@@ -296,7 +296,7 @@
   position: absolute;
   left: 1.1rem;
   top: 1.2rem;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Be Vietnam Pro', sans-serif;
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--m-lime-deep);
@@ -430,7 +430,7 @@
   gap: 1.4rem;
   padding: 1.6rem 1.5rem;
   border-radius: 22px;
-  border: 1px solid rgba(182, 255, 0, 0.55);
+  border: 1px solid rgba(196, 245, 58, 0.55);
   background: linear-gradient(135deg, #f4ffd6 0%, #ffffff 70%);
 }
 
@@ -474,7 +474,7 @@
 
 .pf-method-copy {
   color: var(--m-soft) !important;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Be Vietnam Pro', sans-serif;
 }
 
 @media (max-width: 820px) {

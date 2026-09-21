@@ -31,7 +31,7 @@
 }
 
 .fc-gen-opt-btn.active {
-  background: rgba(182, 255, 0, 0.28);
+  background: rgba(196, 245, 58, 0.28);
   color: #3d6500;
 }
 
@@ -184,8 +184,8 @@
 }
 
 .fc-gen-chip.selected {
-  border-color: rgba(182, 255, 0, 0.9);
-  background: rgba(182, 255, 0, 0.28);
+  border-color: rgba(196, 245, 58, 0.9);
+  background: rgba(196, 245, 58, 0.28);
   color: #3d6500;
 }
 
@@ -305,8 +305,8 @@
 
 .fc-skill-picker-item.is-checked,
 .pf-skill-picker-item.is-checked {
-  border-color: rgba(182, 255, 0, 0.9);
-  background: rgba(182, 255, 0, 0.18);
+  border-color: rgba(196, 245, 58, 0.9);
+  background: rgba(196, 245, 58, 0.18);
 }
 
 .fc-skill-picker-row,

@@ -1,4 +1,4 @@
-/** PRINTFILM 官网首页：产品主张、漫剧/科普入口、成片流程与工具 */
+/** CineAI 官网首页：产品主张、漫剧/科普入口、成片流程与工具 */
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
@@ -37,7 +37,7 @@ export default function HomePage() {
     <AppShell active="home" hideFooter>
       <section className="pf-land-hero">
         <div className="pf-land-hero-copy">
-          <p className="pf-land-kicker">PRINTFILM</p>
+          <p className="pf-land-kicker">CineAI</p>
           <h1>
             {t('home.headlineBefore')}
             <br />
@@ -204,7 +204,7 @@ export default function HomePage() {
 
       <footer className="pf-land-foot">
         <div className="pf-land-foot-brand">
-          <strong>PRINTFILM</strong>
+          <strong>CineAI</strong>
           <p>{t('home.footBrand')}</p>
         </div>
         <nav className="pf-land-foot-nav" aria-label={t('home.footNav')}>
@@ -218,7 +218,7 @@ export default function HomePage() {
           <Link to="/privacy">{t('footer.privacy')}</Link>
           <Link to="/contact">{t('footer.contact')}</Link>
         </nav>
-        <p className="pf-land-copy">© {new Date().getFullYear()} PRINTFILM. All rights reserved.</p>
+        <p className="pf-land-copy">© {new Date().getFullYear()} CineAI. All rights reserved.</p>
       </footer>
 
       <CreateChoiceModal open={createOpen} onClose={() => setCreateOpen(false)} />

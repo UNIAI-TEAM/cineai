@@ -240,13 +240,13 @@ export function AdminLayout() {
 
         <div className="admin-brand">
 
-          <div className="admin-brand-mark">PF</div>
+          <img src="/logo.svg" alt="CineAI" className="admin-brand-mark" width={38} height={38} />
 
           {!collapsed && (
 
             <div>
 
-              <div className="admin-brand-name">PRINTFILM</div>
+              <div className="admin-brand-name">Cine<span className="admin-brand-ai">AI</span></div>
 
               <div className="admin-brand-sub">管理后台</div>
 
@@ -360,7 +360,7 @@ export function AdminLayout() {
 
               <div className="admin-topbar-title">{title}</div>
 
-              <div className="admin-topbar-crumb">PRINTFILM · 运营管理</div>
+              <div className="admin-topbar-crumb">CineAI · 运营管理</div>
 
             </div>
 

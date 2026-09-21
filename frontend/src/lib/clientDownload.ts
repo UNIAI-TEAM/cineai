@@ -81,5 +81,5 @@ export async function zipVideosClient(
 
   const out = await zip.generateAsync({ type: 'blob', compression: 'STORE' })
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-  return { blob: out, filename: `printfilm_videos_${stamp}_${items.length}.zip` }
+  return { blob: out, filename: `cineai_videos_${stamp}_${items.length}.zip` }
 }

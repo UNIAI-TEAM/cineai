@@ -20,12 +20,12 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDoc> = {
     title: '用户协议',
     updatedAt: '2026-09-21',
     intro:
-      '欢迎使用 PRINTFILM（以下简称「本平台」）。在注册或使用本平台服务前，请仔细阅读本协议。一旦您开始使用，即视为已阅读并同意以下条款。',
+      '欢迎使用 CineAI（以下简称「本平台」）。在注册或使用本平台服务前，请仔细阅读本协议。一旦您开始使用，即视为已阅读并同意以下条款。',
     sections: [
       {
         title: '1. 服务说明',
         paragraphs: [
-          'PRINTFILM 提供 AI 漫剧、AI短视频及创作工具（含文生图、图生图、文生视频等）相关服务。服务内容可能随产品迭代调整，我们将尽可能在页面或公告中说明重大变更。',
+          'CineAI 提供 AI 漫剧、AI短视频及创作工具（含文生图、图生图、文生视频等）相关服务。服务内容可能随产品迭代调整，我们将尽可能在页面或公告中说明重大变更。',
           '本平台按实际上游模型用量计费，余额充值后永久有效，不设强制订阅。具体价格与赠送规则以定价页及下单时展示为准。',
         ],
       },
@@ -43,7 +43,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDoc> = {
         paragraphs: [
           '您输入的提示词、脚本、素材等仍归您或原权利人所有。您保证对上传内容拥有合法权利，不得侵犯第三方知识产权、肖像权、隐私权等。',
           '使用 AI 生成的内容可能存在不准确、不完整或与预期不符的情况，请在正式发布前自行审核。因您对外发布、商用使用生成内容引发的纠纷，由您自行负责。',
-          '本平台的界面、商标、软件与文档等知识产权归 PRINTFILM 或相关权利人所有，未经许可不得复制、反向工程或用于与本服务无关的商业用途。',
+          '本平台的界面、商标、软件与文档等知识产权归 CineAI 或相关权利人所有，未经许可不得复制、反向工程或用于与本服务无关的商业用途。',
         ],
       },
       {
@@ -80,7 +80,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDoc> = {
       {
         title: '8. 联系方式',
         paragraphs: [
-          '如对本协议有疑问，请前往「联系我们」页面提交反馈，或发送邮件至 support@printfilm.com。',
+          '如对本协议有疑问，请前往「联系我们」页面提交反馈，或发送邮件至 support@cineai.vn。',
         ],
       },
     ],
@@ -90,7 +90,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDoc> = {
     title: '隐私政策',
     updatedAt: '2026-09-21',
     intro:
-      'PRINTFILM 重视您的隐私。本政策说明我们如何收集、使用、存储与保护您的个人信息。使用本平台即表示您理解本政策所述处理方式。',
+      'CineAI 重视您的隐私。本政策说明我们如何收集、使用、存储与保护您的个人信息。使用本平台即表示您理解本政策所述处理方式。',
     sections: [
       {
         title: '1. 我们收集的信息',
@@ -148,7 +148,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDoc> = {
       {
         title: '8. 联系我们',
         paragraphs: [
-          '如对本政策有任何疑问，请访问「联系我们」或发送邮件至 support@printfilm.com。',
+          '如对本政策有任何疑问，请访问「联系我们」或发送邮件至 support@cineai.vn。',
         ],
       },
     ],
@@ -161,12 +161,12 @@ export const LEGAL_DOCS_EN: Record<'terms' | 'privacy', LegalDoc> = {
     title: 'Terms of Service',
     updatedAt: '2026-09-21',
     intro:
-      'Welcome to PRINTFILM (“the Platform”). Please read these terms before you register or use the service. Using the Platform means you have read and agree to them.',
+      'Welcome to CineAI (“the Platform”). Please read these terms before you register or use the service. Using the Platform means you have read and agree to them.',
     sections: [
       {
         title: '1. The service',
         paragraphs: [
-          'PRINTFILM provides AI drama, explainer video, and creation tools (including text-to-image, image-to-image, and text-to-video). Features may change as the product evolves; we will try to note material changes on the site or in notices.',
+          'CineAI provides AI drama, explainer video, and creation tools (including text-to-image, image-to-image, and text-to-video). Features may change as the product evolves; we will try to note material changes on the site or in notices.',
           'Billing follows actual upstream model usage. Topped-up balance does not expire and there is no forced subscription. Prices and bonuses follow the Pricing page and the checkout screen.',
         ],
       },
@@ -184,7 +184,7 @@ export const LEGAL_DOCS_EN: Record<'terms' | 'privacy', LegalDoc> = {
         paragraphs: [
           'Prompts, scripts, and uploads remain yours or the original rights holder’s. You warrant you have the right to upload them and will not infringe IP, portrait, or privacy rights.',
           'AI output may be inaccurate or unexpected. Review it before publishing. Disputes from your public or commercial use are your responsibility.',
-          'The Platform UI, marks, software, and docs belong to PRINTFILM or licensors. Do not copy, reverse-engineer, or use them outside this service without permission.',
+          'The Platform UI, marks, software, and docs belong to CineAI or licensors. Do not copy, reverse-engineer, or use them outside this service without permission.',
         ],
       },
       {
@@ -221,7 +221,7 @@ export const LEGAL_DOCS_EN: Record<'terms' | 'privacy', LegalDoc> = {
       {
         title: '8. Contact',
         paragraphs: [
-          'Questions about these terms: use Contact or email support@printfilm.com.',
+          'Questions about these terms: use Contact or email support@cineai.vn.',
         ],
       },
     ],
@@ -231,7 +231,7 @@ export const LEGAL_DOCS_EN: Record<'terms' | 'privacy', LegalDoc> = {
     title: 'Privacy Policy',
     updatedAt: '2026-09-21',
     intro:
-      'PRINTFILM respects your privacy. This policy explains how we collect, use, store, and protect personal information. Using the Platform means you understand this processing.',
+      'CineAI respects your privacy. This policy explains how we collect, use, store, and protect personal information. Using the Platform means you understand this processing.',
     sections: [
       {
         title: '1. Information we collect',
@@ -289,7 +289,7 @@ export const LEGAL_DOCS_EN: Record<'terms' | 'privacy', LegalDoc> = {
       {
         title: '8. Contact',
         paragraphs: [
-          'Questions: use Contact or email support@printfilm.com.',
+          'Questions: use Contact or email support@cineai.vn.',
         ],
       },
     ],
@@ -302,12 +302,12 @@ export const LEGAL_DOCS_VI: Record<'terms' | 'privacy', LegalDoc> = {
     title: 'Điều khoản dịch vụ',
     updatedAt: '2026-09-21',
     intro:
-      'Chào mừng bạn đến với PRINTFILM (sau đây gọi là “Nền tảng”). Vui lòng đọc kỹ Điều khoản dịch vụ này trước khi đăng ký hoặc sử dụng dịch vụ. Khi sử dụng Nền tảng, bạn được xem là đã đọc và đồng ý với các điều khoản dưới đây.',
+      'Chào mừng bạn đến với CineAI (sau đây gọi là “Nền tảng”). Vui lòng đọc kỹ Điều khoản dịch vụ này trước khi đăng ký hoặc sử dụng dịch vụ. Khi sử dụng Nền tảng, bạn được xem là đã đọc và đồng ý với các điều khoản dưới đây.',
     sections: [
       {
         title: '1. Dịch vụ cung cấp',
         paragraphs: [
-          'PRINTFILM cung cấp dịch vụ làm phim ngắn AI, video ngắn AI và các công cụ sáng tạo (tạo ảnh từ văn bản, tạo ảnh từ ảnh, tạo video từ văn bản…). Tính năng có thể thay đổi trong quá trình phát triển sản phẩm. Với những thay đổi quan trọng, chúng tôi sẽ cố gắng thông báo trên website hoặc qua thông báo trong sản phẩm.',
+          'CineAI cung cấp dịch vụ làm phim ngắn AI, video ngắn AI và các công cụ sáng tạo (tạo ảnh từ văn bản, tạo ảnh từ ảnh, tạo video từ văn bản…). Tính năng có thể thay đổi trong quá trình phát triển sản phẩm. Với những thay đổi quan trọng, chúng tôi sẽ cố gắng thông báo trên website hoặc qua thông báo trong sản phẩm.',
           'Phí dịch vụ được tính đúng theo giá gốc của nhà cung cấp mô hình, dùng bao nhiêu, trả bấy nhiêu. Số dư đã nạp không có thời hạn sử dụng và người dùng không bắt buộc phải mua gói định kỳ. Mức giá và quy định tặng thêm cụ thể căn cứ theo trang Bảng giá và nội dung hiển thị khi bạn tạo đơn nạp tiền.',
         ],
       },
@@ -325,7 +325,7 @@ export const LEGAL_DOCS_VI: Record<'terms' | 'privacy', LegalDoc> = {
         paragraphs: [
           'Prompt, kịch bản, tư liệu và các nội dung khác do người dùng nhập vào vẫn thuộc quyền của người dùng hoặc của chủ sở hữu quyền ban đầu. Người dùng cam kết có quyền hợp pháp đối với nội dung tải lên và không xâm phạm quyền sở hữu trí tuệ, quyền đối với hình ảnh, quyền riêng tư và các quyền khác của bên thứ ba.',
           'Nội dung do AI tạo ra có thể chưa chính xác, chưa đầy đủ hoặc khác với mong đợi. Người dùng cần tự kiểm tra trước khi công bố và tự chịu trách nhiệm về mọi tranh chấp phát sinh từ việc công bố hoặc sử dụng nội dung cho mục đích thương mại.',
-          'Giao diện, nhãn hiệu, phần mềm và tài liệu của Nền tảng thuộc quyền sở hữu của PRINTFILM hoặc của chủ sở hữu quyền liên quan. Khi chưa được phép, không được sao chép, dịch ngược mã nguồn hoặc sử dụng cho mục đích thương mại không liên quan đến dịch vụ này.',
+          'Giao diện, nhãn hiệu, phần mềm và tài liệu của Nền tảng thuộc quyền sở hữu của CineAI hoặc của chủ sở hữu quyền liên quan. Khi chưa được phép, không được sao chép, dịch ngược mã nguồn hoặc sử dụng cho mục đích thương mại không liên quan đến dịch vụ này.',
         ],
       },
       {
@@ -362,7 +362,7 @@ export const LEGAL_DOCS_VI: Record<'terms' | 'privacy', LegalDoc> = {
       {
         title: '8. Liên hệ',
         paragraphs: [
-          'Nếu có thắc mắc về Điều khoản dịch vụ này, vui lòng liên hệ qua trang Liên hệ hoặc gửi email đến support@printfilm.com.',
+          'Nếu có thắc mắc về Điều khoản dịch vụ này, vui lòng liên hệ qua trang Liên hệ hoặc gửi email đến support@cineai.vn.',
         ],
       },
     ],
@@ -372,7 +372,7 @@ export const LEGAL_DOCS_VI: Record<'terms' | 'privacy', LegalDoc> = {
     title: 'Chính sách quyền riêng tư',
     updatedAt: '2026-09-21',
     intro:
-      'PRINTFILM tôn trọng quyền riêng tư của người dùng. Chính sách này giải thích cách chúng tôi thu thập, sử dụng, lưu trữ và bảo vệ dữ liệu cá nhân của bạn. Khi sử dụng Nền tảng, bạn xác nhận đã hiểu cách chúng tôi xử lý dữ liệu như mô tả dưới đây.',
+      'CineAI tôn trọng quyền riêng tư của người dùng. Chính sách này giải thích cách chúng tôi thu thập, sử dụng, lưu trữ và bảo vệ dữ liệu cá nhân của bạn. Khi sử dụng Nền tảng, bạn xác nhận đã hiểu cách chúng tôi xử lý dữ liệu như mô tả dưới đây.',
     sections: [
       {
         title: '1. Dữ liệu chúng tôi thu thập',
@@ -430,7 +430,7 @@ export const LEGAL_DOCS_VI: Record<'terms' | 'privacy', LegalDoc> = {
       {
         title: '8. Liên hệ',
         paragraphs: [
-          'Nếu có thắc mắc, vui lòng liên hệ qua trang Liên hệ hoặc gửi email đến support@printfilm.com.',
+          'Nếu có thắc mắc, vui lòng liên hệ qua trang Liên hệ hoặc gửi email đến support@cineai.vn.',
         ],
       },
     ],
@@ -454,8 +454,8 @@ export const CONTACT_CHANNELS: ContactChannel[] = [
   {
     title: '邮箱支持',
     desc: '工作日一般 1–2 个工作日内回复；请附上账号邮箱与订单号（如有）。',
-    href: 'mailto:support@printfilm.com',
-    actionLabel: 'support@printfilm.com',
+    href: 'mailto:support@cineai.vn',
+    actionLabel: 'support@cineai.vn',
   },
   {
     title: '帮助中心',
@@ -466,7 +466,7 @@ export const CONTACT_CHANNELS: ContactChannel[] = [
   {
     title: '企业合作 / 对公转账',
     desc: '企业批量充值、API 合作或发票需求，请邮件说明公司名称与需求，我们会安排对接。',
-    href: 'mailto:support@printfilm.com?subject=PRINTFILM%20企业合作',
+    href: 'mailto:support@cineai.vn?subject=CineAI%20企业合作',
     actionLabel: '发送合作邮件',
   },
 ]

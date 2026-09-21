@@ -2,9 +2,9 @@
 
 export const viShell = {
   meta: {
-    title: 'PRINTFILM · Video ngắn AI',
+    title: 'CineAI · Video ngắn AI',
     description:
-      'PRINTFILM: biến kịch bản thành phim ngắn AI nhiều tập, biến ưu điểm sản phẩm thành video ngắn AI.',
+      'CineAI: biến kịch bản thành phim ngắn AI nhiều tập, biến ưu điểm sản phẩm thành video ngắn AI.',
   },
   common: {
     comingSoon: 'Sắp ra mắt',
@@ -78,7 +78,7 @@ export const viShell = {
     registerTitle: 'Tạo tài khoản nhà sáng tạo',
     forgotTitle: 'Đặt lại mật khẩu',
     resetTitle: 'Chọn mật khẩu mới',
-    lede: 'PRINTFILM · Phim ngắn AI và video ngắn AI',
+    lede: 'CineAI · Phim ngắn AI và video ngắn AI',
     nickname: 'Tên hiển thị',
     email: 'Email',
     password: 'Mật khẩu',

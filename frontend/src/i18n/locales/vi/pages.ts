@@ -161,7 +161,7 @@ export const viPages = {
     introLink: 'trung tâm trợ giúp',
     introSuffix: ' trước.',
     formTitle: 'Gửi phản hồi',
-    formLead: 'Khi nhấn nút, ứng dụng email của bạn sẽ mở sẵn thư nháp gửi tới support@printfilm.com. Bạn kiểm tra lại rồi bấm gửi.',
+    formLead: 'Khi nhấn nút, ứng dụng email của bạn sẽ mở sẵn thư nháp gửi tới support@cineai.vn. Bạn kiểm tra lại rồi bấm gửi.',
     topic: 'Chủ đề',
     email: 'Email của bạn',
     emailPlaceholder: 'Để chúng tôi trả lời bạn',
@@ -181,8 +181,8 @@ export const viPages = {
       {
         title: 'Hỗ trợ qua email',
         desc: 'Chúng tôi thường trả lời trong 1–2 ngày làm việc. Vui lòng ghi kèm email tài khoản và mã đơn (nếu có).',
-        href: 'mailto:support@printfilm.com',
-        actionLabel: 'support@printfilm.com',
+        href: 'mailto:support@cineai.vn',
+        actionLabel: 'support@cineai.vn',
       },
       {
         title: 'Trung tâm trợ giúp',
@@ -193,7 +193,7 @@ export const viPages = {
       {
         title: 'Doanh nghiệp / chuyển khoản',
         desc: 'Cần nạp số tiền lớn (chuyển khoản ngân hàng, chúng tôi xác nhận khi tiền về), hợp tác API hoặc xuất hoá đơn? Gửi email kèm tên công ty và nhu cầu, chúng tôi sẽ cử người liên hệ.',
-        href: 'mailto:support@printfilm.com?subject=PRINTFILM%20Enterprise',
+        href: 'mailto:support@cineai.vn?subject=CineAI%20Enterprise',
         actionLabel: 'Gửi email hợp tác',
       },
     ],

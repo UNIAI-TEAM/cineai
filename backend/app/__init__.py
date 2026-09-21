@@ -1,1 +1,1 @@
-"""PRINTFILM platform backend."""
+"""CineAI platform backend."""

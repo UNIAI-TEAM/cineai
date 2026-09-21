@@ -1,7 +1,10 @@
 :root {
-  --pf-lime: #b6ff00;
-  --pf-lime-soft: #eefcc8;
-  --pf-ink: #111318;
+  /* Màu thương hiệu CineAI — xem docs/brand/BRAND.md */
+  --pf-lime: #c4f53a;
+  --pf-lime-deep: #7cc61e;
+  --pf-lime-ink: #4a7a0c; /* lime dùng cho chữ trên nền sáng */
+  --pf-lime-soft: #f0fbd0;
+  --pf-ink: #0a0b0a;
   --pf-muted: #6b7280;
   --pf-bg: #f7f8fa;
   --pf-card: #ffffff;
@@ -24,7 +27,10 @@
   --shadow: var(--pf-shadow);
   --hero-ink: #e8eef2;
 
-  font-family: 'Noto Sans SC', 'PingFang SC', sans-serif;
+  --pf-font-sans: 'Be Vietnam Pro', 'Noto Sans SC', 'PingFang SC', sans-serif;
+  --pf-font-display: 'Be Vietnam Pro', 'Noto Sans SC', sans-serif;
+
+  font-family: var(--pf-font-sans);
   color: var(--pf-ink);
   background: var(--pf-bg);
   line-height: 1.5;
