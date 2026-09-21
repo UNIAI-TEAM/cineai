@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
+from app.services.text_lang import is_cjk_text
+
 # id used in API / project.voice_id; speaker is openspeech speaker id
 # label 为中文主值；label_i18n 提供 en / vi 界面展示译文，前端按语言取值，缺失回落 label
 VOICE_PRESETS: list[dict[str, Any]] = [
@@ -207,6 +209,24 @@ def edge_tts_voice_for_speaker(speaker: str) -> str:
     if "男" in hint and "女" not in hint:
         return "zh-CN-YunxiNeural"
     return "zh-CN-XiaoxiaoNeural"
+
+
+# edge-tts 越南语 neural（旁白非中文时使用）
+EDGE_TTS_VI_FEMALE = "vi-VN-HoaiMyNeural"
+EDGE_TTS_VI_MALE = "vi-VN-NamMinhNeural"
+
+
+def edge_tts_voice_for_text(speaker: str, text: str) -> str:
+    """edge-tts 兜底音色：中文旁白沿用 speaker→中文 neural；非中文旁白按性别换越南语 neural。
+
+    参数：speaker 豆包 speaker id（用于推断性别）；text 待合成文本
+    返回：edge-tts voice 名称
+    """
+    if is_cjk_text(text):
+        return edge_tts_voice_for_speaker(speaker)
+    zh_voice = edge_tts_voice_for_speaker(speaker)
+    male = infer_speaker_gender(speaker) == "male" or zh_voice.startswith("zh-CN-Yun")
+    return EDGE_TTS_VI_MALE if male else EDGE_TTS_VI_FEMALE
 
 
 def resolve_speaker(voice_id: str | None, *, template_preset: str | None = None) -> str:

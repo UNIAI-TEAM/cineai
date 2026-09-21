@@ -1,7 +1,8 @@
 /** 画面风格卡片网格：无风格 + 缩略图选项 */
 import { Check } from 'lucide-react'
 import { DramaImageStylePreviewImg } from './DramaImageStylePreviewImg'
-import { IMAGE_STYLE_OPTIONS, type ImageStyleId } from '../../lib/dramaImageStyles'
+import { getImageStyleLabel, IMAGE_STYLE_OPTIONS, type ImageStyleId } from '../../lib/dramaImageStyles'
+import { useI18n } from '../../i18n'
 
 type Props = {
   value: ImageStyleId | ''
@@ -16,9 +17,10 @@ export function DramaImageStyleCardGrid({
   value,
   onChange,
   allowNone = true,
-  noneLabel = '无风格',
+  noneLabel,
   className,
 }: Props) {
+  const { t } = useI18n()
   return (
     <div className={['drama-style-modal-grid', className].filter(Boolean).join(' ')}>
       {allowNone ? (
@@ -28,11 +30,12 @@ export function DramaImageStyleCardGrid({
           onClick={() => onChange('')}
         >
           {!value ? <Check className="drama-style-modal-check" size={12} strokeWidth={2.5} /> : null}
-          {noneLabel}
+          {noneLabel || t('dramaStyle.none')}
         </button>
       ) : null}
       {IMAGE_STYLE_OPTIONS.map((opt) => {
         const selected = value === opt.id
+        const label = getImageStyleLabel(opt.id) || opt.label
         return (
           <button
             key={opt.id}
@@ -40,8 +43,8 @@ export function DramaImageStyleCardGrid({
             className={`drama-style-modal-card${selected ? ' is-selected' : ''}`}
             onClick={() => onChange(opt.id)}
           >
-            <DramaImageStylePreviewImg styleId={opt.id} alt={opt.label} />
-            <span>{opt.label}</span>
+            <DramaImageStylePreviewImg styleId={opt.id} alt={label} />
+            <span>{label}</span>
             {selected ? (
               <Check className="drama-style-modal-check on-media" size={12} strokeWidth={2.5} />
             ) : null}

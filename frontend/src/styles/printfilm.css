@@ -1022,6 +1022,23 @@
   letter-spacing: 0.12em;
 }
 
+/* 非中日文标题横排居中，最多三行 */
+.pf-drama-card-cover-fallback.is-horizontal {
+  writing-mode: horizontal-tb;
+  letter-spacing: 0;
+  text-align: center;
+  font-size: 1.15rem;
+  line-height: 1.35;
+}
+
+.pf-drama-card-cover-fallback.is-horizontal > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  max-width: 85%;
+}
+
 .pf-drama-card-body {
   padding: 0.85rem 1rem 1rem;
   display: flex;

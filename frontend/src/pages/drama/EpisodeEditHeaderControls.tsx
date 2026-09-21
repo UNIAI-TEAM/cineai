@@ -254,8 +254,8 @@ export function EpisodeEditHeaderControls({
                             setOpen(null)
                           }}
                         >
-                          <DramaImageStylePreviewImg styleId={opt.id} alt={opt.label} />
-                          <span>{opt.label}</span>
+                          <DramaImageStylePreviewImg styleId={opt.id} alt={getImageStyleLabel(opt.id) || opt.label} />
+                          <span>{getImageStyleLabel(opt.id) || opt.label}</span>
                         </button>
                       )
                     })}

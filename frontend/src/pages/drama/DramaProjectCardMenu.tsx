@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { MoreHorizontal } from 'lucide-react'
+import { useI18n } from '../../i18n'
 
 type Props = {
   onRename: () => void
@@ -13,6 +14,7 @@ const HIDE_DELAY_MS = 120
 
 // 渲染项目卡片重命名 / 删除菜单
 export function DramaProjectCardMenu({ onRename, onDelete }: Props) {
+  const { t } = useI18n()
   /*
    * open 菜单是否展开
    * rootRef 用于点外部关闭
@@ -87,7 +89,7 @@ export function DramaProjectCardMenu({ onRename, onDelete }: Props) {
       <button
         type="button"
         className="drama-project-row-more-btn"
-        aria-label="更多操作"
+        aria-label={t('dramaList.moreActions')}
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={(event) => {
@@ -115,7 +117,7 @@ export function DramaProjectCardMenu({ onRename, onDelete }: Props) {
               closeThenRun(onRename)
             }}
           >
-            重命名
+            {t('dramaList.rename')}
           </button>
           <button
             type="button"
@@ -132,7 +134,7 @@ export function DramaProjectCardMenu({ onRename, onDelete }: Props) {
               closeThenRun(onDelete)
             }}
           >
-            删除
+            {t('common.delete')}
           </button>
         </div>
       ) : null}

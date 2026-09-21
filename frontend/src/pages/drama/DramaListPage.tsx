@@ -19,6 +19,8 @@ import { dialog } from '../../lib/dialog'
 import { type ImageStyleId } from '../../lib/dramaImageStyles'
 import { formatDramaUsageBrief } from '../../lib/dramaUsage'
 import {
+  CANVAS_DEFAULT_TITLE,
+  displayDramaTitle,
   dramaProjectEntryPath,
   formatDramaCardMeta,
   isCanvasWorkflow,
@@ -32,6 +34,7 @@ import './drama.css'
 
 const CREATIVE_MIN_LENGTH = 20
 const CREATIVE_MAX_LENGTH = 2000
+// 画布项目的占位 source：发给后端且含识别标记「自由画布创作项目」，不翻译
 const CANVAS_PLACEHOLDER =
   '自由画布创作项目，稍后在画布中完善故事与资产。'
 
@@ -46,8 +49,12 @@ function formatUpdatedAt(raw?: string) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-// 封面竖排标题（无预览图时）
-function verticalTitleLabel(name: string, max = 12): string {
+// 标题是否以中日文字为主（竖排只适合 CJK；越南语 / 英文横排）
+const CJK_RE = /[\u3040-\u30ff\u3400-\u9fff]/
+
+// 封面兜底标题（无预览图时）：CJK 去空格竖排，其余保留空格横排由 CSS 截断
+function coverTitleLabel(name: string, max = 12): string {
+  if (!CJK_RE.test(name || '')) return (name || '').trim()
   const clean = (name || '').replace(/\s+/g, '')
   if (clean.length <= max) return clean
   return `${clean.slice(0, max - 1)}…`
@@ -119,19 +126,21 @@ function DramaListInner() {
   useEffect(() => {
     setLoading(true)
     loadProjects()
-      .catch((err) => setError(err instanceof Error ? err.message : '加载失败'))
+      .catch((err) => setError(err instanceof Error ? err.message : t('dramaList.loadFailed')))
       .finally(() => setLoading(false))
-  }, [])
+    // loadProjects 只用稳定的 setState；t 随语言切换变化，切换后顺带刷新列表
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t])
 
   // AI 立即生成：创建项目并进入大纲步骤
   async function handleGenerate() {
     const source = storyText.trim()
     if (source.length < CREATIVE_MIN_LENGTH) {
-      setError(`故事内容至少 ${CREATIVE_MIN_LENGTH} 字`)
+      setError(t('dramaList.storyTooShort', { min: CREATIVE_MIN_LENGTH }))
       return
     }
     if (source.length > CREATIVE_MAX_LENGTH) {
-      setError(`故事内容请控制在 ${CREATIVE_MAX_LENGTH} 字以内`)
+      setError(t('dramaList.storyTooLong', { max: CREATIVE_MAX_LENGTH }))
       return
     }
     setBusy(true)
@@ -145,7 +154,7 @@ function DramaListInner() {
       })
       navigate(`/drama/projects/${project.id}`, { state: { activeStep: 'outline' } })
     } catch (err) {
-      setError(err instanceof Error ? err.message : '创建失败')
+      setError(err instanceof Error ? err.message : t('dramaList.createFailed'))
     } finally {
       setBusy(false)
     }
@@ -160,12 +169,12 @@ function DramaListInner() {
       const project = await dramaApi.createProject({
         source: CANVAS_PLACEHOLDER,
         episode_count: 1,
-        title: '自由画布项目',
+        title: CANVAS_DEFAULT_TITLE,
         workflow: 'canvas',
       })
       navigate(`/drama/projects/${project.id}/canvas`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '创建画布项目失败')
+      setError(err instanceof Error ? err.message : t('dramaList.canvasCreateFailed'))
     } finally {
       setCanvasBusy(false)
     }
@@ -203,7 +212,7 @@ function DramaListInner() {
       if (!(item.has_script && (item.episode_count || 0) >= 8)) return false
     }
     const q = query.trim().toLowerCase()
-    if (q && !(item.title || '').toLowerCase().includes(q)) return false
+    if (q && !displayDramaTitle(item.title).toLowerCase().includes(q)) return false
     return true
   })
 
@@ -231,10 +240,10 @@ function DramaListInner() {
     const name = await dialog.prompt({
       title: t('dramaList.renameTitle'),
       message: t('dramaList.renameMessage'),
-      defaultValue: item.title,
+      defaultValue: displayDramaTitle(item.title),
       confirmText: t('common.save'),
     })
-    if (!name?.trim() || name.trim() === item.title) return
+    if (!name?.trim() || name.trim() === displayDramaTitle(item.title)) return
     try {
       await dramaApi.updateProject(item.id, { title: name.trim() })
       await loadProjects()
@@ -247,7 +256,7 @@ function DramaListInner() {
   async function handleDeleteOne(item: DramaProjectListItem) {
     const ok = await dialog.confirm({
       title: t('dramaList.deleteTitle'),
-      message: t('dramaList.deleteOne', { title: item.title }),
+      message: t('dramaList.deleteOne', { title: displayDramaTitle(item.title) }),
       confirmText: t('common.delete'),
       tone: 'danger',
     })
@@ -373,7 +382,7 @@ function DramaListInner() {
                   value={storyText}
                   onChange={(e) => setStoryText(e.target.value.slice(0, CREATIVE_MAX_LENGTH + 50))}
                   disabled={busy}
-                  placeholder="在此输入你构想的故事内容：故事设定、主角特征、剧情脉络、最终结局等"
+                  placeholder={t('dramaList.storyPlaceholder')}
                   rows={7}
                   maxLength={CREATIVE_MAX_LENGTH + 50}
                 />
@@ -400,7 +409,7 @@ function DramaListInner() {
                   onClick={() => void handleGenerate()}
                 >
                   <Sparkles size={16} strokeWidth={1.75} aria-hidden />
-                  {busy ? '创建中…' : '立即生成'}
+                  {busy ? t('dramaList.creating') : t('dramaList.generate')}
                 </Button>
               </div>
             </div>
@@ -420,8 +429,8 @@ function DramaListInner() {
             <div className="pf-empty-illust" aria-hidden>
               <FolderOpen size={48} strokeWidth={1.2} />
             </div>
-            <h2>还没有项目</h2>
-            <p className="pf-muted">用 AI 生剧本或自由画布，创建你的第一部漫剧</p>
+            <h2>{t('dramaList.emptyTitle')}</h2>
+            <p className="pf-muted">{t('dramaList.emptyDesc')}</p>
             <Button
               variant="lime"
               onClick={() => {
@@ -429,14 +438,14 @@ function DramaListInner() {
                 handleTabClick('ai')
               }}
             >
-              新建项目
+              {t('dramaList.newProject')}
             </Button>
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="pf-empty-state is-compact">
-            <p className="pf-muted">没有符合筛选的项目</p>
+            <p className="pf-muted">{t('dramaList.noMatch')}</p>
             <Button variant="ghost" size="sm" onClick={() => { setFilter('all'); setQuery('') }}>
-              清除筛选
+              {t('dramaList.clearFilter')}
             </Button>
           </div>
         ) : (
@@ -452,12 +461,13 @@ function DramaListInner() {
               <span className="pf-drama-card-plus" aria-hidden>
                 +
               </span>
-              <strong>新建项目</strong>
+              <strong>{t('dramaList.newProject')}</strong>
             </button>
             {filteredItems.map((item) => {
               const isSelected = selected.has(item.id)
               const coverSrc = item.cover_url ? resolveDramaMediaUrl(item.cover_url) : ''
               const canvas = isCanvasWorkflow(item)
+              const title = displayDramaTitle(item.title)
               return (
                 <article
                   key={item.id}
@@ -467,7 +477,7 @@ function DramaListInner() {
                     type="button"
                     className="pf-drama-card-cover"
                     onClick={() => openProject(item)}
-                    aria-label={`打开 ${item.title}`}
+                    aria-label={t('dramaList.openAria', { title })}
                   >
                     {coverSrc ? (
                       <img
@@ -478,14 +488,18 @@ function DramaListInner() {
                         decoding="async"
                       />
                     ) : (
-                      <span className="pf-drama-card-cover-fallback">{verticalTitleLabel(item.title)}</span>
+                      <span
+                        className={`pf-drama-card-cover-fallback${CJK_RE.test(title) ? '' : ' is-horizontal'}`}
+                      >
+                        <span>{coverTitleLabel(title)}</span>
+                      </span>
                     )}
-                    {canvas ? <span className="pf-drama-card-cover-badge is-canvas">自由画布</span> : null}
+                    {canvas ? <span className="pf-drama-card-cover-badge is-canvas">{t('dramaList.badgeCanvas')}</span> : null}
                     {!canvas && item.cover_pending ? (
-                      <span className="pf-drama-card-cover-badge">封面生成中</span>
+                      <span className="pf-drama-card-cover-badge">{t('dramaList.badgeCoverPending')}</span>
                     ) : null}
                     {!canvas && !coverSrc && !item.cover_pending && item.asset_count > 0 ? (
-                      <span className="pf-drama-card-cover-badge is-muted">待出图</span>
+                      <span className="pf-drama-card-cover-badge is-muted">{t('dramaList.badgeNoImage')}</span>
                     ) : null}
                     <label
                       className={`drama-project-row-check${isSelected || selectionMode ? ' is-visible' : ''}`}
@@ -497,7 +511,7 @@ function DramaListInner() {
                   <div className="pf-drama-card-body">
                     <div className="pf-drama-card-top">
                       <button type="button" className="pf-drama-card-title" onClick={() => openProject(item)}>
-                        {item.title}
+                        {title}
                       </button>
                       <DramaProjectCardMenu
                         onRename={() => void handleRename(item)}
@@ -505,7 +519,7 @@ function DramaListInner() {
                       />
                     </div>
                     <p className="pf-drama-card-meta">{formatDramaCardMeta(item)}</p>
-                    <p className="pf-drama-card-usage" title="本剧累计费用与生成次数">
+                    <p className="pf-drama-card-usage" title={t('dramaList.usageTitle')}>
                       {formatDramaUsageBrief(item.usage)}
                     </p>
                     <p className="pf-drama-card-time">{formatUpdatedAt(item.updated_at || item.created_at)}</p>
@@ -519,14 +533,14 @@ function DramaListInner() {
         {selected.size > 0 ? (
           <div className="drama-project-selection-bar">
             <div className="drama-project-selection-inner">
-              <span>已选择 {selected.size} 个项目</span>
+              <span>{t('dramaList.selectedCount', { count: selected.size })}</span>
               <button
                 type="button"
                 className="drama-project-selection-cancel"
                 disabled={deleting}
                 onClick={() => setSelected(new Set())}
               >
-                取消选择
+                {t('dramaList.cancelSelect')}
               </button>
               <button
                 type="button"
@@ -535,7 +549,7 @@ function DramaListInner() {
                 onClick={() => void handleDeleteSelected()}
               >
                 <Trash2 size={16} strokeWidth={1.8} />
-                {deleting ? '删除中…' : '删除'}
+                {deleting ? t('dramaList.deleting') : t('common.delete')}
               </button>
             </div>
           </div>

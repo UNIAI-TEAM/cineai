@@ -1,9 +1,17 @@
 import type { DramaProject, DramaProjectListItem } from '../api/drama'
+import { getActiveLocale } from '../i18n/detect'
+import { messages } from '../i18n/messages'
+import { interpolate } from '../i18n/lookup'
 
 export type DramaWorkflow = 'script' | 'canvas'
 
 const CANVAS_SOURCE_MARKER = '自由画布创作项目'
 const CANVAS_TITLE_MARKER = '自由画布'
+/**
+ * 画布项目默认标题：固定写中文主值入库（后端靠它识别「未改名」与画布工作流），
+ * 展示时由 displayDramaTitle 按界面语言替换
+ */
+export const CANVAS_DEFAULT_TITLE = '自由画布项目'
 
 type WorkflowSource = {
   workflow?: string | null
@@ -45,13 +53,20 @@ export function dramaProjectEntryPath(
   return `/drama/projects/${id}`
 }
 
-/** 列表卡片 meta 文案 */
+/** 列表卡片 meta 文案（按当前界面语言） */
 export function formatDramaCardMeta(item: DramaProjectListItem): string {
-  if (isCanvasWorkflow(item)) {
-    return `自由画布 · ${item.asset_count || 0} 节点资产`
-  }
+  const l = messages[getActiveLocale()].dramaList
+  const assets = item.asset_count || 0
+  if (isCanvasWorkflow(item)) return interpolate(l.metaCanvas, { assets })
   if (item.has_script) {
-    return `已写剧本 · ${item.episode_count || 0} 集 · ${item.asset_count || 0} 资产`
+    return interpolate(l.metaScript, { episodes: item.episode_count || 0, assets })
   }
-  return `草稿 · 待写剧本 · ${item.asset_count || 0} 资产`
+  return interpolate(l.metaDraft, { assets })
+}
+
+/** 项目展示标题：未改名的默认画布标题按界面语言显示，其余原样返回 */
+export function displayDramaTitle(title: string | null | undefined): string {
+  const raw = title || ''
+  if (raw !== CANVAS_DEFAULT_TITLE) return raw
+  return messages[getActiveLocale()].dramaList.canvasDefaultTitle
 }

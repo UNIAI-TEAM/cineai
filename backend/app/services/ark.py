@@ -52,7 +52,13 @@ from app.services.tokenfree_image import (
     tokenfree_working_image_model,
     uses_tokenfree_image,
 )
-from app.services.voices import edge_tts_voice_for_speaker
+from app.services.voices import edge_tts_voice_for_text
+from app.services.text_lang import cut_words, is_cjk_text
+from app.services.ark_mock import (
+    mock_expand_content,
+    mock_image_caption,
+    mock_storyboard_items,
+)
 from app.services.tokenfree_video import (
     extract_video_result_url,
     extract_video_task_id,
@@ -144,6 +150,8 @@ def _raise_seedream_http_error(
 
 def _fallback_overlay_title(text: str, shot_no: int) -> str:
     """Last resort when LLM omits title — never blind-slice mid-word (e.g. ERP→ER)."""
+    if text and not is_cjk_text(text):
+        return _fallback_overlay_title_latin(text, shot_no)
     raw = re.sub(r"\s+", "", (text or "").strip())
     if not raw:
         return f"场景{shot_no}"
@@ -153,10 +161,23 @@ def _fallback_overlay_title(text: str, shot_no: int) -> str:
     return f"场景{shot_no}"
 
 
+def _fallback_overlay_title_latin(text: str, shot_no: int) -> str:
+    """越南语 / 英文旁白的标题兜底：保留空格，取首个短分句，否则「Cảnh N」。"""
+    raw = re.sub(r"\s+", " ", text.strip())
+    clause = re.split(r"[,.;:!?]", raw, maxsplit=1)[0].strip()
+    if 2 <= len(clause) <= 32 and not _looks_truncated_token(clause, raw):
+        return clause
+    return f"Cảnh {shot_no}"
+
+
 def _fallback_overlay_subtitle(text: str) -> str:
     raw = (text or "").strip()
     if not raw:
         return ""
+    if not is_cjk_text(raw):
+        # 越南语 / 英文：保留空格，取首个分句并按词截断（中文规则会把词粘在一起）
+        clause = re.split(r"[,.;:!?]", re.sub(r"\s+", " ", raw), maxsplit=1)[0].strip()
+        return cut_words(clause or raw, 48)
     cleaned = re.sub(r"\s+", "", raw)
     clause = re.split(r"[，。；！？、,:;]", cleaned, maxsplit=1)[0].strip()
     if 4 <= len(clause) <= 22:
@@ -1833,7 +1854,7 @@ class ArkGateway:
             dest = Path(__file__).resolve().parents[2] / "static" / "mock" / f"audio_{digest}.mp3"
             dest.parent.mkdir(parents=True, exist_ok=True)
             if not dest.exists() or dest.stat().st_size < 1000:
-                await self._tts_edge(clean, dest)
+                await self._tts_edge(clean, dest, voice_hint=speaker)
             return f"/static/mock/audio_{digest}.mp3"
 
         dest_dir = storage.project_dir(project_id or 0)
@@ -1977,10 +1998,13 @@ class ArkGateway:
         return b"".join(chunks)
 
     async def _tts_edge(self, text: str, dest: Path, voice_hint: str = "") -> None:
-        """微软 edge-tts 兜底。国内连 api.msedgeservices.com 常超过默认 10s，拉长握手并重试。"""
+        """微软 edge-tts 兜底。国内连 api.msedgeservices.com 常超过默认 10s，拉长握手并重试。
+
+        音色按 voice_hint（豆包 speaker）推性别；旁白非中文时换越南语 neural。
+        """
         import edge_tts
 
-        voice = edge_tts_voice_for_speaker(voice_hint)
+        voice = edge_tts_voice_for_text(voice_hint, text)
         dest.parent.mkdir(parents=True, exist_ok=True)
         last_err: Exception | None = None
         for attempt in range(3):
@@ -2117,7 +2141,7 @@ class ArkGateway:
         root.mkdir(parents=True, exist_ok=True)
         path = root / f"image_{digest}.svg"
         hue = int(digest[:2], 16)
-        label = (prompt[:42] + "…") if len(prompt) > 42 else prompt
+        heading, label = mock_image_caption(prompt)
         safe = (
             label.replace("&", "&amp;")
             .replace("<", "&lt;")
@@ -2137,7 +2161,7 @@ class ArkGateway:
   <rect width="{w}" height="{h}" fill="url(#g)"/>
   <rect x="{int(w*0.08)}" y="{int(h*0.28)}" width="{int(w*0.4)}" height="{int(h*0.28)}" rx="10" fill="hsl({(hue + 20) % 360},35%,72%)" opacity="0.9"/>
   <circle cx="{int(w*0.72)}" cy="{int(h*0.38)}" r="{int(w*0.14)}" fill="hsl({(hue + 80) % 360},30%,65%)" opacity="0.55"/>
-  <text x="{int(w*0.08)}" y="{int(h*0.78)}" fill="#f2ebe0" font-family="Georgia, serif" font-size="28">Mock Storyboard</text>
+  <text x="{int(w*0.08)}" y="{int(h*0.78)}" fill="#f2ebe0" font-family="Georgia, serif" font-size="28">{heading}</text>
   <text x="{int(w*0.08)}" y="{int(h*0.84)}" fill="#d7cfc3" font-family="sans-serif" font-size="18">{safe}</text>
 </svg>"""
         path.write_text(svg, encoding="utf-8")
@@ -2160,6 +2184,17 @@ class ArkGateway:
         pipeline_mode: str = "full",
         shot_range_override: tuple[int, int] | None = None,
     ) -> StoryboardResult:
+        # shot_lo/shot_hi 与正式拆镜区间一致，避免 mock 仍只出 5 镜
+        if shot_range_override:
+            shot_lo, shot_hi = shot_range_override
+        else:
+            shot_lo, shot_hi = segplan.suggested_kepu_shot_range(source_text, pipeline_mode=pipeline_mode)
+        # 非中文输入：旁白与叠字用越南语 mock（见 ark_mock.py）；标题/副标题直接给定
+        vi_items = (
+            None
+            if is_cjk_text(source_text)
+            else mock_storyboard_items(source_text, source_type, shot_lo, shot_hi)
+        )
         chunks = [c.strip() for c in re.split(r"[。！？\n\.\!\?]+", source_text) if c.strip()]
         if source_type == "theme" and len(chunks) <= 1:
             topic = source_text.strip()
@@ -2172,11 +2207,6 @@ class ArkGateway:
             ]
         if len(chunks) < 3:
             chunks = chunks + ["补充画面过渡", "收尾总结"]
-        # shot_lo/shot_hi 与正式拆镜区间一致，避免 mock 仍只出 5 镜
-        if shot_range_override:
-            shot_lo, shot_hi = shot_range_override
-        else:
-            shot_lo, shot_hi = segplan.suggested_kepu_shot_range(source_text, pipeline_mode=pipeline_mode)
         chunks = chunks[:shot_hi]
         while len(chunks) < shot_lo:
             chunks.append("补充画面过渡")
@@ -2189,13 +2219,16 @@ class ArkGateway:
         )
         bgm_lock = segplan.infer_bgm_mood(source_text, style_prefix)
         plans: list[ShotPlan] = []
-        for i, text in enumerate(chunks, start=1):
+        rows = vi_items or [(None, None, c) for c in chunks]
+        for i, (vi_title, vi_subtitle, text) in enumerate(rows, start=1):
             # Mock: invent short summary titles, do not slice narration mid-token
             topic_bit = re.sub(r"^(引入主题|核心概念解释|一个关键例子说明)[：:]?", "", text).strip()
             title = f"要点{i}" if len(topic_bit) > 10 else (topic_bit[:8] or f"场景{i}")
             if "：" in text or ":" in text:
                 title = text.split("：", 1)[0].split(":", 1)[0][-6:] or title
             subtitle = _fallback_overlay_subtitle(text)
+            if vi_title:
+                title, subtitle = vi_title, vi_subtitle or ""
             img = f"{style_prefix}，{bible}，画面表现：{text[:80]}，竖屏构图，顶部留白，画面无文字"
             beats = [
                 segplan.SegmentBeat(duration=segplan.estimate_visual_duration(img), kind="visual", text=img),
@@ -2332,6 +2365,9 @@ class ArkGateway:
         return self._parse_expand_content(content or "{}", topic, mode)
 
     def _mock_expand_content(self, topic: str, mode: str) -> dict[str, str]:
+        # 非中文主题给越南语占位（mock 与 LLM 解析失败兜底共用）
+        if not is_cjk_text(topic):
+            return mock_expand_content(topic, mode)
         short = topic[:18].rstrip("？?。.!！") or "科普短片"
         title = short if len(short) >= 4 else f"{short}的科普"
         if mode == "script":

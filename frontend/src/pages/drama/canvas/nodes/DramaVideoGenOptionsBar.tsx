@@ -135,8 +135,8 @@ export function DramaVideoGenOptionsBar({
                     setOpen(null)
                   }}
                 >
-                  <DramaImageStylePreviewImg styleId={opt.id} alt={opt.label} loading="lazy" />
-                  <span>{opt.label}</span>
+                  <DramaImageStylePreviewImg styleId={opt.id} alt={getImageStyleLabel(opt.id) || opt.label} loading="lazy" />
+                  <span>{getImageStyleLabel(opt.id) || opt.label}</span>
                 </button>
               )
             })}

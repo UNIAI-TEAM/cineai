@@ -1,4 +1,6 @@
 /** Drama image style options (aligned with manju imageStyles). */
+import { getActiveLocale } from '../i18n/detect'
+import { messages } from '../i18n/messages'
 
 export const IMAGE_STYLE_IDS = [
   'retro-sci-fi-atompunk',
@@ -52,7 +54,11 @@ export const IMAGE_STYLE_OPTIONS: Array<{ id: ImageStyleId; label: string }> = [
 
 export const EPISODE_COUNT_PRESETS = [1, 12, 24, 36, 48] as const
 
+/** 按当前界面语言取画面风格名称；label 为中文主值，未知 id 返回 null */
 export function getImageStyleLabel(styleId: string | undefined | null): string | null {
   if (!styleId) return null
-  return IMAGE_STYLE_OPTIONS.find((o) => o.id === styleId)?.label ?? null
+  const opt = IMAGE_STYLE_OPTIONS.find((o) => o.id === styleId)
+  if (!opt) return null
+  const names = messages[getActiveLocale()].dramaStyle.names as Record<string, string>
+  return names[opt.id] || opt.label
 }

@@ -1,5 +1,8 @@
 import type { DramaProjectUsageStats } from '../api/drama'
 import { formatFenActive } from '../currency'
+import { getActiveLocale } from '../i18n/detect'
+import { messages } from '../i18n/messages'
+import { interpolate } from '../i18n/lookup'
 
 /** 空用量占位，避免列表未返回 usage 时崩溃 */
 export const EMPTY_DRAMA_USAGE: DramaProjectUsageStats = {
@@ -27,6 +30,12 @@ export function formatDramaUsageBrief(
   formatFen: FenFormatter = formatFenActive,
 ): string {
   const u = usage || EMPTY_DRAMA_USAGE
-  const calls = u.calls > 0 ? ` · 调用 ${u.calls}` : ''
-  return `${formatDramaCharge(u.charge_fen, formatFen)} · 生图 ${u.image_gens} · 生视频 ${u.video_gens}${calls}`
+  const l = messages[getActiveLocale()].dramaList
+  const parts = [
+    formatDramaCharge(u.charge_fen, formatFen),
+    interpolate(l.usageImages, { count: u.image_gens }),
+    interpolate(l.usageVideos, { count: u.video_gens }),
+  ]
+  if (u.calls > 0) parts.push(interpolate(l.usageCalls, { count: u.calls }))
+  return parts.join(' · ')
 }
