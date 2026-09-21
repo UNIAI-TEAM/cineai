@@ -76,7 +76,8 @@ frontend/node_modules/
 frontend/dist/
 
 # 本地 Agent / IDE（不上库）
-.claude/
+.claude/*
+!.claude/skills/
 .cursor/
 .work/
 
@@ -85,3 +86,4 @@ frontend/dist/
 
 # CodeGraph 本地索引
 .codegraph/
+docs/brand/boards/
