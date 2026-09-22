@@ -58,28 +58,14 @@ async def record_seedance_video_usage(
 ) -> UsageEvent:
     """按官方任务 usage / 成本或时长估算写入 Seedance 视频用量行。
 
-    幂等：同 task_run+billing_key，或同 provider_task_id 已有行时直接返回，避免并发收尾双记。
+    幂等：有 provider_task_id 时只按上游任务 ID 去重（同一 TaskRun 内多镜各记一行，
+    同一上游任务重复收尾只记一行）；无上游 ID 时按 task_run+billing_key+shot_id 去重。
     """
     tid = get_current_task_run_id()
     provider_id = (provider_task_id or "").strip()
 
-    if tid is not None:
-        existing = (
-            await db.execute(
-                select(UsageEvent)
-                .where(
-                    UsageEvent.task_run_id == int(tid),
-                    UsageEvent.billing_key == billing_key,
-                )
-                .order_by(UsageEvent.id.asc())
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-        if existing is not None:
-            return existing
-
-    # 无 billing_scope 时仍可按上游任务 ID 精确去重
     if provider_id:
+        # 同一用户同一上游任务只记一次（跨 TaskRun 的恢复/重派也覆盖）
         by_provider = (
             await db.execute(
                 select(UsageEvent)
@@ -95,6 +81,23 @@ async def record_seedance_video_usage(
         ).scalar_one_or_none()
         if by_provider is not None:
             return by_provider
+    elif tid is not None:
+        # 无上游 ID（如 mock）：一个 TaskRun 可跑多镜（kepu videos 阶段），按分镜区分
+        shot_clause = UsageEvent.shot_id.is_(None) if shot_id is None else UsageEvent.shot_id == int(shot_id)
+        existing = (
+            await db.execute(
+                select(UsageEvent)
+                .where(
+                    UsageEvent.task_run_id == int(tid),
+                    UsageEvent.billing_key == billing_key,
+                    shot_clause,
+                )
+                .order_by(UsageEvent.id.asc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            return existing
 
     if (
         (not task_result or int(getattr(task_result, "total_tokens", 0) or 0) <= 0)
