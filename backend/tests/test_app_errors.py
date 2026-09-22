@@ -99,3 +99,43 @@ def test_task_payload_missing_field_has_code() -> None:
         _require_int(None, "project_id")
     assert exc_info.value.code == "task.invalid_payload"
     assert exc_info.value.params == {"field": "project_id"}
+
+
+def test_tool_router_maps_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """工具入口：参数错误 400 带码；未知异常 500 且不回传原始报错。"""
+    from app.api import tools as tools_api
+    from app.database import get_db
+    from app.deps import get_current_user
+
+    app = FastAPI()
+    register_app_error_handler(app)
+    app.include_router(tools_api.router, prefix="/api")
+
+    class _User:
+        id = 1
+
+    async def _fake_db():
+        class _Db:
+            async def commit(self) -> None: ...
+        yield _Db()
+
+    app.dependency_overrides[get_current_user] = lambda: _User()
+    app.dependency_overrides[get_db] = _fake_db
+
+    async def _prompt_missing(*_a, **_k):
+        raise AppError("tool.prompt_required")
+
+    monkeypatch.setattr(tools_api, "enqueue_image_tool", _prompt_missing)
+    client = TestClient(app)
+    res = client.post("/api/tools/run", data={"tool_id": "t2i"})
+    assert res.status_code == 400
+    assert res.json()["code"] == "tool.prompt_required"
+
+    async def _boom(*_a, **_k):
+        raise RuntimeError("upstream secret stack")
+
+    monkeypatch.setattr(tools_api, "enqueue_image_tool", _boom)
+    res = client.post("/api/tools/run", data={"tool_id": "t2i"})
+    assert res.status_code == 500
+    assert res.json()["code"] == "tool.run_failed"
+    assert "secret" not in res.text

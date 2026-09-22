@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import tools as tools_api
 from app.api.v1 import generation as v1_generation
 from app.deps import _user_from_bearer
+from app.errors import AppError
 from app.models import Order, User, WalletLedger
 from app.services.billing import topup
 
@@ -132,9 +133,10 @@ async def test_tools_get_task_404_without_local_row(db_session: AsyncSession) ->
     user = await make_user(db_session)
     poll = AsyncMock()
     with patch.object(tools_api, "poll_video_task", poll):
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(AppError) as exc:
             await tools_api.get_tool_task("stranger-task", db=db_session, user=user)
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404
+    assert exc.value.code == "task.not_found"
     poll.assert_not_called()
 
 

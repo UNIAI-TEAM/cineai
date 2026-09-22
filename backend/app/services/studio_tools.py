@@ -110,7 +110,7 @@ def motion_hint(level: str | None) -> str:
 def save_upload(user_id: int, data: bytes, filename: str) -> Path:
     ext = Path(filename or "bin").suffix.lower() or ".bin"
     if ext not in {".png", ".jpg", ".jpeg", ".webp", ".gif", ".mp4", ".mov", ".webm"}:
-        raise ValueError("仅支持 png / jpg / webp / gif / mp4 / mov / webm")
+        raise AppError("tool.unsupported_file_type")
     dest = tools_dir(user_id) / f"{uuid.uuid4().hex[:12]}{ext}"
     dest.write_bytes(data)
     return dest
@@ -159,10 +159,10 @@ async def run_image_tool(
 
     if tool_id == "t2i":
         if len(full_prompt) < 4:
-            raise ValueError("请填写提示词")
+            raise AppError("tool.prompt_required")
     elif tool_id in {"i2i", "i2p"}:
         if not files:
-            raise ValueError("请上传参考图")
+            raise AppError("tool.reference_required")
         refs = [publish_public(files[0])]
         if tool_id == "i2i":
             full_prompt = f"{full_prompt or '保持主体，生成风格一致的变体'}。{strength_hint(strength)}"
@@ -177,18 +177,18 @@ async def run_image_tool(
         pack_name = pack or "主图拼接"
         if pack_name == "卖点海报":
             if not files:
-                raise ValueError("请上传商品图")
+                raise AppError("tool.product_image_required")
             refs = [publish_public(files[0])]
             full_prompt = f"{ECOM_POSTER}。{full_prompt}".strip("。")
         else:
             if len(files) < 2:
-                raise ValueError("拼接至少上传 2 张图片")
+                raise AppError("tool.stitch_min_images", min=2)
             dest = tools_dir(user.id) / f"collage_{uuid.uuid4().hex[:8]}.jpg"
             collage_images(files, dest, vertical=pack_name == "详情排版")
             url = publish_public(dest)
             return {"kind": "image", "urls": [url], "status": "succeeded"}
     else:
-        raise ValueError("不支持的生图工具")
+        raise AppError("tool.unknown")
 
     result = await ark.gen_image(
         full_prompt,
@@ -380,7 +380,7 @@ async def start_video_tool(
     if tool_id == "t2v":
         text = (prompt or "").strip()
         if len(text) < 4:
-            raise ValueError("请填写视频脚本")
+            raise AppError("tool.video_script_required")
         still = await ark.gen_image(
             f"{text}。电影感静帧，无文字",
             "文字，字幕，水印，logo",
@@ -405,22 +405,22 @@ async def start_video_tool(
         video_prompt = text
     elif tool_id == "v2v":
         if not files:
-            raise ValueError("请上传源视频或首帧图")
+            raise AppError("tool.video_source_required")
         src = files[0]
         if src.suffix.lower() in {".mp4", ".mov", ".webm"}:
             still_path = tools_dir(user.id) / f"frame_{uuid.uuid4().hex[:8]}.jpg"
             if not extract_video_poster_frame(src, still_path):
-                raise ValueError("无法从视频抽取首帧")
+                raise AppError("tool.first_frame_extract_failed")
         else:
             still_path = src
         image_url = publish_public(still_path)
         preview_url = image_url
         video_prompt = f"{(prompt or '保持主体，变换画面风格').strip()}。{motion_hint(motion)}"
     else:
-        raise ValueError("不支持的视频工具")
+        raise AppError("tool.unknown")
 
     if not image_url:
-        raise ValueError("缺少首帧图，无法生成视频")
+        raise AppError("tool.first_frame_required")
 
     task_id = await ark.gen_video_i2v(
         image_url,

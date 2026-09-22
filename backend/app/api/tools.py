@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
@@ -10,9 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.deps import get_current_user
+from app.errors import AppError
 from app.models import ToolRun, User
 from app.schemas_tools import ToolRunListOut, ToolRunOut, ToolRunRecordOut, ToolTaskOut
 from app.services.billing import run_billed_ephemeral_deferred, settle_deferred_video_poll
+from app.services.billing.http import http_exception_for_value_error
 from app.services.studio_tools import (
     enqueue_image_tool,
     get_tool_run,
@@ -26,6 +29,8 @@ from app.services.studio_tools import (
 )
 
 router = APIRouter(prefix="/tools", tags=["tools"])
+
+logger = logging.getLogger(__name__)
 
 IMAGE_TOOLS = {"t2i", "i2i", "i2p", "ecom"}
 VIDEO_TOOLS = {"t2v", "v2v"}
@@ -64,25 +69,22 @@ async def run_tool(
             if not raw:
                 continue
             if len(raw) > 40 * 1024 * 1024:
-                raise ValueError("单个文件不能超过 40MB")
+                raise AppError("common.file_too_large", max_mb=40)
             saved.append(save_upload(user.id, raw, item.filename or "upload.bin"))
         if tid in IMAGE_TOOLS:
-            try:
-                data = await enqueue_image_tool(
-                    db,
-                    user,
-                    tool_id=tid,
-                    prompt=prompt,
-                    negative=negative,
-                    ratio=ratio or None,
-                    strength=strength or None,
-                    mode=mode or None,
-                    pack=pack or None,
-                    files=saved,
-                    params=tool_params,
-                )
-            except ValueError as exc:
-                raise HTTPException(status_code=402, detail=str(exc)) from exc
+            data = await enqueue_image_tool(
+                db,
+                user,
+                tool_id=tid,
+                prompt=prompt,
+                negative=negative,
+                ratio=ratio or None,
+                strength=strength or None,
+                mode=mode or None,
+                pack=pack or None,
+                files=saved,
+                params=tool_params,
+            )
         elif tid in VIDEO_TOOLS:
             async def _exec_video() -> dict:
                 return await start_video_tool(
@@ -96,18 +98,15 @@ async def run_tool(
                     files=saved,
                 )
 
-            try:
-                billing_task, data = await run_billed_ephemeral_deferred(
-                    db,
-                    user,
-                    domain="studio",
-                    task_type="tool_video",
-                    executor=_exec_video,
-                    payload=tool_params,
-                    commit=False,
-                )
-            except ValueError as exc:
-                raise HTTPException(status_code=402, detail=str(exc)) from exc
+            billing_task, data = await run_billed_ephemeral_deferred(
+                db,
+                user,
+                domain="studio",
+                task_type="tool_video",
+                executor=_exec_video,
+                payload=tool_params,
+                commit=False,
+            )
             data = {**data, "billing_task_id": billing_task.id}
             await persist_tool_run(
                 db,
@@ -118,12 +117,15 @@ async def run_tool(
                 data=data,
             )
         else:
-            raise ValueError("未知工具")
+            raise AppError("tool.unknown")
         await db.commit()
+    except HTTPException:
+        raise
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise http_exception_for_value_error(exc) from exc
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(exc)[:400]) from exc
+        logger.exception("tool run failed tool_id=%s", tid)
+        raise AppError("tool.run_failed") from exc
     return ToolRunOut.model_validate(data)
 
 
@@ -135,7 +137,7 @@ async def get_tool_task(
     user: User = Depends(get_current_user),
 ) -> ToolTaskOut:
     if not task_id.strip():
-        raise HTTPException(status_code=400, detail="缺少任务")
+        raise AppError("tool.missing_task")
     tid = task_id.strip()
     row = (
         await db.execute(
@@ -146,7 +148,7 @@ async def get_tool_task(
     # 本地无归属记录即拒绝：上游 task_id 可被持有者之外的人猜测传递，
     # 不能在没有归属凭据时代理查上游（视频 URL 会被拖走）。
     if not row:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise AppError("task.not_found")
     if isinstance(row.params, dict):
         raw_bid = row.params.get("billing_task_id")
         if raw_bid is not None:
@@ -219,6 +221,6 @@ async def get_run(
 ) -> ToolRunRecordOut:
     row = await get_tool_run(db, user.id, run_id)
     if not row:
-        raise HTTPException(status_code=404, detail="记录不存在")
+        raise AppError("tool.run_not_found")
     await db.commit()
     return _record_out(row)
