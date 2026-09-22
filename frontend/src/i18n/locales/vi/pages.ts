@@ -243,7 +243,6 @@ export const viPages = {
       videoFailed: 'Tạo video thất bại',
       pollFailed: 'Không cập nhật được trạng thái',
       generateFailed: 'Tạo thất bại',
-      notLoggedIn: 'Chưa đăng nhập',
     },
     items: {
       t2i: {

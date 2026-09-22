@@ -190,7 +190,7 @@ function ToolWorkspace({ tool: baseTool }: { tool: ToolDef }) {
       setBusy(false)
     } catch (err) {
       const message = err instanceof Error ? err.message : t('tools.errors.generateFailed')
-      if (message === t('tools.errors.notLoggedIn') || message === '未登录') {
+      if (message === t('common.loginRequired')) {
         nav(`/auth?next=/tools/${tool.id}`, { replace: true })
         return
       }

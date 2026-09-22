@@ -236,7 +236,6 @@ export const zhPages = {
       videoFailed: '视频生成失败',
       pollFailed: '查询失败',
       generateFailed: '生成失败',
-      notLoggedIn: '未登录',
     },
     items: {
       t2i: {

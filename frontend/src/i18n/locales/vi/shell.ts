@@ -36,6 +36,12 @@ export const viShell = {
     loginRequired: 'Vui lòng đăng nhập',
     generateFailed: 'Tạo thất bại',
     queryFailed: 'Tra cứu thất bại',
+    requestFailed: 'Có lỗi xảy ra, vui lòng thử lại',
+    uploadFailed: 'Tải lên không thành công',
+    avatarUploadFailed: 'Không tải lên được ảnh đại diện',
+    coverUploadFailed: 'Không tải lên được ảnh bìa',
+    zipDownloadFailed: 'Không tải được file nén',
+    frameUploadFailed: 'Không tải lên được ảnh',
   },
   dialog: {
     confirmTitle: 'Xác nhận',

@@ -243,7 +243,6 @@ export const enPages = {
       videoFailed: 'Video generation failed',
       pollFailed: 'Could not refresh task status',
       generateFailed: 'Generation failed',
-      notLoggedIn: 'Not signed in',
     },
     items: {
       t2i: {

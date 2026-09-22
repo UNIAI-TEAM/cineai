@@ -35,6 +35,12 @@ export const zhShell = {
     loginRequired: '未登录',
     generateFailed: '生成失败',
     queryFailed: '查询失败',
+    requestFailed: '请求失败',
+    uploadFailed: '上传失败',
+    avatarUploadFailed: '头像上传失败',
+    coverUploadFailed: '封面上传失败',
+    zipDownloadFailed: '打包下载失败',
+    frameUploadFailed: '画面上传失败',
   },
   dialog: {
     confirmTitle: '请确认',

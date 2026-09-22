@@ -36,6 +36,12 @@ export const enShell = {
     loginRequired: 'Please sign in',
     generateFailed: 'Generation failed',
     queryFailed: 'Query failed',
+    requestFailed: 'Request failed',
+    uploadFailed: 'Upload failed',
+    avatarUploadFailed: 'Couldn’t upload avatar',
+    coverUploadFailed: 'Couldn’t upload cover',
+    zipDownloadFailed: 'Couldn’t download the ZIP file',
+    frameUploadFailed: 'Couldn’t upload image',
   },
   dialog: {
     confirmTitle: 'Please confirm',
