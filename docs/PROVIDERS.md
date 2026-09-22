@@ -16,7 +16,8 @@ Toàn bộ code gọi upstream nằm trong `backend/app/services/providers/`:
   - `create_video(route, req)` — tạo tác vụ video, trả `task_id` (async, cần poll)
   - `fetch_video(route, task_id)` — tra một lần trạng thái tác vụ, trả `TaskResult`
   - `tts(route, req)` — chuyển văn bản thành audio bytes
-  - `cost_fen(model, raw_usage)` — ước tính chi phí (Plan B mới có bảng giá thật; hiện trả `None`)
+  - `cost_fen(model, raw_usage)` — chi phí fen tính từ usage thật theo bảng `provider_rates`
+    (`services/billing/provider_rates.py`); không usage / model chưa có giá → `None`
   - `url_needs_auth(url)` — URL kết quả có cần Bearer khi tải lại không
   - `is_transient_error(exc)` — lỗi có tạm thời không (được phép failover sang model kế tiếp trong cùng slot)
 - **`registry.py`** — `get_adapter(protocol)` trả về **adapter singleton** theo `protocol`
@@ -216,10 +217,11 @@ Lúc nạp cấu hình (`model_settings._ensure_bootstrapped_channels`):
 - Provider mà base URL suy ra từ env vẫn trỏ `tokenfree.com` thì bị bỏ qua. Key giữ chỗ
   (`replace-me`, `changeme`, `your-*`, `sk-xxx*`, `<...>`) được coi như rỗng. `.env` không có key nào thì
   chưa tính là đã seed (điền key rồi khởi động lại vẫn seed được).
-- Có cấu hình Volc TTS trong env thì slot `audio` được seed với binding Volc đứng đầu. Response `AdminRoutingSettingsSaveOut.applied` cho biết những phần nào
-đã được lưu (`providers`, `function_bindings`); lỗi validate (provider không tồn tại, model chưa bật ở
-provider, model sai capability…) trả `HTTP 400` với message tiếng Việt từ
-`function_bindings.validate_function_bindings()`.
+- Có cấu hình Volc TTS trong env thì slot `audio` được seed với binding Volc đứng đầu.
+
+Response `AdminRoutingSettingsSaveOut.applied` cho biết những phần nào đã được lưu (`providers`,
+`function_bindings`); lỗi validate (provider không tồn tại, model chưa bật ở provider, model sai
+capability…) trả `HTTP 400` với message tiếng Việt từ `function_bindings.validate_function_bindings()`.
 
 `GET /api/media-models?scope=<kepu|drama|tools>` (public, không cần admin) trả danh sách model đang khả
 dụng cho từng nhóm chức năng — dùng để hiển thị dropdown chọn model ở frontend, không dùng để cấu hình.
@@ -240,13 +242,13 @@ dụng cho từng nhóm chức năng — dùng để hiển thị dropdown chọ
   (mục 2) — model mới ra mắt ở console BytePlus sẽ không tự xuất hiện.
 - **OpenAI-compatible (OpenRouter, `custom_openai`) không tạo video** vì dùng chung `OpenAIAdapter`; nếu
   cần video từ endpoint OpenAI-compatible khác Ark, phải viết adapter riêng (mục 1).
-- **`cost_fen()` của cả hai adapter hiện trả `None`** (chưa có bảng giá `provider_rates`) — chi phí ước
-  tính đóng băng/quyết toán dùng hằng số cũ trong `services/billing/` cho tới khi Plan B thêm bảng giá
-  thật theo provider.
-- **`tokenfree_pricing.py` / `tokenfree_usage.py` vẫn còn trong repo có chủ đích** (dùng cho màn admin
-  "So sánh dùng lượng upstream", Plan B sẽ xoá). `tokenfree_usage.resolve_tokenfree_api_key()` chỉ trả
-  key của kênh TokenFree đã lưu (nay luôn rỗng, vì kênh này bị xoá lúc nạp) — **không còn** mượn key
-  OpenAI/Ark để gọi tokenfree.com.
+- **Model chưa có dòng giá** (vd. endpoint `ep-…` tự đặt) được tính theo giá token dự phòng `BILLING_*_PER_M`
+  và hiện trong `unpriced_models` của `GET /api/admin/settings/billing/model-rates` — thêm dòng giá cho chúng.
+- **Nhãn model của dòng usage TTS phim ngắn không chắc khớp model thực chạy.** `voice_synthesis.py`
+  (`_drama_tts_model()`) lấy model theo lượt chọn ngẫu nhiên (weight) của slot `drama.tts` để ghi vào
+  `usage_events.model`, không phải model mà `TtsService` thực tế đã dùng (cascade mock → slot → edge-tts
+  có thể rơi vào một nhánh khác). Số tiền vẫn bị chặn trên bởi giá ước tính nên không bị tính quá, nhưng
+  tên model trên dòng usage có thể sai — hạn chế đã biết, chưa khắc phục.
 - **Mock khi chưa có key**: đặt `ARK_MOCK=true`, hoặc không cấu hình bất kỳ provider nào có `api_key` —
   `MediaGateway.mock` sẽ tự phát hiện (`get_routing_snapshot().channels` không có channel nào
   `enabled` + có key) và chuyển toàn bộ ảnh/video/TTS sang sinh dữ liệu giả cục bộ (`static/mock/...`),

@@ -2,8 +2,8 @@
 
 ## 原则
 
-- 按上游 **真实 TokenFree 成本**（或无法拿到 usage 时的保守估价）计费。
-- 用户支付价 = TokenFree 官方成本，**不再加价**。
+- 按 **provider_rates 价目表**（各 provider 官方美元价，管理端可改）计算上游成本；无法拿到 usage 时用保守估价。
+- 用户支付价 = 上游成本，**不再加价**。
 - 钱包内部单位：**分（fen，1/100 CNY）**，仅作记账基准；**任何界面不展示人民币**。
 - 展示货币：默认 **VND**，可切 **USD**（见下文「展示货币层」）。
 - 充值：**银行转账 + 管理员确认到账**，无第三方支付网关（见下文「银行转账充值」）。
@@ -33,20 +33,42 @@ charge_fen = ceil(tokens / 1e6 * provider_yuan_per_m * 100)
 | seedream | 8（按次折合约；有上游费用则优先） |
 | tts | 2（按次估价） |
 
-### TokenFree / New API（quota 计费）
+### provider_rates（按模型的美元价目）
 
-上游统一走 TokenFree。单次调用若返回 `usage.quota` / `quota_consumed`，按 New API 额度折人民币：
+存于 `app_settings.config_json["provider_rates"]`，首次启动自动写入默认表；管理端「支付与计费」可改（`GET/PUT /api/admin/settings/billing/model-rates`）。每行 `{pattern, unit, usd, usd_out?, note}`，`pattern` 为模型 id 的 glob（不区分大小写），**自上而下第一条匹配生效**（如 `dreamina-seedance-2-0-fast*` 必须在 `dreamina-seedance-2-0*` 之前）。
+
+| unit | 成本（USD） |
+|---|---|
+| `per_image` | `usage.generated_images`（缺省 1）× usd |
+| `per_m_tokens` | `usage.total_tokens / 1e6 × usd` |
+| `per_m_output_tokens` | `usage.output_tokens / 1e6 × usd` |
+| `per_m_input_output` | `in / 1e6 × usd + out / 1e6 × usd_out`（只有总 token 时按 70/30 拆） |
+| `per_m_chars` | `字符数 / 1e6 × usd` |
 
 ```
-cost_fen = ceil(quota / 500000 × BILLING_USD_CNY × 100)   # 500000 quota = 1 USD
+cost_fen = ceil(usd × BILLING_USD_CNY × 100)   # usd > 0 时至少 1 分
 charge_fen = cost_fen
 ```
 
-未返回 quota 时回退 token 单价。管理端「支付与计费」可「查询 TokenFree 余额」（`GET /v1/dashboard/billing/subscription` + `usage`），并拉取公开价目 `GET https://www.tokenfree.com/api/pricing` 展示推荐模型官方价。
+结算顺序（`pricing.charge_fen_for_usage`）：① usage 已带 `cost_fen`（adapter 按 provider_rates 用真实 usage 算好）→ 直接用；② 按 `raw_usage.model`（上游真实模型）或调用方模型匹配 provider_rates；③ 都不匹配 → 上表「按 token 估价」（`BILLING_*_PER_M`，元/百万 token）。生图不会记 0：按 token 计价的图像模型无 usage 时按 6 240 输出 token 封顶估（`EST_IMAGE_OUTPUT_TOKENS`，来源 gpt-image 质量 high、1536×1024 的 OpenAI 图像 token 表：platform.openai.com/docs/guides/image-generation#calculating-costs，2026-09-22 查阅；未验证是否适用于 gpt-image-2/2.5），未匹配的图像模型按 `BILLING_EST_SEEDREAM_TOKENS`。已**移除** New API quota（500000 = 1 USD）、火山人民币 `cost`、Kie credits 解析。
 
-预扣：生图 API 走 TokenFree 实测可通的 `gpt-image-2-5`（分组里没有 `gpt-image-2-5-sunburst`）。计费按 Kie 积分档（1K 6 积分 / 2K 10 积分 / 4K 16 积分；默认 3.5 分/积分 → 2K 35 分，对应 $0.03 / $0.05 / $0.08）。Seedream 会改走 `gpt-image-2-5`，**不要**用 OpenAI $0.625 目录价。**按张官价不再乘 `billing_estimate_buffer`（默认 1.2）**。LLM / 视频 / TTS 估价仍乘缓冲。结算优先单次 `quota` 或 Kie credits；无用量时同样按张档位价，**不再**用 8 元/百万 token。LLM 按官方 in/out（默认 kimi-k2.6，70/30 拆）。视频不用价目表占位 `model_ratio=37.5`，按火山 480P 秒价 × 清晰度倍率（720P×2 / 1080P×4）；漫剧缺省按 720P。勿把 New API 的美元 `cost` 当人民币。
+`usd = 0` 的价目行不会让对应模型免费：`rate_cost_usd` 把 `usd <= 0` 当作「没算出成本」，结算会继续走上表的 token 兜底价（`services/billing/provider_rates.py` `rate_cost_usd`）。要免费只能把该模型从价目表移除并接受 token 兜底价，或改动 `rate_cost_usd` 让调用方接住显式 0。
 
-管理端「官方用量对照」复用模型页 TokenFree API Key，拉取 New API 日消耗（`/api/data/self` 或 billing usage，日期无效时按累计额度差分记到当天）并与本地成本对照。
+空价目表（`items: []`）是合法状态：所有模型都落到 token 兜底价，绝不会因为表空而按 0 结算。
+
+预扣（`estimates.py` + `rate_quotes.py`）：按任务对应的**功能**（`kepu.image`、`drama.video`、`tools.image`…）取 slot/override 中仍有效的模型，**取其中最贵者**：
+
+- 图片：每张价，**不乘** `BILLING_ESTIMATE_BUFFER`（清晰度不影响 Seedream 按张价）。
+- 视频：`ceil(max(秒,2) × 宽 × 高 × 24 / 1024)` token × 每百万价 × 缓冲；480p=864×480、720p=1280×720、1080p=1920×1080；漫剧缺省 720p。视频 token 公式来自 BytePlus Seedance 计费文档（chưa xác minh URL）。
+- LLM / TTS：`BILLING_EST_LLM_TOKENS` / `BILLING_EST_TTS_TOKENS` × 模型价 × 缓冲；对应 usage 行（估算）的 `model` 记为同一最贵模型，保证预扣与结算口径一致。
+
+模型顺序：结算按「建任务时的模型」优先匹配价目，匹配不到再退到上游回传（echo）的模型（`provider_rates.first_priced_model`）。0 张图片的生成结果按 0 fen 结算（upstream 明确报告 `generated_images: 0` 时不再套用估价）。LLM 的真实用量通过 `services/billing/context.py` 的 ContextVar（`billing_scope`）逐次调用记录并累加计价；某次调用没有上游 usage 时，按该次调用的单次估算价格计入（模型取该次调用真实路由到的模型，不是槽位最贵模型的兜底）。
+
+结算金额可能超过预扣（`freeze_for_task` 的估算额）：常见于失败重试后的补记、或把一个 seed 阶段的多次调用并入下一条 usage 行。超出部分由 `settlement.py::settle_task` 的溢出分支直接从余额扣除，**没有上限**（这是既有行为，非本次新增）。
+
+配音（TTS）的用量行模型标签目前取的是槽位随机挑选的结果，不是 `TtsService` 实际调用成功的那个模型/供应商（`voice_synthesis.py`）——标签可能与实际调用的供应商不一致；金额仍按估算封顶，不会因此多扣钱，但账目上的模型名可能有误。
+
+管理端返回 `unpriced_models`：已分配（provider 已启用且有 key）但没有任何价目行匹配的模型（如自定义 `ep-…` 接入点），这些模型会按 token 兜底价结算，请补价目行。BytePlus Seed Speech（`volc_tts`）目前没有默认价目行，会一直出现在这份列表里，直到有人为它补一条价——这是有意保留的提醒，不做隐藏。
 
 ## TaskRun 计费流程
 
@@ -139,7 +161,6 @@ api/studio 轻量视频：`awaiting_poll` 由 Selector 后台轮询；超过 `ar
 ```
 BILLING_ENABLED=true
 BILLING_MARKUP=1.0
-BILLING_KIE_FEN_PER_CREDIT=3.5
 BILLING_DISPLAY_CURRENCY=VND
 BILLING_CNY_VND=3600
 BILLING_USD_CNY=7.0
@@ -164,19 +185,19 @@ TOPUP_ORDER_EXPIRE_HOURS=24
 | POST | `/api/admin/orders/{no}/close` | 管理员关闭待支付单 |
 | GET | `/api/admin/usage-events` | 管理端用量明细分页 |
 | GET | `/api/admin/tasks/{id}` | 任务详情含 `usage_lines` 与计费字段 |
-| GET | `/api/admin/stats/upstream-usage` | 近 N 日官方/本地成本对照 |
-| POST | `/api/admin/stats/upstream-usage/sync` | 手动刷新官方用量快照 |
-| GET | `/api/admin/settings/billing/model-rates` | 推荐模型 TokenFree 官方价（/api/pricing） |
-| GET | `/api/admin/settings/tokenfree/quota` | 查询 TokenFree 账户剩余额度 |
+| GET | `/api/admin/settings/billing/model-rates` | provider_rates 价目表（含默认表、单位、未定价模型、USD→CNY 汇率） |
+| PUT | `/api/admin/settings/billing/model-rates` | 整表替换 `{items:[…]}`；校验失败 400（越南语提示） |
+| GET | `/api/admin/finance/daily` | 按日扣费 / 成本 / 利润（成本 = 本地 `cost_fen`） |
+
+已移除「官方用量对照」相关接口（`/api/admin/stats/upstream-usage`、`.../sync`、`/api/admin/settings/tokenfree/quota`）：不再有可对照的上游账单来源，本地 `cost_fen` 就是唯一的成本口径。`models.py` 里的 `upstream_usage_daily` 表仍在（未删列，符合"不加 Alembic 迁移"的约束），但已无代码写入或读取；`GET /api/admin/finance/daily` 的 `actual_cost_fen` 字段恒等于 `cost_fen`，只是保留字段名兼容前端，管理端应把它们当同一列展示。
 
 ## 管理端
 
-- **设置 → 支付与汇率**：银行转账收款信息、展示货币与汇率；按 TokenFree 官方成本 1:1 扣费；可查看模型费率表与查询 TokenFree 余额。
+- **设置 → 支付与汇率**：银行转账收款信息、展示货币与汇率；按上游成本 1:1 扣费；可编辑 provider_rates 价目表。
 - **订单** → 待支付单可「确认到账」（入账）或「关闭」。
 - **订单与流水** → 「用量明细」Tab：按用户/任务/领域筛选 `usage_events`。
 - **任务队列** → 列表「费用」列显示 `billing_charged_fen`（冻结中显示预扣）。
 - **任务详情** → 「计费」Tab：预扣/实扣/退回 + 用量行列表。
-- **仪表盘** → 「TokenFree 官方用量对照」：本地成本 vs New API 用量（需在「模型」填写 TokenFree API Key）。
 
 ## 验收清单
 
@@ -185,8 +206,8 @@ TOPUP_ORDER_EXPIRE_HOURS=24
 3. 漫剧聊天 / 选题扩写 / Skill 优化 / 音色描述 / 开放 API / 工作室工具：响应含 `task_id`（轻量 TaskRun），余额变化正确。
 4. 管理端可按 `task_run_id` 或 `billing_key=llm_chat` 查到每条 LLM/图/视频/TTS 费用。
 5. Seedance 视频成功后 `usage_events.estimated=false` 且 `total_tokens` 与官方任务查询一致。
-6. 配置 TokenFree API Key 后，管理端可刷新并查看近 30 日官方/本地成本对照。
-7. 单次调用若带 New API `quota` / `quota_consumed`，按额度折算后按官方成本 1:1 扣费；管理端可查询 TokenFree 余额。
+6. 管理端修改 provider_rates 后，新任务预扣与结算按新价计算；未定价模型出现在 unpriced_models。
+7. 生图 / 视频结算金额 = provider_rates 按真实 usage 计算（Seedream 按张、Seedance 按 total_tokens、gpt-image 按输出 token）。
 8. 定价页建单 → 管理端确认到账 → 余额按 `credit_fen` 增加；切换 VND / USD 全站金额一致且无 `¥`。
 
 ## 展示货币层
@@ -197,7 +218,7 @@ TOPUP_ORDER_EXPIRE_HOURS=24
 |------|------|------|
 | `BILLING_DISPLAY_CURRENCY` | `VND` | 默认展示货币（VND / USD），管理端「支付与汇率」可改 |
 | `BILLING_CNY_VND` | `3600` | 1 CNY 折 VND |
-| `BILLING_USD_CNY` | `7.0` | 1 USD 折 CNY（同时用于 TokenFree quota 折算） |
+| `BILLING_USD_CNY` | `7.0` | 1 USD 折 CNY（同时用于 provider_rates 美元价折算） |
 
 - `GET /api/billing/currency` 返回 `{ default, options, per_fen }`，`per_fen[c]` 为 1 分折合货币 c 的数值；用户端 `lib/money.ts`、管理端 `lib/currency.ts` 据此格式化（VND 取整 `1.000.000 ₫`，USD `$12.34`），用户选择存 localStorage。
 - 后端对用户的提示（余额不足、消费提醒、官方价目标签）统一经 `format_money(fen)` 按默认展示货币输出。

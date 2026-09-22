@@ -35,7 +35,7 @@ pytest tests/test_kepu_continuity.py    # 单文件
 pytest tests/test_x.py::test_name       # 单测
 ```
 
-注意：使用 `db_session` fixture 的是集成测试，**需要 PostgreSQL 在运行**（事务回滚隔离，不写库）；其余为纯单测可直接跑。conftest 已自动 stub TokenFree 价目网络请求。
+注意：使用 `db_session` fixture 的是集成测试，**需要 PostgreSQL 在运行**（事务回滚隔离，不写库）；其余为纯单测可直接跑。conftest 每个用例自动把 provider_rates 重置为默认表；需要标准路由时用 fixture priced_routing。
 
 健康检查 `/api/health`（含 task_runtime / db_pool / models），Swagger `/docs`。
 
@@ -70,7 +70,7 @@ pytest tests/test_x.py::test_name       # 单测
 
 ### 计费：每个 TaskRun 走「预扣 → 用量行 → 结算」
 
-钱包单位为**分**（`users.balance_fen/frozen_fen`）。`services/billing/`：建任务时按估价 freeze → 执行中写 `usage_events` → poller 收尾 `settle_task` 扣实费退冻结。优先取上游真实 quota（New API: 500000 quota = 1 USD，`BILLING_USD_CNY`），取不到才用本地保守估价；官方价目由 `tokenfree_pricing.py` 拉取缓存。默认 `BILLING_ENABLED=false`。详见 `docs/BILLING.md`。**界面不展示人民币**：`services/billing/money.py` 按 `BILLING_DISPLAY_CURRENCY`（VND 默认 / USD）与汇率 `BILLING_CNY_VND`、`BILLING_USD_CNY` 折算展示，充值包以 VND 定义（`pricing.py`），充值走银行转账建单 + 管理端「订单」确认到账（`services/billing/topup.py`），无第三方支付网关。
+钱包单位为**分**（`users.balance_fen/frozen_fen`）。`services/billing/`：建任务时按估价 freeze → 执行中写 `usage_events` → poller 收尾 `settle_task` 扣实费退冻结。成本按 provider_rates 价目表（app_settings.config_json，管理端可改；services/billing/provider_rates.py）计算：adapter.cost_fen 用真实 usage 算出 cost_fen，否则按模型匹配价目，再不行按 BILLING_*_PER_M token 兜底；预扣按功能 slot 内最贵模型估算（rate_quotes.py）。默认 `BILLING_ENABLED=false`。详见 `docs/BILLING.md`。**界面不展示人民币**：`services/billing/money.py` 按 `BILLING_DISPLAY_CURRENCY`（VND 默认 / USD）与汇率 `BILLING_CNY_VND`、`BILLING_USD_CNY` 折算展示，充值包以 VND 定义（`pricing.py`），充值走银行转账建单 + 管理端「订单」确认到账（`services/billing/topup.py`），无第三方支付网关。
 
 ### 数据层与"迁移"方式
 
