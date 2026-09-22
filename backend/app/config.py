@@ -114,11 +114,11 @@ class Settings(BaseSettings):
     billing_tts_per_m: float = 2.0
     # Kie：1 credit 折合人民币分（约 $0.005 ≈ ¥0.035 → 3.5）
     billing_kie_fen_per_credit: float = 3.5
-    # provider（New API 协议）：quota→USD→人民币（500000 quota = 1 USD）
+    # provider_rates 美元价 → 人民币分的汇率（1 USD = N CNY）
     billing_usd_cny: float = 7.0
     # Fallback tokens when API omits usage
     billing_est_llm_tokens: int = 80_000
-    # Seedream / gpt-image 无 quota 时按张价结算，不再用 4.5 万 token × 8 元/百万
+    # 未定价的图像模型且无 usage 时的兜底 token 数（× BILLING_SEEDREAM_PER_M），保证生图不按 0 结算
     billing_est_seedream_tokens: int = 45_000
     billing_est_tts_tokens: int = 5_000
     billing_est_seedance_tokens_per_sec: int = 32_000

@@ -35,7 +35,7 @@ charge_fen = ceil(tokens / 1e6 * provider_yuan_per_m * 100)
 
 ### provider_rates（按模型的美元价目）
 
-存于 `app_settings.config_json["provider_rates"]`，首次启动自动写入默认表；管理端「支付与计费」可改（`GET/PUT /api/admin/settings/billing/model-rates`）。每行 `{pattern, unit, usd, usd_out?, note}`，`pattern` 为模型 id 的 glob（不区分大小写），**自上而下第一条匹配生效**（如 `dreamina-seedance-2-0-fast*` 必须在 `dreamina-seedance-2-0*` 之前）。
+存于 `app_settings.config_json["provider_rates"]`，首次启动自动写入默认表；可通过后端管理 API `GET/PUT /api/admin/settings/billing/model-rates` 修改（管理端编辑界面随管理端更新（Plan C）提供）。每行 `{pattern, unit, usd, usd_out?, note}`，`pattern` 为模型 id 的 glob（不区分大小写），**自上而下第一条匹配生效**（如 `dreamina-seedance-2-0-fast*` 必须在 `dreamina-seedance-2-0*` 之前）。
 
 | unit | 成本（USD） |
 |---|---|
@@ -50,16 +50,16 @@ cost_fen = ceil(usd × BILLING_USD_CNY × 100)   # usd > 0 时至少 1 分
 charge_fen = cost_fen
 ```
 
-结算顺序（`pricing.charge_fen_for_usage`）：① usage 已带 `cost_fen`（adapter 按 provider_rates 用真实 usage 算好）→ 直接用；② 按 `raw_usage.model`（上游真实模型）或调用方模型匹配 provider_rates；③ 都不匹配 → 上表「按 token 估价」（`BILLING_*_PER_M`，元/百万 token）。生图不会记 0：按 token 计价的图像模型无 usage 时按 6 240 输出 token 封顶估（`EST_IMAGE_OUTPUT_TOKENS`，来源 gpt-image 质量 high、1536×1024 的 OpenAI 图像 token 表：platform.openai.com/docs/guides/image-generation#calculating-costs，2026-09-22 查阅；未验证是否适用于 gpt-image-2/2.5），未匹配的图像模型按 `BILLING_EST_SEEDREAM_TOKENS`。已**移除** New API quota（500000 = 1 USD）、火山人民币 `cost`、Kie credits 解析。
+结算顺序（`pricing.charge_fen_for_usage`）：① usage 已带 `cost_fen`（adapter 按 provider_rates 用真实 usage 算好）→ 直接用；② 先按调用方（建任务时）的模型匹配 provider_rates，匹配不到再退到 `raw_usage.model`（上游回传的模型）（`first_priced_model`，与下文「模型顺序」一致）；③ 都不匹配 → 上表「按 token 估价」（`BILLING_*_PER_M`，元/百万 token）。生图不会记 0：按 token 计价的图像模型无 usage 时按 6 240 输出 token 封顶估（`EST_IMAGE_OUTPUT_TOKENS`，来源 gpt-image 质量 high、1536×1024 的 OpenAI 图像 token 表：platform.openai.com/docs/guides/image-generation#calculating-costs，2026-09-22 查阅；未验证是否适用于 gpt-image-2/2.5），未匹配的图像模型按 `BILLING_EST_SEEDREAM_TOKENS`。已**移除** New API quota（500000 = 1 USD）、火山人民币 `cost`、Kie credits 解析。
 
-`usd = 0` 的价目行不会让对应模型免费：`rate_cost_usd` 把 `usd <= 0` 当作「没算出成本」，结算会继续走上表的 token 兜底价（`services/billing/provider_rates.py` `rate_cost_usd`）。要免费只能把该模型从价目表移除并接受 token 兜底价，或改动 `rate_cost_usd` 让调用方接住显式 0。
+`usd = 0` 的价目行不会让对应模型免费：`rate_cost_usd` 本身只按价目返回 `0.0`，是它的调用方把 `usd <= 0` 当作「没算出成本」并继续走上表的 token 兜底价——`provider_rates.provider_cost_fen` 返回 `None`，`pricing.charge_fen_for_usage` 跳过该结果后按 token 计价。要免费只能把该模型从价目表移除并接受 token 兜底价，或改动这两个调用方让它们接住显式 0。
 
 空价目表（`items: []`）是合法状态：所有模型都落到 token 兜底价，绝不会因为表空而按 0 结算。
 
 预扣（`estimates.py` + `rate_quotes.py`）：按任务对应的**功能**（`kepu.image`、`drama.video`、`tools.image`…）取 slot/override 中仍有效的模型，**取其中最贵者**：
 
 - 图片：每张价，**不乘** `BILLING_ESTIMATE_BUFFER`（清晰度不影响 Seedream 按张价）。
-- 视频：`ceil(max(秒,2) × 宽 × 高 × 24 / 1024)` token × 每百万价 × 缓冲；480p=864×480、720p=1280×720、1080p=1920×1080；漫剧缺省 720p。视频 token 公式来自 BytePlus Seedance 计费文档（chưa xác minh URL）。
+- 视频：`ceil(max(秒,2) × 宽 × 高 × 24 / 1024)` token × 每百万价 × 缓冲；480p=864×480、720p=1280×720、1080p=1920×1080；漫剧缺省 720p。视频 token 公式来自 BytePlus Seedance 计费文档（暂未核实具体链接）。
 - LLM / TTS：`BILLING_EST_LLM_TOKENS` / `BILLING_EST_TTS_TOKENS` × 模型价 × 缓冲；对应 usage 行（估算）的 `model` 记为同一最贵模型，保证预扣与结算口径一致。
 
 模型顺序：结算按「建任务时的模型」优先匹配价目，匹配不到再退到上游回传（echo）的模型（`provider_rates.first_priced_model`）。0 张图片的生成结果按 0 fen 结算（upstream 明确报告 `generated_images: 0` 时不再套用估价）。LLM 的真实用量通过 `services/billing/context.py` 的 ContextVar（`billing_scope`）逐次调用记录并累加计价；某次调用没有上游 usage 时，按该次调用的单次估算价格计入（模型取该次调用真实路由到的模型，不是槽位最贵模型的兜底）。
@@ -193,7 +193,8 @@ TOPUP_ORDER_EXPIRE_HOURS=24
 
 ## 管理端
 
-- **设置 → 支付与汇率**：银行转账收款信息、展示货币与汇率；按上游成本 1:1 扣费；可编辑 provider_rates 价目表。
+- **设置 → 支付与汇率**：银行转账收款信息、展示货币与汇率；按上游成本 1:1 扣费。
+- **provider_rates 价目表**：后端 API `GET/PUT /api/admin/settings/billing/model-rates` 已上线；管理端的编辑界面随管理端更新（Plan C）提供，在此之前只能通过 API 修改。
 - **订单** → 待支付单可「确认到账」（入账）或「关闭」。
 - **订单与流水** → 「用量明细」Tab：按用户/任务/领域筛选 `usage_events`。
 - **任务队列** → 列表「费用」列显示 `billing_charged_fen`（冻结中显示预扣）。
