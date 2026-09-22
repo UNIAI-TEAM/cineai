@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.deps import get_current_user
+from app.errors import AppError
 from app.models import User
 from app.models_drama import (
     DramaEpisode,
@@ -249,7 +250,7 @@ async def seed_episodes(
         await seed_episodes_from_script(db, project, force=force)
     except ValueError as exc:
         logger.warning("切分镜失败 project_id=%s err=%s", project_id, exc)
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise http_exception_for_value_error(exc) from exc
     result = await db.execute(
         select(DramaEpisode)
         .where(DramaEpisode.project_id == project_id)
@@ -286,11 +287,11 @@ async def confirm_episode_from_script(
     """确认一集剧本：增量抽取资产并只切该集分镜。"""
     project = await get_owned_drama_project(db, body.project_id, user, with_script=True)
     if not project.script:
-        raise HTTPException(status_code=400, detail="缺少剧本")
+        raise AppError("drama.script_missing")
     try:
         require_confirmable_episode_body(project.script.episode_content, body.episode_number)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise http_exception_for_value_error(exc) from exc
 
     locked = (
         await db.execute(
@@ -299,7 +300,7 @@ async def confirm_episode_from_script(
     ).scalar_one()
     params = dict(locked.params or {}) if isinstance(locked.params, dict) else {}
     if str(params.get("assets_seed_status") or "") == "generating":
-        raise HTTPException(status_code=409, detail="资产抽取进行中，请稍后再确认")
+        raise AppError("drama.assets_extracting")
 
     params["assets_seed_status"] = "generating"
     params["assets_seed_generating_at"] = datetime.now(UTC).isoformat()
@@ -446,10 +447,7 @@ async def plan_episode_fragments(
             for f in (ep.fragments or [])
         )
         if protected:
-            raise HTTPException(
-                status_code=409,
-                detail="本集含已生成视频或手改分镜，请确认后强制重新分镜",
-            )
+            raise AppError("drama.fragments_protected")
 
     params["fragment_plan_status"] = "generating"
     params.pop("fragment_plan_error", None)
@@ -577,15 +575,15 @@ async def activate_video_version(
     )
     fragment = result.scalar_one_or_none()
     if not fragment:
-        raise HTTPException(status_code=404, detail="分镜不存在")
+        raise AppError("drama.fragment_not_found")
     await get_owned_episode(db, fragment.episode_id, user)
     status = str(fragment_generation_status(fragment).get("status") or "")
     if status in {"queued", "running", "generating"}:
-        raise HTTPException(status_code=409, detail="分镜正在生成，请完成后再切换版本")
+        raise AppError("drama.fragment_generating")
     try:
         payload = activate_fragment_video_version(fragment, body.version_id.strip())
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise http_exception_for_value_error(exc) from exc
     await db.commit()
     await db.refresh(fragment)
     return {"ok": True, **payload}
@@ -610,10 +608,7 @@ async def generate_episode(
             body.fragment_ids,
             [f.id for f in all_frags],
         )
-        raise HTTPException(
-            status_code=400,
-            detail="没有可生成的分镜（保存后分镜已更新，请再点一次生成）",
-        )
+        raise AppError("drama.no_fragments_to_generate")
 
     # 已在排队/生成的分镜跳过；其余按镜序入队（衔接时后一镜等上一镜尾帧）
     idle_frags = [
@@ -623,10 +618,7 @@ async def generate_episode(
     ]
     idle_frags.sort(key=lambda f: int(f.sort_order or 0))
     if not idle_frags:
-        raise HTTPException(
-            status_code=409,
-            detail="所选分镜正在生成，请等待完成后再试",
-        )
+        raise AppError("drama.fragments_all_generating")
 
     # 尾帧衔接：上一镜在生成/排队时可先入队本镜，由任务队列按镜序等待；未开上一镜则仍拒绝
     if project_link_last_frame_enabled(project):
@@ -649,10 +641,7 @@ async def generate_episode(
             if not prev_last:
                 prev_last = await ensure_fragment_last_frame_url(project, prev)
             if not prev_last and not (prev.video or "").strip():
-                raise HTTPException(
-                    status_code=400,
-                    detail="已开启尾帧衔接：请先生成上一镜并等待尾帧就绪后，再点本镜生成",
-                )
+                raise AppError("drama.prev_fragment_required")
 
     # 清除进程内「本集已取消」标记，避免旧取消态把新入队任务立刻作废
     clear_episode_video_cancelled(episode_id)
@@ -863,7 +852,7 @@ async def compose_episode(
     project = await get_owned_drama_project(db, ep.project_id, user)
     episode = await load_episode_for_compose(db, episode_id)
     if episode is None:
-        raise HTTPException(status_code=404, detail="分集不存在")
+        raise AppError("drama.episode_not_found")
     req = body or DramaComposeEpisodeRequest()
     try:
         url = await compose_episode_video(
@@ -872,11 +861,14 @@ async def compose_episode(
             project=project,
             fragment_ids=req.fragment_ids,
         )
+    except AppError:
+        raise
     except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        logger.warning("episode compose failed episode_id=%s err=%s", episode_id, exc)
+        raise AppError("drama.compose_failed", status=400) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("episode compose failed episode_id=%s", episode_id)
-        raise HTTPException(status_code=500, detail=f"全片合成失败：{exc}") from exc
+        raise AppError("drama.compose_failed") from exc
     return {"ok": True, "video_url": url, "episode_id": episode_id}
 
 

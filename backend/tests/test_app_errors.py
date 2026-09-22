@@ -226,3 +226,37 @@ def test_frontend_error_translations_match_catalog(locale: str) -> None:
     keys = set(KEY_RE.findall(src))
     assert sorted(set(ERRORS) - keys) == [], f"{locale} 缺少翻译"
     assert sorted(keys - set(ERRORS)) == [], f"{locale} 有多余的码"
+
+
+def test_drama_api_has_no_chinese_http_detail() -> None:
+    """api/drama 下不再直接抛中文 detail 的 HTTPException。"""
+    drama_dir = Path(__file__).resolve().parents[1].joinpath("app/api/drama")
+    offenders = [
+        f"{path.name}: {line.strip()}"
+        for path in sorted(drama_dir.glob("*.py"))
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if "detail=" in line and re.search(r"[一-鿿]", line)
+    ]
+    assert offenders == []
+
+
+def test_drama_service_errors_keep_chinese_text_and_code() -> None:
+    """漫剧 service 抛 AppError：str() 仍为原中文（TaskRun 落库不变），同时带错误码。"""
+    from app.services.agent.parse import SkillParseError, parse_skill_markdown
+    from app.services.drama.agents import MAX_DRAMA_EPISODES, append_manual_episode
+    from app.services.drama.seed import require_confirmable_episode_body
+
+    with pytest.raises(AppError) as exc_info:
+        require_confirmable_episode_body({"episodes": []}, 3)
+    assert exc_info.value.code == "drama.episode_script_not_found"
+    assert exc_info.value.params == {"number": 3}
+    assert str(exc_info.value) == "找不到第 3 集剧本"
+
+    with pytest.raises(AppError) as exc_info:
+        append_manual_episode([{"episodeNumber": MAX_DRAMA_EPISODES, "title": "终章", "body": ""}])
+    assert exc_info.value.code == "drama.max_episodes"
+
+    with pytest.raises(SkillParseError) as skill_exc:
+        parse_skill_markdown("   ")
+    assert skill_exc.value.code == "drama.skill_empty"
+    assert skill_exc.value.status == 400

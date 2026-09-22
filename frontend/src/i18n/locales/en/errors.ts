@@ -1,4 +1,4 @@
-/** 英文：接口错误码文案（key 与 backend/app/errors.py 的 ERRORS 一致） */
+/** 英文：接口错误码文案（errors 的 key 与 backend/app/errors.py 的 ERRORS 一致）；dramaGenError 为漫剧生成失败说明（lib/dramaGenError.ts） */
 
 export const enErrors = {
   errors: {
@@ -78,5 +78,192 @@ export const enErrors = {
     'project.not_ready_to_publish': 'The video isn’t finished yet, so it can’t be published',
     'project.narration_empty': 'All scenes have empty narration, so no voice-over can be made',
     'project.shot_narration_empty': 'Narration is empty, so no voice-over can be made',
+    'drama.project_not_found': 'Drama project not found',
+    'drama.script_not_found': 'Script not found',
+    'drama.script_missing': 'This project has no script yet',
+    'drama.summary_required': 'Generate the script summary first',
+    'drama.episode_scripts_required': 'Generate the episode scripts first',
+    'drama.creative_too_short': 'The story idea needs at least {min} characters',
+    'drama.invalid_generate_mode': 'Invalid generation mode',
+    'drama.episodes_generating': 'All episode scripts are being generated. Try improving this episode later',
+    'drama.episodes_generating_add': 'All episode scripts are being generated. Add an episode after it finishes',
+    'drama.draft_required': 'Enter a draft for this episode first, then let AI improve it',
+    'drama.draft_too_short': 'The script draft needs at least {min} characters',
+    'drama.episode_creative_required': 'Enter the idea for this episode first (at least {min} characters)',
+    'drama.episode_body_required': 'This episode needs script content before AI can fill in the idea and summary',
+    'drama.max_episodes': 'Up to {max} episodes',
+    'drama.llm_unavailable': 'The text model is unavailable right now. Please try again later',
+    'drama.episode_not_found': 'Episode not found',
+    'drama.invalid_episode_number': 'Invalid episode number',
+    'drama.episode_script_not_found': 'Couldn’t find the script for episode {number}',
+    'drama.episode_body_too_short': 'Episode {number} is too short. Finish it or let AI improve it before confirming the storyboard',
+    'drama.episode_reload_failed': 'The episode was saved but couldn’t be reloaded. Please refresh the page',
+    'drama.asset_not_found': 'Asset not found',
+    'drama.character_asset_not_found': 'Character not found',
+    'drama.character_asset_only': 'Only character assets are supported',
+    'drama.prompt_required': 'Please enter a prompt',
+    'drama.voice_prompt_required': 'Please describe the voice',
+    'drama.voice_generate_failed': 'Couldn’t generate the voice. Please try again later',
+    'drama.upload_unavailable': 'Image upload isn’t available yet. Please contact us to enable storage',
+    'drama.upload_read_failed': 'Couldn’t read the uploaded file',
+    'drama.upload_failed': 'Upload failed. Please try again later',
+    'drama.asset_generating': 'The image is being generated. Change it after it finishes',
+    'drama.asset_generating_version': 'The image is being generated, so you can’t switch versions',
+    'drama.no_history_version': 'There are no earlier versions to switch to',
+    'drama.version_not_found': 'That version no longer exists',
+    'drama.assets_extracting': 'Assets are being extracted. Confirm again in a moment',
+    'drama.asset_extract_failed': 'Couldn’t extract assets. Please try again later',
+    'drama.fragment_not_found': 'Storyboard shot not found',
+    'drama.fragments_protected': 'This episode has generated videos or edited shots. Confirm to force a new storyboard',
+    'drama.fragment_generating': 'This shot is being generated. Switch versions after it finishes',
+    'drama.no_fragments_to_generate': 'No shots to generate (the storyboard changed after saving; click Generate again)',
+    'drama.fragments_all_generating': 'The selected shots are already being generated. Please wait',
+    'drama.prev_fragment_required': 'Last-frame linking is on: generate the previous shot and wait for its last frame, then generate this one',
+    'drama.compose_no_videos': 'This episode has no shot videos to join yet',
+    'drama.compose_clip_download_failed': 'Couldn’t download a shot video. Please try again later',
+    'drama.compose_failed': 'Couldn’t build the episode video. Please try again later',
+    'drama.skill_not_found': 'Skill not found',
+    'drama.skill_md_only': 'Please upload a .md file',
+    'drama.skill_file_too_large': 'The file must be {max_kb}KB or smaller',
+    'drama.skill_not_text': 'The file must be UTF-8 text',
+    'drama.skill_edit_forbidden': 'You can’t edit someone else’s Skill',
+    'drama.skill_delete_forbidden': 'You can’t delete someone else’s Skill',
+    'drama.skill_builtin_undeletable': 'Built-in Skills can’t be deleted, but you can turn them off',
+    'drama.skill_builtin_readonly': 'Built-in Skills can’t be edited',
+    'drama.skill_empty': 'The Skill is empty',
+    'drama.skill_invalid_name': 'Skill names can only use lowercase letters, numbers and hyphens',
+    'drama.skill_body_empty': 'The Skill body can’t be empty',
+    'drama.skill_too_long': 'A Skill can be at most {max} characters',
+    'drama.skill_limit': 'You can upload up to {max} custom Skills',
+    'drama.skill_duplicate': 'A Skill with this name already exists. Change the name or delete the old one',
+  },
+  dramaGenError: {
+    slot: {
+      character: 'Character',
+      scene: 'Scene',
+      prop: 'Prop',
+      narration: 'Narration',
+      reference: 'Reference image',
+      voice: 'Voice',
+    },
+    slotNamed: '{kind} “{name}”',
+    contentItem: 'item {n} of the request / content[{idx}]',
+    genericFailed: 'Generation failed',
+    empty: {
+      message: 'The task didn’t finish and no error details were recorded.',
+      suggestion:
+        'Please try again later. If it keeps failing, check that your network or proxy can reach TokenFree and that the model channel key in the admin panel is valid.',
+    },
+    timeout: {
+      title: 'The model provider timed out',
+      suggestion:
+        'TokenFree was reachable, but the image or video took longer than the limit. Try again later. If text works and only images or videos time out, the provider queue is probably slow; your network is fine.',
+    },
+    network: {
+      title: 'Can’t reach the image/video service',
+      suggestion:
+        'This server can’t reach the model provider right now (often a blocked proxy or a network outage). Check the network or proxy and try again, and make sure the TokenFree channel key in the admin panel is valid.',
+    },
+    imageFailedLegacy: {
+      title: 'Image generation failed',
+      message: 'The image wasn’t generated, and this older task didn’t save the reason (usually a failed connection to the provider with an empty error).',
+      suggestion: 'Generate it again; the new version records a clear error. If it still fails, check the TokenFree network and key.',
+    },
+    upstreamAccount: {
+      title: 'The platform’s provider account is out of credit',
+      message:
+        'The Seedream model account has run out of balance, so the image request was rejected. This is the site’s provider account, not your own wallet.',
+      suggestion: 'Please ask the site admin to top up in the TokenFree console, then generate the image again.',
+    },
+    billing: {
+      title: 'Insufficient balance',
+      message: 'Your balance is too low to continue generating.',
+      suggestion: 'Top up, then retry this task.',
+    },
+    realPerson: {
+      title: 'Reference image looks like a real person',
+      namedMessage: 'The video service’s review rejected it: the reference image for {slot} may show a real person.',
+      namedSuggestion: 'Open “{name}” in the asset panel on the left, regenerate it or upload an anime/illustration style image, then generate this shot again.',
+      message: 'The video service’s review rejected it: an input image {where} may show a real person.',
+      whereIndex: '({item}, usually a character or scene reference)',
+      whereUnknown: '(one of the reference images)',
+      suggestion:
+        'Open the asset panel on the left and regenerate the related characters or scenes in an anime or illustration style (avoid real photos), or upload a compliant image, then generate this shot again.',
+    },
+    retryExhausted: {
+      title: 'Still failing after several tries',
+      suggestion:
+        'The automatic retries inside this task ran out; you can still click Generate again. Fix the real cause first (often the real-person check on reference images), then generate again.',
+    },
+    prevFailed: {
+      title: 'Can’t continue from the previous shot',
+      message: 'This shot continues from the previous shot’s last frame, but the previous shot failed, so this one didn’t start.',
+      suggestion: 'Fix and regenerate the failed previous shot first, then generate the following shots in order.',
+    },
+    fragmentChanged: {
+      title: 'The storyboard was updated',
+      message: 'The storyboard was saved or re-split while generating, so the old task is no longer valid.',
+      suggestion: 'Go back to the episode page and click Generate on the current storyboard. Don’t retry the old task.',
+    },
+    textSensitive: {
+      title: 'Text didn’t pass the content review',
+      message: 'The shot script or prompt triggered the content safety review.',
+      suggestion: 'Rephrase the sensitive parts of the shot and try again.',
+    },
+    audioDownload: {
+      title: 'Can’t download the reference audio',
+      message: 'The voice reference file URL is invalid or temporarily unreachable.',
+      suggestion: 'Check the preview audio linked to the character, regenerate it or pick another voice, then try again.',
+    },
+    audioTooShort: {
+      title: 'Reference audio is too short',
+      message: 'The video service needs reference audio of at least 1.8 seconds. This one is too short: {where}.',
+      whereIndex: '{item} (reference audio, not an image)',
+      whereUnknown: 'a character or narration voice',
+      suggestion:
+        'Open the matching character or narration asset on the left, regenerate or upload a longer preview audio (2 seconds or more), then generate this shot again. This isn’t a reference image problem.',
+    },
+    aspectRatio: {
+      title: 'Aspect ratio not supported',
+      message: 'When this video channel uses a single first frame, a fixed aspect ratio may be rejected.',
+      suggestion: 'Generate this shot again; the server will match the aspect ratio to the reference image.',
+    },
+    channelCredits: {
+      title: 'The video channel is out of credits',
+      message: 'The provider account doesn’t have enough credits to create the video task (this isn’t about reference images or audio length).',
+      suggestion: 'Ask the admin to top up in the TokenFree console, then generate this shot again.',
+    },
+    fileType: {
+      title: 'Reference image format not supported',
+      message: 'The provider rejected a reference image: File type not supported (usually an SVG placeholder or a non-bitmap image).',
+      suggestion:
+        'Check that the character, scene and prop covers used in this shot are PNG, JPG or WEBP. If one is still an SVG placeholder, regenerate or upload a bitmap for that asset, then generate the video.',
+    },
+    rejected: {
+      title: 'The video service rejected the request',
+      message: 'The provider reported a parameter or content error, so the task wasn’t created{where}.',
+      whereIndex: ' ({item})',
+      suggestion:
+        'Check this shot’s reference images, reference audio length (at least 1.8 seconds) and script, then try again. If it keeps failing, contact support with the task ID.',
+    },
+    videoFailed: {
+      title: 'Video generation failed',
+      suggestion: 'Try this shot again later. If it keeps failing, change the reference images or simplify the script.',
+    },
+    duplicateSkipped: {
+      title: 'Old task skipped',
+      message: 'The scheduler found this shot already has a video, so it cancelled this duplicate old task.',
+      suggestion:
+        'If you were regenerating, check whether a new task is still running in the queue; if not, click Regenerate once more. This old cancellation isn’t the current failure.',
+    },
+    cancelled: {
+      title: 'Cancelled',
+      interruptedTitle: 'Task interrupted',
+      message: 'The task was cancelled',
+      interruptedMessage: 'The task was interrupted. Please generate again',
+      suggestion: 'Queue it again when you need the video.',
+    },
+    hintFollow: 'Follow the message above, then generate this shot again.',
+    hintDefault: 'Check this shot’s reference images and script, then try again.',
   },
 }

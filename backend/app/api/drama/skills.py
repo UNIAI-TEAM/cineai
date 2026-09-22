@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.deps import get_current_user
+from app.errors import AppError
 from app.models import User
 from app.schemas_agent import (
     AgentSkillListOut,
@@ -18,7 +19,6 @@ from app.schemas_agent import (
 )
 from app.services.agent.compose import skill_to_public_dict
 from app.services.agent.optimize import optimize_prompt_with_skills
-from app.services.agent.parse import SkillParseError
 from app.services.billing import record_llm_chat_line, run_billed_ephemeral
 from app.services.billing.http import http_exception_for_value_error
 from app.services.agent.store import (
@@ -97,7 +97,7 @@ async def get_skill(
 ) -> AgentSkillOut:
     row = await get_visible_skill(db, user.id, skill_id)
     if row is None:
-        raise HTTPException(status_code=404, detail="Skill 不存在")
+        raise AppError("drama.skill_not_found")
     return _out(row)
 
 
@@ -108,10 +108,8 @@ async def upload_skill_markdown(
     user: User = Depends(get_current_user),
 ) -> AgentSkillOut:
     # JSON 上传完整 markdown
-    try:
-        row = await create_user_skill(db, user.id, body.markdown)
-    except SkillParseError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # SkillParseError 带错误码，交给全局处理器
+    row = await create_user_skill(db, user.id, body.markdown)
     return _out(row)
 
 
@@ -124,18 +122,15 @@ async def upload_skill_file(
     # 上传 .md 文件
     filename = (file.filename or "").lower()
     if filename and not filename.endswith((".md", ".markdown", ".txt")):
-        raise HTTPException(status_code=400, detail="请上传 .md 文件")
+        raise AppError("drama.skill_md_only")
     raw = await file.read()
     if len(raw) > 200 * 1024:
-        raise HTTPException(status_code=400, detail="文件不能超过 200KB")
+        raise AppError("drama.skill_file_too_large", max_kb=200)
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise HTTPException(status_code=400, detail="文件须为 UTF-8 文本") from exc
-    try:
-        row = await create_user_skill(db, user.id, text)
-    except SkillParseError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise AppError("drama.skill_not_text") from exc
+    row = await create_user_skill(db, user.id, text)
     return _out(row)
 
 
@@ -148,13 +143,10 @@ async def patch_skill(
 ) -> AgentSkillOut:
     row = await get_visible_skill(db, user.id, skill_id)
     if row is None:
-        raise HTTPException(status_code=404, detail="Skill 不存在")
+        raise AppError("drama.skill_not_found")
     if not row.is_builtin and row.user_id != user.id:
-        raise HTTPException(status_code=403, detail="不能修改他人 Skill")
-    try:
-        row = await update_user_skill(db, row, markdown=body.markdown, is_active=body.is_active)
-    except SkillParseError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise AppError("drama.skill_edit_forbidden")
+    row = await update_user_skill(db, row, markdown=body.markdown, is_active=body.is_active)
     return _out(row)
 
 
@@ -166,13 +158,10 @@ async def remove_skill(
 ) -> dict:
     row = await get_visible_skill(db, user.id, skill_id)
     if row is None:
-        raise HTTPException(status_code=404, detail="Skill 不存在")
+        raise AppError("drama.skill_not_found")
     if row.is_builtin:
-        raise HTTPException(status_code=400, detail="系统内置 Skill 不能删除，可停用")
+        raise AppError("drama.skill_builtin_undeletable")
     if row.user_id != user.id:
-        raise HTTPException(status_code=403, detail="不能删除他人 Skill")
-    try:
-        await delete_user_skill(db, row)
-    except SkillParseError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise AppError("drama.skill_delete_forbidden")
+    await delete_user_skill(db, row)
     return {"ok": True}

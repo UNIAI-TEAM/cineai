@@ -346,14 +346,7 @@ export const dramaApi = {
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }))
-      const detail = err.detail
-      const message =
-        typeof detail === 'string'
-          ? detail
-          : Array.isArray(detail)
-            ? detail.map((d: { msg?: string }) => d.msg || JSON.stringify(d)).join('; ')
-            : res.statusText
-      throw new Error(message || '上传失败')
+      throwApiError(res.status, err, apiErrorText('uploadFailed'))
     }
     return res.json() as Promise<DramaAsset>
   },

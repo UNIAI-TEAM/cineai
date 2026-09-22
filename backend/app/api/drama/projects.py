@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.deps import get_current_user
+from app.errors import AppError
 from app.models import UsageEvent, User
 from app.models_drama import DramaAsset, DramaEpisode, DramaProject, DramaScript
 from app.models_tasks import TaskRun
@@ -107,7 +108,7 @@ async def create_project(
     # Create project + empty script draft from creative source
     source = (body.source or "").strip()
     if len(source) < 20:
-        raise HTTPException(status_code=400, detail="原始创意至少需要 20 个字")
+        raise AppError("drama.creative_too_short", min=20)
     title = (body.title or "").strip()
     if not title:
         title = source[:40] + ("…" if len(source) > 40 else "")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.deps import get_current_user
+from app.errors import AppError
 from app.models import User
 from app.models_drama import DramaAsset, DramaProject
 from app.schemas_drama import (
@@ -35,6 +37,7 @@ from app.services.drama.seed import (
 )
 
 router = APIRouter()
+logger = logging.getLogger("app.drama.assets")
 
 
 @router.get("/assets", response_model=list[DramaAssetOut])
@@ -161,7 +164,7 @@ async def update_asset(
     )
     asset = result.scalar_one_or_none()
     if not asset:
-        raise HTTPException(status_code=404, detail="资产不存在")
+        raise AppError("drama.asset_not_found")
     for field in ("type", "asset_type", "name", "cover", "url", "params"):
         val = getattr(body, field)
         if val is None:
@@ -190,7 +193,7 @@ async def upload_asset_media(
     from app.services import oss as oss_svc
 
     if not oss_svc.oss_enabled():
-        raise HTTPException(status_code=503, detail="OSS 未启用，无法上传资产媒体")
+        raise AppError("drama.upload_unavailable")
 
     result = await db.execute(
         select(DramaAsset)
@@ -199,12 +202,12 @@ async def upload_asset_media(
     )
     asset = result.scalar_one_or_none()
     if not asset:
-        raise HTTPException(status_code=404, detail="资产不存在")
+        raise AppError("drama.asset_not_found")
 
     gen = (asset.params or {}).get("generation") if isinstance(asset.params, dict) else None
     status = str((gen or {}).get("status") or "").lower() if isinstance(gen, dict) else ""
     if status in {"queued", "running", "generating"}:
-        raise HTTPException(status_code=409, detail="形象生成中，请稍后再更换图片")
+        raise AppError("drama.asset_generating")
 
     content_type = (file.content_type or "").lower()
     allowed = {
@@ -226,7 +229,7 @@ async def upload_asset_media(
                 ".gif": "image/gif",
             }.get(ext, "application/octet-stream")
         else:
-            raise HTTPException(status_code=400, detail="仅支持 JPG / PNG / WebP / GIF")
+            raise AppError("common.unsupported_image_type")
 
     # 直接检查上传临时文件大小，避免先把整文件读入内存。
     upload_fp = file.file
@@ -235,11 +238,12 @@ async def upload_asset_media(
         size = upload_fp.tell()
         upload_fp.seek(0)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=400, detail=f"无法读取上传文件：{exc}") from exc
+        logger.warning("读取上传文件失败 asset_id=%s err=%s", asset_id, exc)
+        raise AppError("drama.upload_read_failed") from exc
     if size <= 0:
-        raise HTTPException(status_code=400, detail="空文件")
+        raise AppError("common.empty_file")
     if size > 20 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="文件不能超过 20MB")
+        raise AppError("common.file_too_large", max_mb=20)
 
     object_key = (
         f"{oss_svc.folder_prefix()}/generated/p{asset.project_id}/"
@@ -254,7 +258,8 @@ async def upload_asset_media(
             content_type=content_type or "application/octet-stream",
         )
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=502, detail=f"OSS 上传失败：{exc}") from exc
+        logger.warning("资产媒体上传 OSS 失败 asset_id=%s err=%s", asset_id, exc)
+        raise AppError("drama.upload_failed") from exc
 
     from app.services.drama.generation import archive_asset_image_version
 
@@ -292,17 +297,17 @@ async def activate_image_version(
     )
     asset = result.scalar_one_or_none()
     if not asset:
-        raise HTTPException(status_code=404, detail="资产不存在")
+        raise AppError("drama.asset_not_found")
 
     gen = (asset.params or {}).get("generation") if isinstance(asset.params, dict) else None
     status = str((gen or {}).get("status") or "").lower() if isinstance(gen, dict) else ""
     if status in {"queued", "running", "generating"}:
-        raise HTTPException(status_code=409, detail="形象生成中，无法切换历史版本")
+        raise AppError("drama.asset_generating_version")
 
     try:
         activate_asset_image_version(asset, body.version_id.strip())
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise http_exception_for_value_error(exc) from exc
 
     await db.commit()
     await db.refresh(asset)
@@ -324,7 +329,7 @@ async def delete_asset(
     )
     asset = result.scalar_one_or_none()
     if not asset:
-        raise HTTPException(status_code=404, detail="资产不存在")
+        raise AppError("drama.asset_not_found")
     await db.delete(asset)
     await db.commit()
     return {"ok": True}
@@ -440,7 +445,8 @@ async def seed_assets(
         params.pop("assets_seed_generating_at", None)
         project.params = params
         await db.commit()
-        raise HTTPException(status_code=502, detail=str(exc)[:500]) from exc
+        logger.warning("资产抽取失败 project_id=%s err=%s", project_id, exc)
+        raise AppError("drama.asset_extract_failed") from exc
     except Exception:
         project = await get_owned_drama_project(db, project_id, user, with_script=True)
         params = dict(project.params or {}) if isinstance(project.params, dict) else {}

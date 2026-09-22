@@ -6,6 +6,8 @@ import hashlib
 import re
 from typing import Any
 
+from app.errors import AppError
+
 # SLUG_PATTERN 合法短名
 SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 FRONTMATTER_PATTERN = re.compile(r"\A---\s*\n([\s\S]*?)\n---\s*\n?", re.MULTILINE)
@@ -22,8 +24,8 @@ TASK_ALIASES = {
 }
 
 
-class SkillParseError(ValueError):
-    """Skill markdown 无法解析。"""
+class SkillParseError(AppError):
+    """Skill 解析 / 上传校验错误（带错误码，仍是 ValueError）。"""
 
 
 def slugify_skill_name(raw: str) -> str:
@@ -112,7 +114,7 @@ def parse_skill_markdown(markdown: str) -> dict[str, Any]:
     """把 SKILL.md 拆成 slug/name/description/tasks/body。"""
     text = (markdown or "").replace("\r\n", "\n").strip()
     if not text:
-        raise SkillParseError("Skill 内容为空")
+        raise SkillParseError("drama.skill_empty")
     meta: dict[str, Any] = {}
     body = text
     matched = FRONTMATTER_PATTERN.match(text)
@@ -122,12 +124,12 @@ def parse_skill_markdown(markdown: str) -> dict[str, Any]:
     name = str(meta.get("name") or "").strip()
     slug = slugify_skill_name(name or "untitled-skill")
     if not SLUG_PATTERN.match(slug):
-        raise SkillParseError("Skill 名称只能用小写字母、数字和连字符")
+        raise SkillParseError("drama.skill_invalid_name")
     description = str(meta.get("description") or "").strip()
     if len(description) > 1024:
         description = description[:1024]
     if not body:
-        raise SkillParseError("Skill 正文不能为空")
+        raise SkillParseError("drama.skill_body_empty")
     return {
         "slug": slug,
         "name": name or slug,

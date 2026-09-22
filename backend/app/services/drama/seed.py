@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.errors import AppError
 from app.models_drama import (
     DramaAsset,
     DramaAssetEpisode,
@@ -418,7 +419,7 @@ async def seed_assets_from_script(
     # Create character/scene/prop/material assets from script if missing
     script = project.script
     if not script or not script.summary:
-        raise ValueError("请先生成剧本摘要")
+        raise AppError("drama.summary_required")
 
     summary = script.summary if isinstance(script.summary, dict) else {}
     story_type = str(summary.get("storyType") or "").strip()
@@ -713,7 +714,7 @@ async def seed_assets_from_episode_body(
     """正文生成后增量 seed：只扫该集出场人物/场景 + 全剧 summary 人物；不抽道具。"""
     script = project.script
     if not script or not script.summary:
-        raise ValueError("请先生成剧本摘要")
+        raise AppError("drama.summary_required")
 
     summary = script.summary if isinstance(script.summary, dict) else {}
     story_type = str(summary.get("storyType") or "").strip()
@@ -830,10 +831,10 @@ async def seed_episodes_from_script(
     # Create / 重切分镜：按 ### 场次拆分并生成视频向分镜文案
     script = project.script
     if not script:
-        raise ValueError("缺少剧本")
+        raise AppError("drama.script_missing")
     bodies = _normalize_episode_list(script.episode_content)
     if not bodies:
-        raise ValueError("请先生成分集剧本")
+        raise AppError("drama.episode_scripts_required")
 
     assets = list(
         (
@@ -985,7 +986,7 @@ def require_confirmable_episode_body(
     """取出指定集正文；缺失或过短则报错。"""
     number = int(episode_number)
     if number < 1:
-        raise ValueError("集号无效")
+        raise AppError("drama.invalid_episode_number")
     item = None
     for row in _normalize_episode_list(episode_content):
         try:
@@ -996,12 +997,10 @@ def require_confirmable_episode_body(
             item = row
             break
     if item is None:
-        raise ValueError(f"找不到第 {number} 集剧本")
+        raise AppError("drama.episode_script_not_found", number=number)
     body = str(item.get("body") or item.get("content") or "")
     if _body_char_len(body) < MIN_EPISODE_CONTENT_CHARS:
-        raise ValueError(
-            f"第 {number} 集正文过短，请先写完或让 AI 优化后再确认进入分镜"
-        )
+        raise AppError("drama.episode_body_too_short", number=number)
     return item
 
 
@@ -1113,7 +1112,7 @@ async def seed_single_episode_from_script(
     """只为指定集建行/按规则切分镜，不 force 时保留已有视频与手改。"""
     script = project.script
     if not script:
-        raise ValueError("缺少剧本")
+        raise AppError("drama.script_missing")
     item = require_confirmable_episode_body(script.episode_content, episode_number)
     title = str(item.get("title") or f"第{episode_number}集")
     body = str(item.get("body") or item.get("content") or "")
@@ -1189,7 +1188,7 @@ async def seed_single_episode_from_script(
     await db.commit()
     reloaded = await _reload_episode(db, int(target.id))
     if reloaded is None:
-        raise ValueError("分集写入后未能重新加载")
+        raise AppError("drama.episode_reload_failed")
     logger.info(
         "单集切分镜完成 project_id=%s episode_number=%s episode_id=%s fragments=%s",
         project.id,

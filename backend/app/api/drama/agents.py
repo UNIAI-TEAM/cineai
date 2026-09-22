@@ -5,12 +5,13 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user
+from app.errors import AppError
 from app.models import User
 from app.schemas_drama import (
     DramaAddEpisodeRequest,
@@ -65,10 +66,10 @@ async def script_summary(
     # 入队摘要任务，立即返回；前端轮询 script.params.summary_status
     project = await get_owned_drama_project(db, body.project_id, user, with_script=True)
     if not project.script:
-        raise HTTPException(status_code=400, detail="缺少剧本")
+        raise AppError("drama.script_missing")
     creative = (body.creative or project.script.source or "").strip()
     if len(creative) < 20:
-        raise HTTPException(status_code=400, detail="创意文案至少 20 字")
+        raise AppError("drama.creative_too_short", min=20)
 
     project.script.source = creative
     params = dict(project.script.params or {})
@@ -139,7 +140,7 @@ async def episode_script(
     # 入队完整分集生成或单集优化；前端轮询 episode_content_status / episode_optimize_status
     project = await get_owned_drama_project(db, body.project_id, user, with_script=True)
     if not project.script or not project.script.summary:
-        raise HTTPException(status_code=400, detail="请先生成剧本摘要")
+        raise AppError("drama.summary_required")
 
     summary = project.script.summary if isinstance(project.script.summary, dict) else {}
     total = resolve_episode_target(summary, project.params, project.script.params)
@@ -154,11 +155,11 @@ async def episode_script(
     if generate_mode in {"", "optimize", "draft"}:
         generate_mode = "optimize" if episode_number else None
     if generate_mode and generate_mode not in {"optimize", "summary", "body", "full", "brief"}:
-        raise HTTPException(status_code=400, detail="generate_mode 须为 optimize/summary/body/full/brief")
+        raise AppError("drama.invalid_generate_mode")
 
     if episode_number:
         if str(params.get("episode_content_status") or "") == "generating":
-            raise HTTPException(status_code=409, detail="全集剧本正在生成，请稍后再优化单集")
+            raise AppError("drama.episodes_generating")
         if str(params.get("episode_optimize_status") or "") == "generating":
             logger.info(
                 "单集剧本已在优化，跳过重复入队 project_id=%s episode_number=%s",
@@ -213,9 +214,9 @@ async def episode_script(
         mode = generate_mode or "optimize"
         if mode == "optimize":
             if not draft:
-                raise HTTPException(status_code=400, detail="请先输入本集剧本草稿，再让 AI 优化")
+                raise AppError("drama.draft_required")
             if len(draft) < 20:
-                raise HTTPException(status_code=400, detail="剧本草稿至少 20 字")
+                raise AppError("drama.draft_too_short", min=20)
         elif mode in {"summary", "full"}:
             cur_creative = creative_in
             if not cur_creative:
@@ -229,7 +230,7 @@ async def episode_script(
                 )
                 cur_creative = str((cur or {}).get("creative") or "").strip()
             if len(cur_creative) < 20:
-                raise HTTPException(status_code=400, detail="请先填写本集原始创意（至少 20 字）")
+                raise AppError("drama.episode_creative_required", min=20)
         elif mode == "brief":
             cur = next(
                 (
@@ -241,7 +242,7 @@ async def episode_script(
             )
             cur_body = str((cur or {}).get("body") or (cur or {}).get("content") or "").strip()
             if len(cur_body) < 80:
-                raise HTTPException(status_code=400, detail="请先有本集剧本内容，再补齐创意与摘要")
+                raise AppError("drama.episode_body_required")
 
         params["episode_optimize_status"] = "generating"
         params["episode_optimize_number"] = episode_number
@@ -385,17 +386,17 @@ async def add_episode(
     """手动追加一集空分集，供用户粘贴剧本后再 AI 优化。"""
     project = await get_owned_drama_project(db, body.project_id, user, with_script=True)
     if not project.script or not project.script.summary:
-        raise HTTPException(status_code=400, detail="请先生成剧本摘要")
+        raise AppError("drama.summary_required")
     params = dict(project.script.params or {})
     if str(params.get("episode_content_status") or "") == "generating":
-        raise HTTPException(status_code=409, detail="全集剧本正在生成，请完成后再加集")
+        raise AppError("drama.episodes_generating_add")
     existing = _existing_episodes(project.script.episode_content)
     if len(existing) >= MAX_DRAMA_EPISODES:
-        raise HTTPException(status_code=400, detail=f"最多 {MAX_DRAMA_EPISODES} 集")
+        raise AppError("drama.max_episodes", max=MAX_DRAMA_EPISODES)
     try:
         episodes, episode_number = append_manual_episode(existing, body.title)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise http_exception_for_value_error(exc) from exc
     project.script.episode_content = {"episodes": episodes}
     current_total = resolve_episode_target(
         project.script.summary if isinstance(project.script.summary, dict) else {},
@@ -450,7 +451,8 @@ async def ai_chat(
                 body.message,
             )
         except DramaLlmUnavailableError as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
+            logger.warning("漫剧聊天文字模型不可用 user_id=%s err=%s", user.id, exc)
+            raise AppError("drama.llm_unavailable") from exc
         await record_line(
             db,
             user_id=user.id,

@@ -1,4 +1,4 @@
-/** 越南语：接口错误码文案（key 与 backend/app/errors.py 的 ERRORS 一致） */
+/** 越南语：接口错误码文案（errors 的 key 与 backend/app/errors.py 的 ERRORS 一致）；dramaGenError 为漫剧生成失败说明（lib/dramaGenError.ts） */
 
 export const viErrors = {
   errors: {
@@ -78,5 +78,192 @@ export const viErrors = {
     'project.not_ready_to_publish': 'Video chưa hoàn chỉnh, chưa thể đăng',
     'project.narration_empty': 'Tất cả cảnh đều chưa có lời dẫn, chưa thể tạo giọng đọc',
     'project.shot_narration_empty': 'Chưa có lời dẫn, chưa thể tạo giọng đọc',
+    'drama.project_not_found': 'Không tìm thấy phim ngắn',
+    'drama.script_not_found': 'Không tìm thấy kịch bản',
+    'drama.script_missing': 'Dự án chưa có kịch bản',
+    'drama.summary_required': 'Vui lòng tạo tóm tắt kịch bản trước',
+    'drama.episode_scripts_required': 'Vui lòng tạo kịch bản các tập trước',
+    'drama.creative_too_short': 'Ý tưởng câu chuyện cần ít nhất {min} ký tự',
+    'drama.invalid_generate_mode': 'Cách tạo không hợp lệ',
+    'drama.episodes_generating': 'Đang viết kịch bản cho tất cả các tập, vui lòng đợi xong rồi hãy chỉnh tập này',
+    'drama.episodes_generating_add': 'Đang viết kịch bản cho tất cả các tập, vui lòng đợi xong rồi hãy thêm tập',
+    'drama.draft_required': 'Vui lòng nhập bản nháp kịch bản của tập này trước khi nhờ AI chỉnh',
+    'drama.draft_too_short': 'Bản nháp kịch bản cần ít nhất {min} ký tự',
+    'drama.episode_creative_required': 'Vui lòng nhập ý tưởng của tập này trước (ít nhất {min} ký tự)',
+    'drama.episode_body_required': 'Tập này cần có nội dung kịch bản trước, AI mới bổ sung được ý tưởng và tóm tắt',
+    'drama.max_episodes': 'Tối đa {max} tập',
+    'drama.llm_unavailable': 'Mô hình viết chữ đang tạm ngưng, vui lòng thử lại sau',
+    'drama.episode_not_found': 'Không tìm thấy tập phim',
+    'drama.invalid_episode_number': 'Số tập không hợp lệ',
+    'drama.episode_script_not_found': 'Không tìm thấy kịch bản tập {number}',
+    'drama.episode_body_too_short': 'Tập {number} quá ngắn, hãy viết xong hoặc nhờ AI chỉnh rồi mới xác nhận làm phân cảnh',
+    'drama.episode_reload_failed': 'Đã lưu tập phim nhưng chưa tải lại được, vui lòng tải lại trang',
+    'drama.asset_not_found': 'Không tìm thấy tư liệu',
+    'drama.character_asset_not_found': 'Không tìm thấy nhân vật',
+    'drama.character_asset_only': 'Chỉ áp dụng cho tư liệu nhân vật',
+    'drama.prompt_required': 'Vui lòng nhập prompt',
+    'drama.voice_prompt_required': 'Vui lòng mô tả giọng',
+    'drama.voice_generate_failed': 'Không tạo được giọng, vui lòng thử lại sau',
+    'drama.upload_unavailable': 'Chưa hỗ trợ tải ảnh lên, vui lòng liên hệ chúng tôi để bật lưu trữ',
+    'drama.upload_read_failed': 'Không đọc được file tải lên',
+    'drama.upload_failed': 'Không tải lên được, vui lòng thử lại sau',
+    'drama.asset_generating': 'Ảnh đang được tạo, vui lòng đợi xong rồi hãy đổi ảnh',
+    'drama.asset_generating_version': 'Ảnh đang được tạo, chưa thể đổi sang phiên bản cũ',
+    'drama.no_history_version': 'Chưa có phiên bản cũ nào để đổi',
+    'drama.version_not_found': 'Phiên bản này không còn nữa',
+    'drama.assets_extracting': 'Đang lấy tư liệu từ kịch bản, vui lòng xác nhận lại sau ít phút',
+    'drama.asset_extract_failed': 'Không lấy được tư liệu từ kịch bản, vui lòng thử lại sau',
+    'drama.fragment_not_found': 'Không tìm thấy phân cảnh',
+    'drama.fragments_protected': 'Tập này có video đã tạo hoặc phân cảnh đã sửa tay, hãy xác nhận nếu muốn chia lại phân cảnh',
+    'drama.fragment_generating': 'Phân cảnh đang được tạo, vui lòng đợi xong rồi hãy đổi phiên bản',
+    'drama.no_fragments_to_generate': 'Không có phân cảnh nào để tạo (phân cảnh vừa thay đổi sau khi lưu, hãy bấm tạo lại)',
+    'drama.fragments_all_generating': 'Các phân cảnh đã chọn đang được tạo, vui lòng đợi',
+    'drama.prev_fragment_required': 'Đang bật nối khung hình cuối: hãy tạo cảnh trước và đợi có khung hình cuối rồi mới tạo cảnh này',
+    'drama.compose_no_videos': 'Tập này chưa có video phân cảnh nào để ghép',
+    'drama.compose_clip_download_failed': 'Không tải được video phân cảnh, vui lòng thử lại sau',
+    'drama.compose_failed': 'Không dựng được tập phim, vui lòng thử lại sau',
+    'drama.skill_not_found': 'Không tìm thấy Skill',
+    'drama.skill_md_only': 'Vui lòng tải lên file .md',
+    'drama.skill_file_too_large': 'File không được vượt quá {max_kb} KB',
+    'drama.skill_not_text': 'File phải là văn bản UTF-8',
+    'drama.skill_edit_forbidden': 'Không thể sửa Skill của người khác',
+    'drama.skill_delete_forbidden': 'Không thể xoá Skill của người khác',
+    'drama.skill_builtin_undeletable': 'Không thể xoá Skill có sẵn, bạn có thể tắt nó',
+    'drama.skill_builtin_readonly': 'Không thể sửa nội dung Skill có sẵn',
+    'drama.skill_empty': 'Skill đang trống',
+    'drama.skill_invalid_name': 'Tên Skill chỉ gồm chữ thường, số và dấu gạch ngang',
+    'drama.skill_body_empty': 'Nội dung Skill không được để trống',
+    'drama.skill_too_long': 'Skill tối đa {max} ký tự',
+    'drama.skill_limit': 'Bạn chỉ tải lên được tối đa {max} Skill tự tạo',
+    'drama.skill_duplicate': 'Đã có Skill trùng tên, hãy đổi tên hoặc xoá Skill cũ trước',
+  },
+  dramaGenError: {
+    slot: {
+      character: 'Nhân vật',
+      scene: 'Bối cảnh',
+      prop: 'Đạo cụ',
+      narration: 'Lời dẫn',
+      reference: 'Ảnh tham chiếu',
+      voice: 'Giọng',
+    },
+    slotNamed: '{kind} “{name}”',
+    contentItem: 'mục thứ {n} trong yêu cầu / content[{idx}]',
+    genericFailed: 'Không tạo được',
+    empty: {
+      message: 'Việc tạo chưa xong và hệ thống không ghi lại lỗi cụ thể.',
+      suggestion:
+        'Vui lòng thử lại sau. Nếu vẫn lỗi, hãy kiểm tra mạng/proxy có kết nối được TokenFree không và key kênh mô hình trong trang quản trị còn hiệu lực không.',
+    },
+    timeout: {
+      title: 'Nhà cung cấp mô hình phản hồi quá lâu',
+      suggestion:
+        'Đã kết nối được TokenFree nhưng tạo ảnh/video mất quá thời gian cho phép. Vui lòng thử lại sau. Nếu tạo chữ vẫn được mà chỉ ảnh/video bị quá giờ thì thường là do hàng đợi bên nhà cung cấp chậm, không phải mất mạng.',
+    },
+    network: {
+      title: 'Không kết nối được dịch vụ tạo ảnh/video',
+      suggestion:
+        'Máy chủ hiện không kết nối được nhà cung cấp mô hình (thường do proxy chặn hoặc mất mạng). Hãy kiểm tra mạng/proxy rồi thử lại, và kiểm tra key kênh TokenFree trong trang quản trị.',
+    },
+    imageFailedLegacy: {
+      title: 'Không tạo được ảnh',
+      message: 'Ảnh chưa tạo được, nhưng lần tạo cũ này không lưu lý do (thường là lỗi kết nối tới nhà cung cấp mô hình mà không có nội dung lỗi).',
+      suggestion: 'Vui lòng tạo lại; phiên bản mới sẽ ghi rõ lỗi. Nếu vẫn không được, hãy kiểm tra kết nối và key TokenFree.',
+    },
+    upstreamAccount: {
+      title: 'Tài khoản nhà cung cấp mô hình đã hết tiền',
+      message:
+        'Tài khoản mô hình Seedream của hệ thống đã hết số dư nên yêu cầu tạo ảnh bị từ chối. Đây là tài khoản của hệ thống, không phải số dư ví của bạn.',
+      suggestion: 'Vui lòng báo cho chúng tôi để nạp tiền vào TokenFree, sau đó tạo ảnh lại.',
+    },
+    billing: {
+      title: 'Số dư không đủ',
+      message: 'Số dư hiện không đủ để tiếp tục tạo.',
+      suggestion: 'Vui lòng nạp tiền rồi thử lại.',
+    },
+    realPerson: {
+      title: 'Ảnh tham chiếu giống người thật',
+      namedMessage: 'Dịch vụ video từ chối: ảnh tham chiếu của {slot} có thể là ảnh người thật.',
+      namedSuggestion: 'Mở “{name}” trong Kho tư liệu bên trái, tạo lại hoặc tải lên ảnh theo phong cách anime/minh hoạ, rồi tạo lại phân cảnh này.',
+      message: 'Dịch vụ video từ chối: ảnh đầu vào {where} có thể là ảnh người thật.',
+      whereIndex: '({item}, thường là ảnh nhân vật hoặc bối cảnh)',
+      whereUnknown: '(một ảnh tham chiếu)',
+      suggestion:
+        'Mở Kho tư liệu bên trái, dùng AI tạo lại nhân vật/bối cảnh liên quan theo phong cách anime hoặc minh hoạ (tránh ảnh chụp người thật), hoặc tải lên ảnh phù hợp, rồi tạo lại phân cảnh này.',
+    },
+    retryExhausted: {
+      title: 'Thử nhiều lần vẫn không được',
+      suggestion:
+        'Lần tạo này đã tự thử lại hết số lần cho phép, bạn vẫn có thể bấm tạo lại. Hãy sửa đúng nguyên nhân (thường là ảnh tham chiếu bị nhận là người thật) rồi mới tạo lại.',
+    },
+    prevFailed: {
+      title: 'Không nối được với cảnh trước',
+      message: 'Cảnh này nối tiếp từ khung hình cuối của cảnh trước, nhưng cảnh trước chưa tạo được nên cảnh này chưa bắt đầu.',
+      suggestion: 'Hãy sửa và tạo lại cảnh trước, sau đó tạo các cảnh tiếp theo theo thứ tự.',
+    },
+    fragmentChanged: {
+      title: 'Phân cảnh đã thay đổi',
+      message: 'Phân cảnh đã được lưu hoặc chia lại trong lúc đang tạo, nên lần tạo cũ không còn dùng được.',
+      suggestion: 'Hãy quay lại trang tập phim và bấm tạo trên danh sách phân cảnh hiện tại, đừng thử lại lần tạo cũ.',
+    },
+    textSensitive: {
+      title: 'Nội dung chưa qua kiểm duyệt',
+      message: 'Kịch bản phân cảnh hoặc prompt có nội dung bị bộ lọc an toàn chặn.',
+      suggestion: 'Hãy sửa những chỗ nhạy cảm trong phân cảnh rồi thử lại.',
+    },
+    audioDownload: {
+      title: 'Không tải được audio tham chiếu',
+      message: 'Đường dẫn file giọng tham chiếu không hợp lệ hoặc tạm thời không truy cập được.',
+      suggestion: 'Kiểm tra audio nghe thử gắn với nhân vật, tạo lại hoặc đổi giọng rồi thử lại.',
+    },
+    audioTooShort: {
+      title: 'Audio tham chiếu quá ngắn',
+      message: 'Dịch vụ video cần audio tham chiếu dài ít nhất 1,8 giây, audio này quá ngắn: {where}.',
+      whereIndex: '{item} (audio tham chiếu, không phải ảnh)',
+      whereUnknown: 'giọng của một nhân vật hoặc lời dẫn',
+      suggestion:
+        'Mở tư liệu nhân vật hoặc lời dẫn tương ứng bên trái, tạo lại hoặc tải lên audio nghe thử dài hơn (nên từ 2 giây), rồi tạo lại phân cảnh này. Lỗi này không liên quan tới ảnh tham chiếu.',
+    },
+    aspectRatio: {
+      title: 'Tỉ lệ khung hình không phù hợp',
+      message: 'Khi kênh video này chỉ dùng một khung hình đầu, tỉ lệ cố định có thể bị từ chối.',
+      suggestion: 'Hãy tạo lại phân cảnh này; hệ thống sẽ tự khớp tỉ lệ theo ảnh tham chiếu.',
+    },
+    channelCredits: {
+      title: 'Kênh video đã hết điểm',
+      message: 'Tài khoản nhà cung cấp mô hình không đủ điểm để tạo video (không phải lỗi ảnh tham chiếu hay độ dài audio).',
+      suggestion: 'Vui lòng báo cho chúng tôi để nạp thêm vào TokenFree, sau đó tạo lại phân cảnh này.',
+    },
+    fileType: {
+      title: 'Định dạng ảnh tham chiếu không được hỗ trợ',
+      message: 'Nhà cung cấp mô hình từ chối ảnh tham chiếu: File type not supported (thường do ảnh giữ chỗ SVG hoặc không phải ảnh bitmap).',
+      suggestion:
+        'Kiểm tra ảnh bìa của nhân vật/bối cảnh/đạo cụ dùng trong cảnh này có phải PNG/JPG/WEBP không. Nếu vẫn là ảnh SVG giữ chỗ, hãy tạo lại ảnh hoặc tải ảnh bitmap lên rồi mới tạo video.',
+    },
+    rejected: {
+      title: 'Dịch vụ video từ chối yêu cầu',
+      message: 'Nhà cung cấp mô hình báo lỗi tham số hoặc nội dung, chưa tạo được{where}.',
+      whereIndex: ' ({item})',
+      suggestion:
+        'Kiểm tra ảnh tham chiếu, độ dài audio tham chiếu (ít nhất 1,8 giây) và kịch bản của cảnh này rồi thử lại. Nếu vẫn lỗi, hãy liên hệ hỗ trợ kèm mã tác vụ.',
+    },
+    videoFailed: {
+      title: 'Không tạo được video',
+      suggestion: 'Bạn có thể thử lại phân cảnh này sau. Nếu lỗi liên tục, hãy đổi ảnh tham chiếu hoặc rút gọn kịch bản.',
+    },
+    duplicateSkipped: {
+      title: 'Đã bỏ qua lần tạo cũ',
+      message: 'Hệ thống thấy phân cảnh này đã có video nên huỷ lần tạo cũ bị xếp hàng trùng.',
+      suggestion:
+        'Nếu bạn đang tạo lại, hãy xem hàng đợi còn lần tạo mới nào đang chạy không; nếu không có thì bấm tạo lại lần nữa. Lần huỷ cũ này không phải lỗi hiện tại.',
+    },
+    cancelled: {
+      title: 'Đã huỷ',
+      interruptedTitle: 'Đã bị gián đoạn',
+      message: 'Đã huỷ tạo',
+      interruptedMessage: 'Việc tạo bị gián đoạn, vui lòng tạo lại',
+      suggestion: 'Khi cần video, hãy tạo lại.',
+    },
+    hintFollow: 'Hãy xử lý theo thông báo trên rồi tạo lại phân cảnh này.',
+    hintDefault: 'Hãy kiểm tra ảnh tham chiếu và kịch bản của cảnh này rồi thử lại.',
   },
 }

@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.errors import AppError
 from app.models import User
 from app.models_drama import DramaAsset, DramaEpisode, DramaEpisodeFragment, DramaFragmentAssetRef, DramaProject
 from app.services.ark import get_ark
@@ -455,7 +456,7 @@ def activate_fragment_video_version(
     params = dict(fragment.params or {}) if isinstance(fragment.params, dict) else {}
     versions_raw = params.get("video_versions")
     if not isinstance(versions_raw, list):
-        raise ValueError("没有可切换的历史版本")
+        raise AppError("drama.no_history_version")
     target: dict[str, Any] | None = None
     remaining: list[dict[str, Any]] = []
     for item in versions_raw:
@@ -466,7 +467,7 @@ def activate_fragment_video_version(
             continue
         remaining.append(dict(item))
     if not target or not str(target.get("video") or "").strip():
-        raise ValueError("指定版本不存在")
+        raise AppError("drama.version_not_found")
 
     from datetime import datetime, timezone
 
@@ -598,7 +599,7 @@ def activate_asset_image_version(
     params = dict(asset.params or {}) if isinstance(asset.params, dict) else {}
     versions_raw = params.get("image_versions")
     if not isinstance(versions_raw, list):
-        raise ValueError("没有可切换的历史版本")
+        raise AppError("drama.no_history_version")
     target: dict[str, Any] | None = None
     remaining: list[dict[str, Any]] = []
     for item in versions_raw:
@@ -610,7 +611,7 @@ def activate_asset_image_version(
         remaining.append(dict(item))
     target_url = str((target or {}).get("url") or (target or {}).get("cover") or "").strip()
     if not target or not target_url:
-        raise ValueError("指定版本不存在")
+        raise AppError("drama.version_not_found")
 
     from datetime import datetime, timezone
 

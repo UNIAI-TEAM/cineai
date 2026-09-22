@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import HTTPException
 from sqlalchemy import delete, func, inspect, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import attributes, selectinload
 
+from app.errors import AppError
 from app.models import User
 from app.models_drama import (
     DramaAsset,
@@ -41,7 +41,7 @@ async def get_owned_drama_project(
     result = await db.execute(q)
     project = result.scalar_one_or_none()
     if not project:
-        raise HTTPException(status_code=404, detail="漫剧项目不存在")
+        raise AppError("drama.project_not_found")
     return project
 
 
@@ -70,7 +70,7 @@ async def get_owned_episode(
     result = await db.execute(q)
     episode = result.scalar_one_or_none()
     if not episode:
-        raise HTTPException(status_code=404, detail="分集不存在")
+        raise AppError("drama.episode_not_found")
     return episode
 
 

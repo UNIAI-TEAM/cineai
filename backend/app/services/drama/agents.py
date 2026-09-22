@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.errors import AppError
 from app.services.drama.llm import drama_chat_json
 from app.services.drama.script_summary_prompt import (
     SCRIPT_SUMMARY_SYSTEM_PROMPT,
@@ -590,7 +591,7 @@ def append_manual_episode(
     if next_number < 1:
         next_number = 1
     if next_number > MAX_DRAMA_EPISODES:
-        raise ValueError(f"最多 {MAX_DRAMA_EPISODES} 集")
+        raise AppError("drama.max_episodes", max=MAX_DRAMA_EPISODES)
     title_text = (title or "").strip() or f"第 {next_number} 集"
     added = {
         "episodeNumber": next_number,

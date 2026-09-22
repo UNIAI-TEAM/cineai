@@ -10,6 +10,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.errors import AppError
 from app.models_drama import DramaEpisode, DramaProject
 from app.services import storage as storage_svc
 from app.services.drama.output_settings import resolve_episode_video_output, target_pixel_size
@@ -94,7 +95,8 @@ async def _ensure_clip_local(url: str, cache_dir: Path, index: int) -> Path:
     dest = cache_dir / f"src_{index:03d}.mp4"
     await storage_svc.ensure_local_media(url, dest)
     if not dest.exists() or dest.stat().st_size <= 0:
-        raise RuntimeError(f"无法下载分镜视频：{url[:120]}")
+        logger.warning("分镜视频下载失败 url=%s", url[:120])
+        raise AppError("drama.compose_clip_download_failed")
     return dest
 
 
@@ -112,7 +114,7 @@ async def compose_episode_video(
         frags = [f for f in frags if f.id in allow]
     clips = [(f.id, (f.video or "").strip()) for f in frags if (f.video or "").strip()]
     if not clips:
-        raise RuntimeError("本集还没有可拼接的分镜视频")
+        raise AppError("drama.compose_no_videos")
 
     ratio, resolution = resolve_episode_video_output(episode.params, project.params)
     width, height = target_pixel_size(ratio, resolution)
