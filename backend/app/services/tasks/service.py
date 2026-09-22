@@ -10,6 +10,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.errors import AppError
 from app.models import Project, Shot, User
 from app.models_drama import DramaAsset, DramaEpisode, DramaEpisodeFragment, DramaProject, DramaScript
 from app.models_tasks import TaskEvent, TaskRun, TaskStep, TaskTarget
@@ -103,7 +104,7 @@ async def create_task(
     await _validate_task_scope(db, user, body)
     handler = get_task_handler(body.domain, body.task_type)
     if handler is None:
-        raise ValueError("当前任务类型尚未接入任务平台")
+        raise AppError("task.type_not_supported")
     from app.services.billing.settlement import ensure_balance_for_task
 
     balance_probe = TaskRun(
@@ -857,59 +858,59 @@ async def _validate_task_scope(db: AsyncSession, user: User, body: TaskCreateReq
     if body.project_id is not None:
         project = await db.get(Project, body.project_id)
         if not project or int(project.user_id) != int(user.id):
-            raise ValueError("科普项目不存在或无权限")
+            raise AppError("task.target_not_found", target="kepu_project")
     if body.shot_id is not None:
         shot = await db.get(Shot, body.shot_id)
         if not shot:
-            raise ValueError("镜头不存在")
+            raise AppError("task.target_not_found", target="shot")
         project = await db.get(Project, int(shot.project_id))
         if not project or int(project.user_id) != int(user.id):
-            raise ValueError("镜头不存在或无权限")
+            raise AppError("task.target_not_found", target="shot")
         if body.project_id is not None and int(shot.project_id) != int(body.project_id):
-            raise ValueError("镜头与项目不匹配")
+            raise AppError("task.target_mismatch", target="shot")
 
     drama_project_id: int | None = body.drama_project_id
     if drama_project_id is not None:
         drama_project = await db.get(DramaProject, drama_project_id)
         if not drama_project or int(drama_project.user_id) != int(user.id):
-            raise ValueError("漫剧项目不存在或无权限")
+            raise AppError("task.target_not_found", target="drama_project")
     if body.script_id is not None:
         script = await db.get(DramaScript, body.script_id)
         if not script:
-            raise ValueError("剧本不存在")
+            raise AppError("task.target_not_found", target="script")
         drama_project = await db.get(DramaProject, int(script.project_id))
         if not drama_project or int(drama_project.user_id) != int(user.id):
-            raise ValueError("剧本不存在或无权限")
+            raise AppError("task.target_not_found", target="script")
         if drama_project_id is not None and int(script.project_id) != int(drama_project_id):
-            raise ValueError("剧本与漫剧项目不匹配")
+            raise AppError("task.target_mismatch", target="script")
     if body.episode_id is not None:
         episode = await db.get(DramaEpisode, body.episode_id)
         if not episode:
-            raise ValueError("分集不存在")
+            raise AppError("task.target_not_found", target="episode")
         drama_project = await db.get(DramaProject, int(episode.project_id))
         if not drama_project or int(drama_project.user_id) != int(user.id):
-            raise ValueError("分集不存在或无权限")
+            raise AppError("task.target_not_found", target="episode")
         if drama_project_id is not None and int(episode.project_id) != int(drama_project_id):
-            raise ValueError("分集与漫剧项目不匹配")
+            raise AppError("task.target_mismatch", target="episode")
     if body.fragment_id is not None:
         fragment = await db.get(DramaEpisodeFragment, body.fragment_id)
         if not fragment:
-            raise ValueError("分镜不存在")
+            raise AppError("task.target_not_found", target="fragment")
         episode = await db.get(DramaEpisode, int(fragment.episode_id))
         drama_project = await db.get(DramaProject, int(episode.project_id)) if episode else None
         if not episode or not drama_project or int(drama_project.user_id) != int(user.id):
-            raise ValueError("分镜不存在或无权限")
+            raise AppError("task.target_not_found", target="fragment")
         if body.episode_id is not None and int(fragment.episode_id) != int(body.episode_id):
-            raise ValueError("分镜与分集不匹配")
+            raise AppError("task.target_mismatch", target="fragment")
     if body.asset_id is not None:
         asset = await db.get(DramaAsset, body.asset_id)
         if not asset:
-            raise ValueError("资产不存在")
+            raise AppError("task.target_not_found", target="asset")
         drama_project = await db.get(DramaProject, int(asset.project_id))
         if not drama_project or int(drama_project.user_id) != int(user.id):
-            raise ValueError("资产不存在或无权限")
+            raise AppError("task.target_not_found", target="asset")
         if drama_project_id is not None and int(asset.project_id) != int(drama_project_id):
-            raise ValueError("资产与漫剧项目不匹配")
+            raise AppError("task.target_mismatch", target="asset")
 
 
 async def get_task_for_user(db: AsyncSession, user: User, task_id: int) -> TaskRun:
@@ -993,9 +994,9 @@ async def count_active_tasks_for_user(
 async def cancel_task_for_user(db: AsyncSession, user: User, task_id: int) -> TaskRun:
     task = await get_task_for_user(db, user, task_id)
     if not task.cancelable:
-        raise ValueError("任务不支持取消")
+        raise AppError("task.cancel_not_supported")
     if task.status in TERMINAL_TASK_STATUSES:
-        raise ValueError("任务已结束，不能取消")
+        raise AppError("task.already_finished")
     task.cancel_requested = True
     task.status = "cancel_requested"
     task.next_action_at = datetime.now(UTC)
@@ -1157,9 +1158,9 @@ async def cancel_task_admin(db: AsyncSession, task_id: int) -> TaskRun:
     """Cancel any task as admin."""
     task = await get_task_admin(db, task_id)
     if not task.cancelable:
-        raise ValueError("任务不支持取消")
+        raise AppError("task.cancel_not_supported")
     if task.status in TERMINAL_TASK_STATUSES:
-        raise ValueError("任务已结束，不能取消")
+        raise AppError("task.already_finished")
     task.cancel_requested = True
     task.status = "cancel_requested"
     task.next_action_at = datetime.now(UTC)

@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 
 from app.config import get_settings
+from app.errors import AppError
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,7 +34,7 @@ async def create_mock_delay_task(
 ) -> TaskRunOut:
     settings = get_settings()
     if not settings.ark_mock and str(user.role or "") != "admin":
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise AppError("task.not_found")
     try:
         async with _mock_delay_create_lock:
             active_count = await count_active_tasks_for_user(
@@ -43,7 +44,7 @@ async def create_mock_delay_task(
                 task_type="mock_delay",
             )
             if active_count >= 3:
-                raise HTTPException(status_code=429, detail="模拟延时任务最多同时运行 3 个")
+                raise AppError("task.mock_limit", max=3)
             task = await create_task(
                 db,
                 user,
@@ -74,7 +75,7 @@ async def get_task_run(
     try:
         task = await get_task_for_user(db, user, task_id)
     except LookupError as exc:
-        raise HTTPException(status_code=404, detail="任务不存在") from exc
+        raise AppError("task.not_found") from exc
     return TaskRunOut.model_validate(task)
 
 
@@ -124,7 +125,7 @@ async def cancel_task_run(
     try:
         task = await cancel_task_for_user(db, user, task_id)
     except LookupError as exc:
-        raise HTTPException(status_code=404, detail="任务不存在") from exc
+        raise AppError("task.not_found") from exc
     except ValueError as exc:
         raise http_exception_for_value_error(exc) from exc
     return TaskRunOut.model_validate(task)

@@ -90,3 +90,12 @@ def test_http_helper_plain_value_error_is_400() -> None:
     out = http_exception_for_value_error(ValueError("余额不足：老格式"))
     assert isinstance(out, HTTPException)
     assert out.status_code == 400
+
+
+def test_task_payload_missing_field_has_code() -> None:
+    from app.services.tasks.handlers import _require_int
+
+    with pytest.raises(AppError) as exc_info:
+        _require_int(None, "project_id")
+    assert exc_info.value.code == "task.invalid_payload"
+    assert exc_info.value.params == {"field": "project_id"}
