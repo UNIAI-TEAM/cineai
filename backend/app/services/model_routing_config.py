@@ -70,10 +70,7 @@ def channel_connection_ready(channel: SystemModelChannel) -> bool:
         return False
     if channel.protocol == "volc_tts":
         return bool(channel.has_api_key or channel.base_url)
-    if channel.protocol == "kie":
-        # Base URL 可缺省为官方默认
-        return bool(channel.has_api_key or (channel.api_key or "").strip())
-    return bool(channel.base_url and channel.has_api_key)
+    return bool(channel.base_url and (channel.has_api_key or (channel.api_key or "").strip()))
 
 
 # 判断渠道是否包含指定上游模型

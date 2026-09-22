@@ -143,3 +143,38 @@ def default_models_from_dict(raw: dict[str, Any] | None) -> DefaultModels:
         video_model=str(data.get("videoModel") or data.get("video_model") or ""),
         audio_model=str(data.get("audioModel") or data.get("audio_model") or ""),
     )
+
+
+class ModelBinding(BaseModel):
+    """One (channel, model) assignment inside a function binding slot/override, with a pick weight."""
+
+    channel_id: str
+    model: str
+    weight: int = Field(default=1, ge=1, le=100)
+
+
+class FunctionBindings(BaseModel):
+    """Per-capability default model slots plus optional per-function overrides."""
+
+    slots: dict[str, list[ModelBinding]] = Field(default_factory=dict)
+    overrides: dict[str, list[ModelBinding]] = Field(default_factory=dict)
+
+
+class FunctionInfo(BaseModel):
+    """Admin-facing view of one catalog function (id/capability/label/description)."""
+
+    id: str
+    capability: LogicalModelCapability
+    label: str
+    description: str
+
+
+class ProviderPreset(BaseModel):
+    """Known provider template (protocol/base URL/model catalog source) offered when adding a channel."""
+
+    id: str
+    name: str
+    protocol: ChannelProtocol
+    base_url: str
+    catalog: Literal["remote", "static", "none"]
+    models: list[dict[str, Any]] = Field(default_factory=list)
