@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.deps import get_current_admin
 from app.models import User
+from app.schemas_provider_rates import AdminProviderRatesOut, AdminProviderRatesPut
 from app.schemas_routing import AdminRoutingSettingsOut, AdminRoutingSettingsPatch, AdminRoutingSettingsSaveOut
 from app.schemas_settings import (
     AdminModelSettingsImportEnvOut,
@@ -15,6 +16,7 @@ from app.schemas_settings import (
     AdminModelSettingsPatch,
     AdminModelSettingsSaveOut,
 )
+from app.services.billing.provider_rates_admin import get_provider_rates_admin, save_provider_rates_admin
 from app.services.model_settings import (
     get_admin_model_settings,
     get_admin_routing_settings,
@@ -120,15 +122,26 @@ async def admin_list_upstream_models(
     return {"models": models}
 
 
-@router.get("/settings/billing/model-rates")
-async def admin_billing_model_rates(
+@router.get("/settings/billing/model-rates", response_model=AdminProviderRatesOut)
+async def admin_get_provider_rates(
     _admin: User = Depends(get_current_admin),
-) -> dict:
-    """拉取 TokenFree 官方价目，返回推荐文字/图/视频模型费率。"""
-    from app.services.tokenfree_pricing import billing_official_rate_rows, tokenfree_pricing_url
+    db: AsyncSession = Depends(get_db),
+) -> AdminProviderRatesOut:
+    """Bảng giá provider_rates đang áp dụng + mặc định + đơn vị + model đã gán chưa có giá."""
+    return await get_provider_rates_admin(db)
 
-    items = await billing_official_rate_rows()
-    return {"items": items, "source": tokenfree_pricing_url()}
+
+@router.put("/settings/billing/model-rates", response_model=AdminProviderRatesOut)
+async def admin_put_provider_rates(
+    body: AdminProviderRatesPut,
+    _admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminProviderRatesOut:
+    """Thay toàn bộ bảng giá; lỗi validation trả 400 với thông điệp tiếng Việt."""
+    try:
+        return await save_provider_rates_admin(db, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 class AdminProviderTestRequest(BaseModel):
