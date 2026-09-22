@@ -87,3 +87,6 @@ frontend/dist/
 # CodeGraph 本地索引
 .codegraph/
 docs/brand/boards/
+
+# SDD scratch (superpowers)
+.superpowers/
