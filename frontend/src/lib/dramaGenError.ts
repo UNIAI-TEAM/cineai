@@ -159,7 +159,8 @@ function formatErrorText(raw: string | null | undefined): DramaGenErrorView {
     return { title: c.timeout.title, message: clip(text, 200), suggestion: c.timeout.suggestion }
   }
 
-  if (/网络错误|ConnectError|ConnectTimeout|无法连接上游|tokenfree\.com|api\.kie\.ai/i.test(text)) {
+  // 连接错误按错误类型 / 后端文案识别（providers/base.py, exc_format.py），不依赖具体服务商域名
+  if (/网络错误|ConnectError|ConnectTimeout|无法连接上游/i.test(text)) {
     return { title: c.network.title, message: clip(text, 200), suggestion: c.network.suggestion }
   }
 

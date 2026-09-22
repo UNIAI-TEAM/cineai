@@ -167,7 +167,7 @@ export const enDramaEpisode = {
       parallel: 'Parallel',
       linkTitle: 'Link shots by last frame',
       seedanceRules: 'Seedance parameters and rules',
-      noVideoModels: 'No video models are set up yet. Contact the site admin. You can still generate; a model will be picked automatically.',
+      noVideoModels: 'No video models are set up yet. Contact the site administrator.',
       linkPanel: 'Shot linking',
       linkOption: 'Continue from the previous shot’s last frame',
       linkOptionHint:

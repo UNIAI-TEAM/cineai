@@ -352,7 +352,7 @@ export const enPages = {
     ordering: 'Creating order…',
     payNow: 'Top up',
     billingTitle: 'How billing works',
-    billing1: 'Storyboard, stills, voice, and AI video are billed at TokenFree official cost (no markup)',
+    billing1: 'Storyboard, stills, voice, and AI video are billed at the model provider’s list price (no markup)',
     billing2: 'We pre-authorize an estimate, then settle the real usage (refund or top-up the difference)',
     billing3: 'Image+narration is cheaper; turning on AI motion video costs more',
     whyTitle: 'Why metered billing',

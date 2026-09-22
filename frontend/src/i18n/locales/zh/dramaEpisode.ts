@@ -162,7 +162,7 @@ export const zhDramaEpisode = {
       parallel: '并发生成',
       linkTitle: '镜间尾帧衔接',
       seedanceRules: 'Seedance 传值与使用规则',
-      noVideoModels: '尚未配置视频模型，请联系管理员。仍可直接生成，系统会自动选择模型。',
+      noVideoModels: '尚未配置视频模型，请联系管理员。',
       linkPanel: '镜间衔接',
       linkOption: '用上一镜尾帧衔接',
       linkOptionHint:

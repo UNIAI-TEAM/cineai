@@ -153,26 +153,26 @@ export const zhErrors = {
     genericFailed: '生成失败',
     empty: {
       message: '任务未能完成，且未记录具体错误信息。',
-      suggestion: '请稍后重试；若反复失败，检查网络/代理是否能访问 TokenFree，以及后台模型渠道密钥。',
+      suggestion: '请稍后重试；若反复失败，检查网络/代理是否能访问模型服务商，以及后台配置的服务商密钥。',
     },
     timeout: {
       title: '上游响应超时',
       suggestion:
-        '已经连上 TokenFree，但出图/出视频等待超过上限。请稍后重试；若文本能生成、只有图/视频超时，多半是上游排队较慢，不是代理断网。',
+        '已经连上模型服务商，但出图/出视频等待超过上限。请稍后重试；若文本能生成、只有图/视频超时，多半是上游排队较慢，不是代理断网。',
     },
     network: {
       title: '无法连接图片/视频服务',
-      suggestion: '本机当前连不上上游（常见于代理未放行或网络中断）。请检查网络/代理后重试，并确认后台 TokenFree 渠道密钥有效。',
+      suggestion: '本机当前连不上上游（常见于代理未放行或网络中断）。请检查网络/代理后重试，并确认后台配置的服务商密钥有效。',
     },
     imageFailedLegacy: {
       title: '生图失败',
       message: '生图未成功，但旧任务未保存具体原因（多为上游连接失败且错误文案为空）。',
-      suggestion: '请重新生成一次；新版本会写出明确错误。仍失败时检查 TokenFree 网络与密钥。',
+      suggestion: '请重新生成一次；新版本会写出明确错误。仍失败时检查网络与服务商密钥。',
     },
     upstreamAccount: {
       title: '平台上游账户欠费',
       message: '上游 Seedream 模型账户余额不足，生图请求被拒绝。这是站点上游模型账户欠费，不是您个人钱包余额问题。',
-      suggestion: '请联系站点管理员在 TokenFree 控制台充值；充值完成后请重试生图。',
+      suggestion: '请联系站点管理员为模型服务商账户充值；充值完成后请重试生图。',
     },
     billing: {
       title: '余额不足',
@@ -230,7 +230,7 @@ export const zhErrors = {
     channelCredits: {
       title: '视频渠道积分不足',
       message: '上游账户积分不足，无法创建视频生成任务（不是参考图或音频时长问题）。',
-      suggestion: '请联系管理员在 TokenFree 控制台充值后再重试；充值后重新生成该分镜即可。',
+      suggestion: '请联系管理员为模型服务商账户充值后再重试；充值后重新生成该分镜即可。',
     },
     fileType: {
       title: '参考图格式不支持',

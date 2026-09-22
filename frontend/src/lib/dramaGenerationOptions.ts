@@ -1,4 +1,4 @@
-/** 漫剧生图：模型 / 比例 / 清晰度选项（模型列表来自后台 TokenFree 目录） */
+/** 漫剧生图：模型 / 比例 / 清晰度选项（模型列表来自后台 /api/media-models?scope=drama） */
 import { getActiveLocale } from '../i18n/detect'
 import { messages } from '../i18n/messages'
 

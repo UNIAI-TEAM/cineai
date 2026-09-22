@@ -54,7 +54,7 @@ export const enDramaGen = {
       collapse: 'Hide generation queue',
       viewReason: 'See why',
       viewDetail: 'View details',
-      upstreamTip: 'We need to top up the TokenFree Seedream account. Topping up your wallet won’t fix this.',
+      upstreamTip: 'We need to top up the model provider account. Topping up your wallet won’t fix this.',
     },
     detail: {
       failedTitle: 'Why it failed',
@@ -63,7 +63,7 @@ export const enDramaGen = {
       close: 'Close',
       parsing: 'Checking the error…',
       suggestion: 'Suggestion: ',
-      upstreamShort: 'We need to top up the TokenFree Seedream account.',
+      upstreamShort: 'We need to top up the model provider account.',
       showRaw: 'Show raw error',
       hideRaw: 'Hide raw error',
       hintQueued: 'Queued. Waiting for the scheduler to pick it up.',

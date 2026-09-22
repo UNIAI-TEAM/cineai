@@ -54,7 +54,7 @@ export const viDramaGen = {
       collapse: 'Thu gọn hàng chờ tạo',
       viewReason: 'Xem lý do',
       viewDetail: 'Xem chi tiết',
-      upstreamTip: 'Chúng tôi cần nạp tiền cho tài khoản TokenFree Seedream. Nạp thêm tiền vào ví của bạn sẽ không khắc phục được lỗi này.',
+      upstreamTip: 'Chúng tôi cần nạp tiền cho tài khoản nhà cung cấp mô hình. Nạp thêm tiền vào ví của bạn sẽ không khắc phục được lỗi này.',
     },
     detail: {
       failedTitle: 'Lý do lỗi',
@@ -63,7 +63,7 @@ export const viDramaGen = {
       close: 'Đóng',
       parsing: 'Đang kiểm tra lỗi…',
       suggestion: 'Gợi ý: ',
-      upstreamShort: 'Chúng tôi cần nạp tiền cho tài khoản TokenFree Seedream.',
+      upstreamShort: 'Chúng tôi cần nạp tiền cho tài khoản nhà cung cấp mô hình.',
       showRaw: 'Xem lỗi gốc',
       hideRaw: 'Ẩn lỗi gốc',
       hintQueued: 'Đã vào hàng chờ, sắp được xử lý.',

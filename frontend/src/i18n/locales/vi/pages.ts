@@ -352,7 +352,7 @@ export const viPages = {
     ordering: 'Đang tạo đơn…',
     payNow: 'Nạp ngay',
     billingTitle: 'Cách tính phí',
-    billing1: 'Phân cảnh, ảnh, giọng đọc và video AI tính đúng theo giá gốc của TokenFree (không cộng thêm)',
+    billing1: 'Phân cảnh, ảnh, giọng đọc và video AI tính đúng theo giá gốc của nhà cung cấp mô hình (không cộng thêm)',
     billing2: 'Khi bắt đầu tạo, hệ thống tạm giữ trước số tiền ước tính; tạo xong sẽ tính theo lượng sử dụng thực tế (thừa hoàn lại, thiếu trừ thêm)',
     billing3: 'Kiểu “ảnh + lời dẫn” rẻ hơn; bật video AI có chuyển động sẽ tốn hơn',
     whyTitle: 'Vì sao tính phí theo lượng sử dụng',

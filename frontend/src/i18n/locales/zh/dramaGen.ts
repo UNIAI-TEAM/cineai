@@ -54,7 +54,7 @@ export const zhDramaGen = {
       collapse: '收起生成队列',
       viewReason: '查看原因',
       viewDetail: '查看详情',
-      upstreamTip: '需管理员充值 TokenFree Seedream 账户，用户端充值无法解决。',
+      upstreamTip: '需管理员为模型服务商账户充值，用户端充值无法解决。',
     },
     detail: {
       failedTitle: '失败原因',
@@ -63,7 +63,7 @@ export const zhDramaGen = {
       close: '关闭',
       parsing: '正在解析错误…',
       suggestion: '建议：',
-      upstreamShort: '需管理员充值 TokenFree Seedream 账户。',
+      upstreamShort: '需管理员为模型服务商账户充值。',
       showRaw: '查看原始错误',
       hideRaw: '收起原始错误',
       hintQueued: '任务已入队，等待调度器领取。',

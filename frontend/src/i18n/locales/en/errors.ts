@@ -154,28 +154,28 @@ export const enErrors = {
     empty: {
       message: 'The task didn’t finish and no error details were recorded.',
       suggestion:
-        'Please try again later. If it keeps failing, check that your network or proxy can reach TokenFree and that the model channel key in the admin panel is valid.',
+        'Please try again later. If it keeps failing, check that your network or proxy can reach the model provider and that the provider key in the admin panel is valid.',
     },
     timeout: {
       title: 'The model provider timed out',
       suggestion:
-        'TokenFree was reachable, but the image or video took longer than the limit. Try again later. If text works and only images or videos time out, the provider queue is probably slow; your network is fine.',
+        'The model provider was reachable, but the image or video took longer than the limit. Try again later. If text works and only images or videos time out, the provider queue is probably slow; your network is fine.',
     },
     network: {
       title: 'Can’t reach the image/video service',
       suggestion:
-        'This server can’t reach the model provider right now (often a blocked proxy or a network outage). Check the network or proxy and try again, and make sure the TokenFree channel key in the admin panel is valid.',
+        'This server can’t reach the model provider right now (often a blocked proxy or a network outage). Check the network or proxy and try again, and make sure the provider key in the admin panel is valid.',
     },
     imageFailedLegacy: {
       title: 'Image generation failed',
       message: 'The image wasn’t generated, and this older task didn’t save the reason (usually a failed connection to the provider with an empty error).',
-      suggestion: 'Generate it again; the new version records a clear error. If it still fails, check the TokenFree network and key.',
+      suggestion: 'Generate it again; the new version records a clear error. If it still fails, check the network and the provider key.',
     },
     upstreamAccount: {
       title: 'The platform’s provider account is out of credit',
       message:
         'The Seedream model account has run out of balance, so the image request was rejected. This is the site’s provider account, not your own wallet.',
-      suggestion: 'Please ask the site admin to top up in the TokenFree console, then generate the image again.',
+      suggestion: 'Please ask the site admin to top up the model provider account, then generate the image again.',
     },
     billing: {
       title: 'Insufficient balance',
@@ -233,7 +233,7 @@ export const enErrors = {
     channelCredits: {
       title: 'The video channel is out of credits',
       message: 'The provider account doesn’t have enough credits to create the video task (this isn’t about reference images or audio length).',
-      suggestion: 'Ask the admin to top up in the TokenFree console, then generate this shot again.',
+      suggestion: 'Ask the admin to top up the model provider account, then generate this shot again.',
     },
     fileType: {
       title: 'Reference image format not supported',

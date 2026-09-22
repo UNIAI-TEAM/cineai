@@ -154,28 +154,28 @@ export const viErrors = {
     empty: {
       message: 'Việc tạo chưa xong và hệ thống không ghi lại lỗi cụ thể.',
       suggestion:
-        'Vui lòng thử lại sau. Nếu vẫn lỗi, hãy kiểm tra mạng/proxy có kết nối được TokenFree không và key kênh mô hình trong trang quản trị còn hiệu lực không.',
+        'Vui lòng thử lại sau. Nếu vẫn lỗi, hãy kiểm tra mạng/proxy có kết nối được nhà cung cấp mô hình không và key nhà cung cấp trong trang quản trị còn hiệu lực không.',
     },
     timeout: {
       title: 'Nhà cung cấp mô hình phản hồi quá lâu',
       suggestion:
-        'Đã kết nối được TokenFree nhưng tạo ảnh/video mất quá thời gian cho phép. Vui lòng thử lại sau. Nếu tạo văn bản vẫn được mà chỉ ảnh/video bị quá giờ thì thường là do hàng chờ bên nhà cung cấp chậm, không phải mất mạng.',
+        'Đã kết nối được nhà cung cấp mô hình nhưng tạo ảnh/video mất quá thời gian cho phép. Vui lòng thử lại sau. Nếu tạo văn bản vẫn được mà chỉ ảnh/video bị quá giờ thì thường là do hàng chờ bên nhà cung cấp chậm, không phải mất mạng.',
     },
     network: {
       title: 'Không kết nối được dịch vụ tạo ảnh/video',
       suggestion:
-        'Máy chủ hiện không kết nối được nhà cung cấp mô hình (thường do proxy chặn hoặc mất mạng). Hãy kiểm tra mạng/proxy rồi thử lại, và kiểm tra key kênh TokenFree trong trang quản trị.',
+        'Máy chủ hiện không kết nối được nhà cung cấp mô hình (thường do proxy chặn hoặc mất mạng). Hãy kiểm tra mạng/proxy rồi thử lại, và kiểm tra key nhà cung cấp trong trang quản trị.',
     },
     imageFailedLegacy: {
       title: 'Không tạo được ảnh',
       message: 'Ảnh chưa tạo được, nhưng lần tạo cũ này không lưu lý do (thường là lỗi kết nối tới nhà cung cấp mô hình mà không có nội dung lỗi).',
-      suggestion: 'Vui lòng tạo lại; phiên bản mới sẽ ghi rõ lỗi. Nếu vẫn không được, hãy kiểm tra kết nối và key TokenFree.',
+      suggestion: 'Vui lòng tạo lại; phiên bản mới sẽ ghi rõ lỗi. Nếu vẫn không được, hãy kiểm tra kết nối và key nhà cung cấp.',
     },
     upstreamAccount: {
       title: 'Tài khoản nhà cung cấp mô hình đã hết tiền',
       message:
         'Tài khoản mô hình Seedream của hệ thống đã hết số dư nên yêu cầu tạo ảnh bị từ chối. Đây là tài khoản của hệ thống, không phải số dư ví của bạn.',
-      suggestion: 'Vui lòng báo cho chúng tôi để nạp tiền vào TokenFree, sau đó tạo ảnh lại.',
+      suggestion: 'Vui lòng báo cho chúng tôi để nạp tiền vào tài khoản nhà cung cấp mô hình, sau đó tạo ảnh lại.',
     },
     billing: {
       title: 'Số dư không đủ',
@@ -233,7 +233,7 @@ export const viErrors = {
     channelCredits: {
       title: 'Kênh video đã hết điểm',
       message: 'Tài khoản nhà cung cấp mô hình không đủ điểm để tạo video (không phải lỗi ảnh tham chiếu hay độ dài audio).',
-      suggestion: 'Vui lòng báo cho chúng tôi để nạp thêm vào TokenFree, sau đó tạo lại phân cảnh này.',
+      suggestion: 'Vui lòng báo cho chúng tôi để nạp thêm vào tài khoản nhà cung cấp mô hình, sau đó tạo lại phân cảnh này.',
     },
     fileType: {
       title: 'Định dạng ảnh tham chiếu không được hỗ trợ',

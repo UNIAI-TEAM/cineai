@@ -1,4 +1,4 @@
-/** 漫剧画布 / 分集：视频生成选项（模型列表来自后台 TokenFree 目录） */
+/** 漫剧画布 / 分集：视频生成选项（模型列表来自后台 /api/media-models?scope=drama） */
 import { getActiveLocale } from '../i18n/detect'
 import { messages } from '../i18n/messages'
 
@@ -49,7 +49,7 @@ export function getVideoModelLabel(modelId: string | undefined | null) {
   return id || messages[getActiveLocale()].dramaCanvas.options.videoModel
 }
 
-/** 任意非空字符串均可作为视频模型 id（后台 TokenFree 目录） */
+/** 任意非空字符串均可作为视频模型 id（由后台功能分配决定是否可用） */
 export function isVideoGenerationModelId(id: string): id is VideoGenerationModelId {
   return Boolean((id || '').trim())
 }

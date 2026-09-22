@@ -344,7 +344,7 @@ export const zhPages = {
     ordering: '下单中…',
     payNow: '立即充值',
     billingTitle: '计费说明',
-    billing1: '拆分镜、出图、配音、AI 视频按 TokenFree 官方成本计费（不加价）',
+    billing1: '拆分镜、出图、配音、AI 视频按模型服务商官方价计费（不加价）',
     billing2: '开始生成时预扣估算金额，结束后按实际用量结算（多退少补）',
     billing3: '图文模式成本更低；开启 AI 动态视频时消耗更高',
     whyTitle: '为什么按量计费',

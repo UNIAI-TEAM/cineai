@@ -166,7 +166,7 @@ export const viDramaEpisode = {
       parallel: 'Tạo song song',
       linkTitle: 'Nối các cảnh bằng khung hình cuối',
       seedanceRules: 'Tham số và quy tắc Seedance',
-      noVideoModels: 'Chưa có mô hình nào được cấu hình — hãy liên hệ với chúng tôi. Bạn vẫn bấm tạo được, hệ thống sẽ tự chọn mô hình.',
+      noVideoModels: 'Chưa có mô hình video nào được cấu hình — hãy liên hệ với chúng tôi.',
       linkPanel: 'Nối cảnh',
       linkOption: 'Nối bằng khung hình cuối của cảnh trước',
       linkOptionHint:

@@ -49,7 +49,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDoc> = {
       {
         title: '4. 计费与充值',
         bullets: [
-          '生成类任务按 TokenFree 官方成本计费（与上游一致，不再加价）；开始任务时可能预扣估算金额，结束后按实际用量结算（多退少补）。',
+          '生成类任务按模型服务商官方价计费（与上游一致，不再加价）；开始任务时可能预扣估算金额，结束后按实际用量结算（多退少补）。',
           '充值通过银行转账完成，由平台确认收款后入账，到账以系统记录为准。',
           '除法律法规另有规定或本平台明确约定外，已到账的充值余额一般不予退款。',
           '若因系统故障导致重复扣款或未到账，请保留订单号并联系客服核实处理。',
@@ -331,7 +331,7 @@ export const LEGAL_DOCS_VI: Record<'terms' | 'privacy', LegalDoc> = {
       {
         title: '4. Tính phí và nạp tiền',
         bullets: [
-          'Các lần tạo nội dung được tính phí theo giá chính thức của TokenFree (đúng bằng giá gốc của nhà cung cấp mô hình, không cộng thêm). Khi bắt đầu, chúng tôi có thể tạm giữ trước một khoản ước tính; khi kết thúc sẽ quyết toán theo lượng sử dụng thực tế (thừa thì hoàn lại, thiếu thì trừ thêm).',
+          'Các lần tạo nội dung được tính phí đúng theo giá gốc của nhà cung cấp mô hình (không cộng thêm). Khi bắt đầu, chúng tôi có thể tạm giữ trước một khoản ước tính; khi kết thúc sẽ quyết toán theo lượng sử dụng thực tế (thừa thì hoàn lại, thiếu thì trừ thêm).',
           'Người dùng nạp tiền bằng hình thức chuyển khoản ngân hàng. Tiền được cộng vào số dư sau khi Nền tảng xác nhận đã nhận được khoản chuyển. Việc tiền đã được cộng hay chưa căn cứ theo dữ liệu ghi nhận trên hệ thống.',
           'Số tiền nạp đã cộng vào số dư nhìn chung không được hoàn lại, trừ trường hợp pháp luật có quy định khác hoặc Nền tảng có thoả thuận rõ ràng khác.',
           'Nếu lỗi hệ thống khiến bạn bị trừ tiền hai lần hoặc chưa được cộng tiền, vui lòng giữ lại mã đơn nạp và liên hệ bộ phận hỗ trợ để được kiểm tra, xử lý.',
