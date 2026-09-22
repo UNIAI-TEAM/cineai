@@ -9,6 +9,7 @@ import logging
 import re
 import time
 import uuid
+from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,6 +42,8 @@ from app.services.providers.registry import get_adapter, url_needs_auth
 
 logger = logging.getLogger(__name__)
 
+# Số task → kênh tối đa nhớ trong tiến trình (LRU); poll lâu hơn thì dựa vào TaskRun.provider_channel_id
+TASK_CHANNELS_MAX = 10000
 # Tiền tố task id giả lập khi chạy mock (không có key upstream)
 MOCK_TASK_PREFIX = "mock-task-"
 # Prompt tối thiểu khi người dùng không mô tả chuyển động
@@ -77,7 +80,7 @@ class MediaGateway:
     def __init__(self, settings: Settings | None = None) -> None:
         """Khởi tạo facade; `settings=None` nghĩa là luôn đọc cấu hình hiện hành."""
         self._settings = settings
-        self._task_channels: dict[str, str] = {}
+        self._task_channels: OrderedDict[str, str] = OrderedDict()
 
     @property
     def settings(self) -> Settings:
@@ -95,7 +98,17 @@ class MediaGateway:
 
     def channel_for_task(self, task_id: str) -> str | None:
         """Kênh đã tạo tác vụ này (nhớ trong tiến trình, dùng để poll đúng provider)."""
-        return self._task_channels.get(task_id)
+        cid = self._task_channels.get(task_id)
+        if cid is not None:
+            self._task_channels.move_to_end(task_id)
+        return cid
+
+    def _remember_task_channel(self, task_id: str, channel_id: str) -> None:
+        """Ghi nhớ task → kênh, giới hạn LRU TASK_CHANNELS_MAX để map không phình vô hạn."""
+        self._task_channels[task_id] = channel_id
+        self._task_channels.move_to_end(task_id)
+        while len(self._task_channels) > TASK_CHANNELS_MAX:
+            self._task_channels.popitem(last=False)
 
     # ---- Route & failover -------------------------------------------------
 
@@ -338,7 +351,7 @@ class MediaGateway:
             allow_structure_fallback=True,
         )
         route, task_id = await self._try_candidates(function_id, model, lambda r, a: a.create_video(r, req))
-        self._task_channels[task_id] = route.channel_id
+        self._remember_task_channel(task_id, route.channel_id)
         logger.info(
             "i2v create channel=%s model=%s duration=%s resolution=%s ratio=%s role=%s generate_audio=%s task=%s",
             route.channel_id,
@@ -382,7 +395,7 @@ class MediaGateway:
             content_labels=content_labels,
         )
         route, task_id = await self._try_candidates(function_id, requested, lambda r, a: a.create_video(r, req))
-        self._task_channels[task_id] = route.channel_id
+        self._remember_task_channel(task_id, route.channel_id)
         logger.info(
             "Seedance multimodal create channel=%s model=%s duration=%s items=%s task=%s",
             route.channel_id,

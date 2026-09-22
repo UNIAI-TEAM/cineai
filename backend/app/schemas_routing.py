@@ -45,7 +45,7 @@ class SystemModelChannel(BaseModel):
 class SystemModelChannelIn(BaseModel):
     """Write payload for one channel (admin)."""
 
-    id: str
+    id: str = Field(max_length=64)  # khớp độ dài cột system_model_channels.id
     name: str
     base_url: str = ""
     api_key: str | None = None

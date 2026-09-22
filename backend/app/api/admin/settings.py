@@ -44,7 +44,7 @@ async def admin_get_routing_settings(
     _admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ) -> AdminRoutingSettingsOut:
-    # 读取渠道 + 逻辑模型 + 默认模型完整路由配置
+    # Đọc toàn bộ cấu hình routing: provider + function_bindings + readiness
     return await get_admin_routing_settings(db)
 
 
@@ -54,7 +54,7 @@ async def admin_patch_routing_settings(
     _admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ) -> AdminRoutingSettingsSaveOut:
-    # 保存渠道与逻辑路由；保存时自动 sync 逻辑模型绑定
+    # Lưu provider và/hoặc function_bindings (validate trước khi commit, lỗi trả 400)
     try:
         settings, applied = await patch_admin_routing_settings(db, body)
     except ValueError as exc:
@@ -105,7 +105,7 @@ async def admin_list_upstream_models(
     _admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """按渠道协议拉取上游可用模型（TokenFree / OpenAI 兼容）。"""
+    """Danh mục model của một provider (openai: GET /models; ark/volc_tts: danh sách tĩnh); lỗi trả 400."""
     try:
         models = await list_upstream_models(
             db,
