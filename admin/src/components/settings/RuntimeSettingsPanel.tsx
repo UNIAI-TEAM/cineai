@@ -98,7 +98,7 @@ export function RuntimeSettingsPanel() {
           <span className="settings-status-extra">
             {form.readiness?.every((item) => item.ready)
               ? "Đủ 4 slot năng lực"
-              : "Vào tab “Mô hình” để thêm provider và gán model"}
+              : "Vào tab “Mô hình” để thêm nhà cung cấp và gán model"}
           </span>
         }
       />

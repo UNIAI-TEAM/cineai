@@ -284,6 +284,11 @@ export function TaskDetailDialog({ taskId, open, onOpenChange, onCancelled }: Ta
                       <span className="font-mono text-xs break-all">{task.provider_task_id}</span>
                     ) : null}
                   </DlRow>
+                  <DlRow label="provider">
+                    {task.provider_channel_id ? (
+                      <span className="font-mono text-xs">{task.provider_channel_id}</span>
+                    ) : null}
+                  </DlRow>
                 </DetailSection>
 
                 <DetailSection title="关联实体">
@@ -407,6 +412,7 @@ export function TaskDetailDialog({ taskId, open, onOpenChange, onCancelled }: Ta
                           <th>能力</th>
                           <th>billing_key</th>
                           <th>模型</th>
+                          <th>Provider</th>
                           <th>Tokens</th>
                           <th>扣费</th>
                           <th>上游成本</th>
@@ -416,7 +422,7 @@ export function TaskDetailDialog({ taskId, open, onOpenChange, onCancelled }: Ta
                       <tbody>
                         {(task.usage_lines?.length ?? 0) === 0 ? (
                           <tr>
-                            <td colSpan={8} className="text-center text-sm text-[#909399]">
+                            <td colSpan={9} className="text-center text-sm text-[#909399]">
                               暂无用量记录
                             </td>
                           </tr>
@@ -427,6 +433,7 @@ export function TaskDetailDialog({ taskId, open, onOpenChange, onCancelled }: Ta
                               <td>{line.capability ?? "—"}</td>
                               <td className="font-mono text-xs">{line.billing_key}</td>
                               <td className="max-w-[120px] truncate text-xs">{line.model || "—"}</td>
+                              <td className="font-mono text-xs">{line.provider || "—"}</td>
                               <td>{line.total_tokens ?? 0}</td>
                               <td>{format(line.charge_fen ?? 0)}</td>
                               <td>{format(line.cost_fen ?? 0)}</td>

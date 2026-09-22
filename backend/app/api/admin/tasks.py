@@ -44,6 +44,7 @@ async def _load_usage_lines(db: AsyncSession, task_id: int) -> list[AdminUsageEv
                 billing_key=row.billing_key,
                 capability=row.capability,
                 model=row.model or "",
+                provider=row.provider or None,
                 total_tokens=int(row.total_tokens or 0),
                 charge_fen=int(row.charge_fen or 0),
                 cost_fen=int(row.cost_fen or 0),

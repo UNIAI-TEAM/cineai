@@ -253,6 +253,7 @@ async def get_drama_project(
             progress_percent=int(t.progress_percent or 0),
             billing_charged_fen=int(t.billing_charged_fen or 0),
             billing_estimate_fen=int(t.billing_estimate_fen or 0),
+            provider_channel_id=t.provider_channel_id,
             error_message=t.error_message,
             created_at=t.created_at,
             finished_at=t.finished_at,

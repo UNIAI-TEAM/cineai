@@ -146,6 +146,7 @@ class TaskRunBriefOut(BaseModel):
     progress_percent: int = 0
     cancel_requested: bool = False
     provider_task_id: str | None = None
+    provider_channel_id: str | None = None
     error_message: str | None = None
     error_code: str | None = None
     error_params: dict | None = None
@@ -244,6 +245,7 @@ class AdminUsageEventBriefOut(BaseModel):
     billing_key: str
     capability: str | None = None
     model: str = ""
+    provider: str | None = None
     total_tokens: int = 0
     charge_fen: int = 0
     cost_fen: int = 0

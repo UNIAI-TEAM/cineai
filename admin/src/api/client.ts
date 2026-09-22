@@ -103,6 +103,7 @@ export type AdminTaskBrief = {
   progress_percent: number;
   billing_charged_fen: number;
   billing_estimate_fen: number;
+  provider_channel_id?: string | null;
   error_message?: string | null;
   created_at?: string | null;
   finished_at?: string | null;
@@ -402,6 +403,8 @@ export type AdminTaskRow = {
   cancelable: boolean;
   current_step_key?: string | null;
   current_step_status?: string | null;
+  /** Provider (channel id) đã nhận tác vụ video — dùng để poll đúng kênh */
+  provider_channel_id?: string | null;
   error_message?: string | null;
   project_id?: number | null;
   drama_project_id?: number | null;
@@ -427,6 +430,7 @@ export type AdminUsageEventBrief = {
   billing_key: string;
   capability?: string | null;
   model?: string;
+  provider?: string | null;
   total_tokens?: number;
   charge_fen?: number;
   cost_fen?: number;

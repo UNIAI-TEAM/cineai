@@ -317,7 +317,14 @@ export function ProjectsPage() {
                           <td>
                             <AdminEntityLink kind="task" id={t.id} />
                           </td>
-                          <td>{taskTypeLabel(t.task_type)}</td>
+                          <td>
+                            {taskTypeLabel(t.task_type)}
+                            {t.provider_channel_id ? (
+                              <div className="font-mono text-[11px] text-[var(--admin-muted)]">
+                                provider: {t.provider_channel_id}
+                              </div>
+                            ) : null}
+                          </td>
                           <td>{taskStatusLabel(t.status)}</td>
                           <td>
                             {format(t.billing_charged_fen)} / {format(t.billing_estimate_fen)}

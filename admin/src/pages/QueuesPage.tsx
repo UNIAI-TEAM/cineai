@@ -441,6 +441,9 @@ export function QueuesPage() {
                           <div className="font-mono text-[11px] text-[#909399]">
                             {taskTypeLabel(task.task_type)}
                           </div>
+                          {task.provider_channel_id ? (
+                            <div className="font-mono text-[11px] text-[#909399]">provider: {task.provider_channel_id}</div>
+                          ) : null}
                         </td>
                         <td onClick={stopRowClick}>
                           <AdminEntityLink

@@ -364,6 +364,7 @@ class AdminTaskBriefOut(BaseModel):
     progress_percent: int = 0
     billing_charged_fen: int = 0
     billing_estimate_fen: int = 0
+    provider_channel_id: str | None = None
     error_message: str | None = None
     created_at: datetime | None = None
     finished_at: datetime | None = None
