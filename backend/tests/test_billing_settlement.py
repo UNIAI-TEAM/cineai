@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.errors import AppError
 from app.models import User
 from app.models_tasks import TaskRun
 from app.services.billing.http import http_exception_for_value_error
@@ -24,8 +25,9 @@ def test_billing_active_follows_global_switch(monkeypatch) -> None:
 
 
 def test_http_exception_maps_insufficient_balance_to_402() -> None:
-    exc = http_exception_for_value_error(ValueError("余额不足：需要 ¥1.00，当前 ¥0.00，请先充值"))
-    assert exc.status_code == 402
+    exc = http_exception_for_value_error(AppError("billing.insufficient_balance", need_fen=100, available_fen=0))
+    assert isinstance(exc, AppError)
+    assert exc.status == 402
     assert "余额不足" in exc.detail
 
 

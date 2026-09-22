@@ -13,6 +13,7 @@ from app.api.v1 import router as v1_router
 from app.api.admin import router as admin_router
 from app.api.drama import router as drama_router
 from app.config import get_settings
+from app.errors import register_app_error_handler
 from app.database import AsyncSessionLocal, engine, init_db
 from app.logging_setup import configure_logging
 from app.models import Template, User
@@ -26,6 +27,7 @@ configure_logging(level="INFO", sql_echo=settings.sql_echo)
 logger = logging.getLogger("app.http")
 
 app = FastAPI(title=settings.app_name, version="0.2.0")
+register_app_error_handler(app)
 
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 # Allow LAN devices (phone/tablet) hitting Vite on private IPs
