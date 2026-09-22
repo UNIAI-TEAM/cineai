@@ -54,6 +54,7 @@ import { CircleAlert } from 'lucide-react'
 import { useDramaImageGenQueue } from '../../hooks/useDramaImageGenQueue'
 import { useMediaModelsCatalog } from '../../hooks/useMediaModelsCatalog'
 import { enqueueDramaImageGen } from '../../lib/dramaImageGenQueue'
+import { formatDramaGenError } from '../../lib/dramaGenError'
 import { defaultOptionsForAssetKind } from '../../lib/dramaGenerationOptions'
 import { dramaAssetImageGenButtonLabel } from '../../lib/dramaAssetImage'
 import { readVisualPrompt } from '../../lib/dramaVisualPrompt'
@@ -90,6 +91,7 @@ import { DramaAssetDetailModal } from './DramaAssetDetailModal'
 import { buildEpisodeDirItems, DramaEpisodeDir } from './DramaEpisodeDir'
 import RequireAuth from './RequireAuth'
 import { useI18n } from '../../i18n/context'
+import { translate } from '../../i18n/translate'
 import './drama.css'
 
 export default function EpisodeEditPage() {
@@ -171,6 +173,8 @@ function EpisodeEditInner() {
   const [previewVersionId, setPreviewVersionId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
+  // planning AI 分镜进行中（不用已翻译的 status 文案判断，切换语言后仍正确）
+  const [planning, setPlanning] = useState(false)
   const [error, setError] = useState('')
   const [characterVoiceBusyIds, setCharacterVoiceBusyIds] = useState<Set<number>>(() => new Set())
   /*
@@ -642,28 +646,33 @@ function EpisodeEditInner() {
       const ep = await dramaApi.getEpisode(eid)
       if (readFragmentPlanStatus(ep) === 'generating') {
         setBusy(true)
+        setPlanning(true)
         setStatus(t('dramaEpisode.page.planning'))
-        const started = Date.now()
-        while (Date.now() - started < 10 * 60 * 1000) {
-          await new Promise((r) => setTimeout(r, 2500))
-          const cur = await dramaApi.getEpisode(eid)
-          const st = readFragmentPlanStatus(cur)
-          if (st === 'completed') {
-            setEpisode(cur)
-            setFragments(cur.fragments || [])
-            setSelectedIndex(0)
-            setStatus(t('dramaEpisode.page.planDone', { count: (cur.fragments || []).length }))
-            setBusy(false)
-            return
+        try {
+          const started = Date.now()
+          while (Date.now() - started < 10 * 60 * 1000) {
+            await new Promise((r) => setTimeout(r, 2500))
+            const cur = await dramaApi.getEpisode(eid)
+            const st = readFragmentPlanStatus(cur)
+            if (st === 'completed') {
+              setEpisode(cur)
+              setFragments(cur.fragments || [])
+              setSelectedIndex(0)
+              setStatus(t('dramaEpisode.page.planDone', { count: (cur.fragments || []).length }))
+              setBusy(false)
+              return
+            }
+            if (st === 'failed') {
+              setError(String(cur.params?.fragment_plan_error || t('dramaEpisode.page.planFailed')))
+              setBusy(false)
+              return
+            }
           }
-          if (st === 'failed') {
-            setError(String(cur.params?.fragment_plan_error || t('dramaEpisode.page.planFailed')))
-            setBusy(false)
-            return
-          }
+          setBusy(false)
+          return
+        } finally {
+          setPlanning(false)
         }
-        setBusy(false)
-        return
       }
       const st = applyGenerateStatus(await dramaApi.generateStatus(eid))
       if (st.running > 0) ensureEpisodeVideoStatusPoll()
@@ -731,7 +740,7 @@ function EpisodeEditInner() {
     setBusy(false)
     setStatus('')
     setError('')
-    reload().catch((err) => setError(err instanceof Error ? err.message : t('common.loadFailed')))
+    reload().catch((err) => setError(err instanceof Error ? err.message : translate('common.loadFailed')))
     dramaApi
       .listAssets(pid)
       .then(setAssets)
@@ -1146,6 +1155,7 @@ function EpisodeEditInner() {
     setPlanModalOpen(false)
     setBusy(true)
     setError('')
+    setPlanning(true)
     setStatus(t('dramaEpisode.page.planning'))
     try {
       await dramaApi.planEpisodeFragments(eid, {
@@ -1189,6 +1199,8 @@ function EpisodeEditInner() {
     } catch (err) {
       setError(err instanceof Error ? err.message : t('dramaEpisode.page.planFailed'))
       setBusy(false)
+    } finally {
+      setPlanning(false)
     }
   }
 
@@ -1350,7 +1362,7 @@ function EpisodeEditInner() {
       onAssetUpdate: handleCharacterUpdated,
     })
       .then((updated) => handleCharacterUpdated(updated))
-      .catch((err) => setError(err instanceof Error ? err.message : t('dramaEpisode.page.imageGenFailed')))
+      .catch((err) => setError(formatDramaGenError(err).message || t('dramaEpisode.page.imageGenFailed')))
   }
 
   // 打开分镜失败原因（优先队列任务，否则用分镜 params.generation.error）
@@ -1448,7 +1460,7 @@ function EpisodeEditInner() {
             disabled={planFragmentsLocked}
             onClick={() => void planFragmentsWithLlm()}
           >
-            {busy && status === t('dramaEpisode.page.planning') ? t('dramaEpisode.page.planningShort') : t('dramaEpisode.page.replan')}
+            {busy && planning ?t('dramaEpisode.page.planningShort') : t('dramaEpisode.page.replan')}
           </button>
           {/* 一键生成：暂时隐藏，恢复时去掉 false && */}
           {false && (

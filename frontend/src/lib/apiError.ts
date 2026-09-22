@@ -22,6 +22,14 @@ export class ApiError extends Error {
   }
 }
 
+/** 队列等处只存文案时一并保存的错误码与状态，展示时据此还原分类 */
+export type ErrorCodeFields = { errorCode?: string; errorStatus?: number }
+
+/** 从异常中取错误码与状态；非 ApiError 返回空对象 */
+export function errorCodeFields(err: unknown): ErrorCodeFields {
+  return err instanceof ApiError ? { errorCode: err.code, errorStatus: err.status } : {}
+}
+
 /** 按当前界面语言取通用报错兜底文案（供非 React 的 api 层使用） */
 export function apiErrorText(key: CommonKey): string {
   return messages[getActiveLocale()].common[key]

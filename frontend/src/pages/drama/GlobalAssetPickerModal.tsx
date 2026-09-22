@@ -6,6 +6,7 @@ import { DRAMA_VOICE_BINDING_ENABLED } from '../../lib/dramaVoiceBinding'
 import BillingErrorNotice from '../../components/billing/BillingErrorNotice'
 import Modal from '../../components/ui/Modal'
 import { useI18n } from '../../i18n/context'
+import { translate } from '../../i18n/translate'
 import { getActiveLocale } from '../../i18n/detect'
 import { messages } from '../../i18n/messages'
 import './drama.css'
@@ -94,9 +95,9 @@ export function GlobalAssetPickerModal({
     dramaApi
       .listAssets(undefined, { libraryOnly: true })
       .then((rows) => setAllAssets(filterDramaLibraryAssets(rows)))
-      .catch((err) => setError(err instanceof Error ? err.message : t('dramaAssets.picker.loadFailed')))
+      .catch((err) => setError(err instanceof Error ? err.message : translate('dramaAssets.picker.loadFailed')))
       .finally(() => setLoading(false))
-  }, [open, defaultTab, t])
+  }, [open, defaultTab])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -111,7 +112,8 @@ export function GlobalAssetPickerModal({
         return false
       }
       if (!q) return true
-      const name = (asset.name || '').toLowerCase()
+      // 同时匹配原名与界面显示名（如「新角色」→ Nhân vật mới）
+      const name = `${asset.name || ''} ${displayDramaAssetName(asset.name)}`.toLowerCase()
       return name.includes(q) || String(asset.project_id).includes(q)
     })
   }, [allAssets, allowedTypes, query, tab])

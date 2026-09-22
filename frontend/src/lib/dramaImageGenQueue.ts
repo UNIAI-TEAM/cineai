@@ -2,12 +2,13 @@
 import { dramaApi, type DramaAsset } from '../api/drama'
 import type { ImageGenerationOptions } from './dramaGenerationOptions'
 import { syncImageJobToUnified } from './dramaGenQueue'
+import { errorCodeFields, type ErrorCodeFields } from './apiError'
 import { getActiveLocale } from '../i18n/detect'
 import { messages } from '../i18n/messages'
 
 export type DramaImageGenStatus = 'queued' | 'running' | 'done' | 'failed'
 
-export type DramaImageGenJob = {
+export type DramaImageGenJob = ErrorCodeFields & {
   id: string
   projectId: number
   assetId: number
@@ -80,6 +81,8 @@ function toPublicJob(job: InternalJob): DramaImageGenJob {
     options: job.options,
     status: job.status,
     error: job.error,
+    errorCode: job.errorCode,
+    errorStatus: job.errorStatus,
     createdAt: job.createdAt,
     finishedAt: job.finishedAt,
   }
@@ -137,6 +140,8 @@ function emit() {
         status: job.status,
         taskId: job.taskId,
         error: job.error,
+        errorCode: job.errorCode,
+        errorStatus: job.errorStatus,
       })
     }
   }
@@ -274,6 +279,7 @@ async function pollJob(job: InternalJob) {
     const message = err instanceof Error ? err.message : '生图失败'
     job.status = 'failed'
     job.error = message
+    Object.assign(job, errorCodeFields(err))
     job.finishedAt = Date.now()
     emit()
     job.reject(err instanceof Error ? err : new Error(message))
@@ -330,6 +336,7 @@ async function submitJob(job: InternalJob) {
     const message = err instanceof Error ? err.message : '生图失败'
     job.status = 'failed'
     job.error = message
+    Object.assign(job, errorCodeFields(err))
     job.finishedAt = Date.now()
     emit()
     job.reject(err instanceof Error ? err : new Error(message))

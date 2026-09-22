@@ -64,9 +64,14 @@ export function formatDramaCardMeta(item: DramaProjectListItem): string {
   return interpolate(l.metaDraft, { assets })
 }
 
-/** 项目展示标题：未改名的默认画布标题按界面语言显示，其余原样返回 */
+/** 后端剧本流默认标题（schemas_drama / models_drama；agents 据此自动改名，落库保持中文） */
+export const DRAMA_DEFAULT_TITLE = '未命名漫剧'
+
+/** 项目展示标题：未改名的默认标题（画布 / 剧本流）按界面语言显示，其余原样返回 */
 export function displayDramaTitle(title: string | null | undefined): string {
   const raw = title || ''
-  if (raw !== CANVAS_DEFAULT_TITLE) return raw
-  return messages[getActiveLocale()].dramaList.canvasDefaultTitle
+  const l = messages[getActiveLocale()].dramaList
+  if (raw === CANVAS_DEFAULT_TITLE) return l.canvasDefaultTitle
+  if (raw === DRAMA_DEFAULT_TITLE) return l.untitledDrama
+  return raw
 }

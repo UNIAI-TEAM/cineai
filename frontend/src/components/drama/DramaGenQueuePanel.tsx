@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Clapperboard, ImageIcon, Layers, Octagon, Trash2, X } from 'lucide-react'
 import { dramaApi } from '../../api/drama'
 import { DramaGenTaskDetail } from './DramaGenTaskDetail'
-import { formatDramaGenError } from '../../lib/dramaGenError'
+import { formatDramaGenJobError } from '../../lib/dramaGenError'
 import BillingTopupLink from '../billing/BillingTopupLink'
 import { useI18n, type TFunction } from '../../i18n/context'
 import {
@@ -210,7 +210,7 @@ export function DramaGenQueuePanel() {
               <ul className="drama-gen-fab-list">
                 {sortedQueue.map((job) => {
                   const queueIndex = queuedOnly.findIndex((j) => j.id === job.id)
-                  const errView = job.status === 'failed' ? formatDramaGenError(job.error) : null
+                  const errView = job.status === 'failed' ? formatDramaGenJobError(job) : null
                   const jobMessage = dramaGenJobMessage(job, t)
                   return (
                     <li key={job.id}>

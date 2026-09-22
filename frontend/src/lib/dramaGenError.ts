@@ -7,7 +7,7 @@
 import { getActiveLocale } from '../i18n/detect'
 import { interpolate, type TVars } from '../i18n/lookup'
 import { messages } from '../i18n/messages'
-import { ApiError } from './apiError'
+import { ApiError, type ErrorCodeFields } from './apiError'
 import { isBillingError, isInsufficientBalanceCode } from './billingError'
 import { dialog } from './dialog'
 
@@ -340,6 +340,17 @@ export function formatDramaGenError(raw: unknown): DramaGenErrorView {
   }
   const text = raw instanceof Error ? raw.message : typeof raw === 'string' ? raw : String(raw ?? '')
   return formatErrorText(text)
+}
+
+/**
+ * 队列任务错误：保存过错误码 / 状态时还原为 ApiError 按码分类，否则按文本分类。
+ * 参数 job：含 error 文案及可选 errorCode / errorStatus。
+ */
+export function formatDramaGenJobError(job: { error?: string } & ErrorCodeFields): DramaGenErrorView {
+  if (job.errorCode || job.errorStatus) {
+    return formatDramaGenError(new ApiError(job.error || '', job.errorStatus ?? 0, job.errorCode))
+  }
+  return formatDramaGenError(job.error)
 }
 
 /** 弹窗展示生成失败（含上游欠费 / 用户余额不足等）；raw 同 formatDramaGenError */

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Clapperboard, Film, Layers, Sparkles, Wand2 } from 'lucide-react'
 import { dramaApi, resolveDramaMediaUrl, type DramaEpisode } from '../../api/drama'
 import { useI18n } from '../../i18n/context'
+import { translate } from '../../i18n/translate'
 import { dialog } from '../../lib/dialog'
 import { loadDramaEpisodes } from '../../lib/dramaStoryboardNav'
 import { readEpisodeSubtitleMode, subtitleModeUsesModelOutput } from '../../lib/dramaSubtitleBoard'
@@ -125,7 +126,7 @@ export function EpisodesStep({ projectId, onError }: EpisodesStepProps) {
           setEpisodes(await dramaApi.listEpisodes(projectId))
         }
       } catch (err) {
-        onError(err instanceof Error ? err.message : t('dramaProject.episodes.loadFailed'))
+        onError(err instanceof Error ? err.message : translate('dramaProject.episodes.loadFailed'))
         try {
           setEpisodes(await dramaApi.listEpisodes(projectId))
         } catch {
@@ -136,7 +137,7 @@ export function EpisodesStep({ projectId, onError }: EpisodesStepProps) {
       }
     }
     void enter()
-  }, [projectId, onError, t])
+  }, [projectId, onError])
 
   async function handleReseed() {
     if (reseeding || planningId != null) return

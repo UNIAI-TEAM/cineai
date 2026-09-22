@@ -22,6 +22,7 @@ import { DRAMA_VOICE_BINDING_ENABLED } from '../../lib/dramaVoiceBinding'
 import { pageCountOf } from '../../lib/pagination'
 import RequireAuth from './RequireAuth'
 import { useI18n } from '../../i18n/context'
+import { translate } from '../../i18n/translate'
 import './drama.css'
 
 type AssetTabKey = 'all' | 'character' | 'scene' | 'prop' | 'voice'
@@ -133,7 +134,7 @@ function AssetLibraryInner() {
         if (!cancelled) setAssets(filterDramaLibraryAssets(rows))
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : t('dramaAssets.library.loadFailed'))
+        if (!cancelled) setError(err instanceof Error ? err.message : translate('dramaAssets.library.loadFailed'))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -141,7 +142,7 @@ function AssetLibraryInner() {
     return () => {
       cancelled = true
     }
-  }, [projectId, t])
+  }, [projectId])
 
   useEffect(() => {
     return () => {
@@ -171,7 +172,8 @@ function AssetLibraryInner() {
     return assets.filter((asset) => {
       if (!matchTab(asset, tab)) return false
       if (!q) return true
-      const name = (asset.name || '').toLowerCase()
+      // 同时匹配原名与界面显示名（如「新角色」→ Nhân vật mới）
+      const name = `${asset.name || ''} ${displayDramaAssetName(asset.name)}`.toLowerCase()
       const type = (asset.type || '').toLowerCase()
       const projectName = (projectNameById.get(asset.project_id) || '').toLowerCase()
       return (

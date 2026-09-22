@@ -34,6 +34,7 @@ import { readVisualPrompt } from '../../lib/dramaVisualPrompt'
 import { filterDramaLibraryAssets } from '../../lib/dramaLibraryAssets'
 import { DRAMA_VOICE_BINDING_ENABLED } from '../../lib/dramaVoiceBinding'
 import { useI18n } from '../../i18n/context'
+import { translate } from '../../i18n/translate'
 import {
   dramaAssetImageGenButtonLabel,
   dramaAssetNeedsImageGeneration,
@@ -153,7 +154,7 @@ export function AssetsStep({ projectId, onError }: AssetsStepProps) {
           setAssets((prev) => (prev ?? []).map((a) => (a.id === next.id ? next : a)))
         })
       } catch (err) {
-        onError(err instanceof Error ? err.message : t('dramaAssets.step.loadFailed'))
+        onError(err instanceof Error ? err.message : translate('dramaAssets.step.loadFailed'))
         try {
           const list = normalizeAssetList(await dramaApi.listAssets(projectId, { libraryOnly: true }))
           setAssets(list)
@@ -168,7 +169,7 @@ export function AssetsStep({ projectId, onError }: AssetsStepProps) {
       }
     }
     void enter()
-  }, [projectId, onError, t])
+  }, [projectId, onError])
 
   useEffect(() => {
     setGenOptions((prev) => ({

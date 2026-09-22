@@ -448,6 +448,7 @@ export const zhPages = {
     createFailed: '创建失败',
     canvasCreateFailed: '创建画布项目失败',
     canvasDefaultTitle: '自由画布项目',
+    untitledDrama: '未命名漫剧',
     storyPlaceholder: '在此输入你构想的故事内容：故事设定、主角特征、剧情脉络、最终结局等',
     storyTooShort: '故事内容至少 {min} 字',
     storyTooLong: '故事内容请控制在 {max} 字以内',

@@ -76,7 +76,7 @@ def mock_storyboard_items(
         "Cảm ơn bạn đã xem, hẹn gặp lại ở video sau.",
     )
     # 内容太少时补过渡镜，并以收尾镜结束（过渡镜始终排在收尾镜之前）
-    needs_closing = len(items) < 3
+    needs_closing = len(items) < max(3, shot_lo)
     reserve = 1 if needs_closing else 0
     if needs_closing:
         items = items + [filler]

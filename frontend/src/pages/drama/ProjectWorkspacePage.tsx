@@ -15,8 +15,9 @@ import {
 } from '../../lib/dramaProjectSteps'
 import { formatDramaUsageBrief } from '../../lib/dramaUsage'
 import { resolveStoryboardPath } from '../../lib/dramaStoryboardNav'
-import { isCanvasWorkflow } from '../../lib/dramaWorkflow'
+import { displayDramaTitle, isCanvasWorkflow } from '../../lib/dramaWorkflow'
 import { useI18n } from '../../i18n/context'
+import { translate } from '../../i18n/translate'
 import { AssetsStep } from './AssetsStep'
 import { OutlineStep } from './OutlineStep'
 import RequireAuth from './RequireAuth'
@@ -81,7 +82,7 @@ function WorkspaceInner() {
       return null
     }
     setProject(p)
-    setTitleDraft(p.title)
+    setTitleDraft(displayDramaTitle(p.title))
     return p
   }
 
@@ -99,7 +100,7 @@ function WorkspaceInner() {
             if (isEpisodesRouteStep(initial)) {
               void resolveStoryboardPath(id)
                 .then((path) => navigate(path, { replace: true }))
-                .catch((err) => setError(err instanceof Error ? err.message : t('dramaProject.enterFailed')))
+                .catch((err) => setError(err instanceof Error ? err.message : translate('dramaProject.enterFailed')))
               return
             }
             setActiveStep(initial)
@@ -107,7 +108,7 @@ function WorkspaceInner() {
           locationApplied.current = true
         }
       })
-      .catch((err) => setError(err instanceof Error ? err.message : t('common.loadFailed')))
+      .catch((err) => setError(err instanceof Error ? err.message : translate('common.loadFailed')))
       .finally(() => setLoading(false))
   }, [id])
 
@@ -130,15 +131,16 @@ function WorkspaceInner() {
   // 保存标题
   async function saveTitle() {
     const next = titleDraft.trim()
-    if (!next || !project) {
+    // 未改动（含默认标题的翻译显示名）不提交，避免把译文写回库
+    if (!next || !project || next === displayDramaTitle(project.title)) {
       setEditingTitle(false)
-      setTitleDraft(project?.title || '')
+      setTitleDraft(displayDramaTitle(project?.title))
       return
     }
     try {
       const updated = await dramaApi.updateProject(id, { title: next })
       setProject(updated)
-      setTitleDraft(updated.title)
+      setTitleDraft(displayDramaTitle(updated.title))
     } catch (err) {
       setError(err instanceof Error ? err.message : t('dramaProject.workspace.titleSaveFailed'))
     } finally {
@@ -201,14 +203,14 @@ function WorkspaceInner() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void saveTitle()
                   if (e.key === 'Escape') {
-                    setTitleDraft(project.title)
+                    setTitleDraft(displayDramaTitle(project.title))
                     setEditingTitle(false)
                   }
                 }}
               />
             ) : (
               <button type="button" className="drama-title-display" onClick={() => setEditingTitle(true)}>
-                {project.title}
+                {displayDramaTitle(project.title)}
               </button>
             )}
           </div>
@@ -240,7 +242,7 @@ function WorkspaceInner() {
               project={project}
               onProjectChange={(p) => {
                 setProject(p)
-                setTitleDraft(p.title)
+                setTitleDraft(displayDramaTitle(p.title))
               }}
               onError={setError}
             />

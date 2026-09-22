@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { tasksApi, type TaskRunOut } from '../../api/tasks'
-import { formatDramaGenError, pickRootDramaGenError } from '../../lib/dramaGenError'
+import { formatDramaGenError, formatDramaGenJobError, pickRootDramaGenError } from '../../lib/dramaGenError'
 import BillingTopupLink from '../billing/BillingTopupLink'
 import { dramaGenJobMessage, type DramaGenJob } from '../../lib/dramaGenQueue'
 import { useI18n, type TFunction } from '../../i18n/context'
@@ -129,7 +129,12 @@ export function DramaGenTaskDetail({ job, onClose }: Props) {
     }
   }, [job, isFailed])
 
-  const errView = isFailed ? formatDramaGenError(rawError || job.message) : null
+  // 根因仍是队列自身错误时带上错误码分类，否则按文本分类
+  const usesJobError = Boolean(rawError) && rawError === job.error
+  let errView: ReturnType<typeof formatDramaGenError> | null = null
+  if (isFailed) {
+    errView = usesJobError ? formatDramaGenJobError(job) : formatDramaGenError(rawError || job.message)
+  }
   const panelTitle = isFailed
     ? t('dramaGen.detail.failedTitle')
     : isActive

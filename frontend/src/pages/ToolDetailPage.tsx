@@ -8,7 +8,7 @@ import AppShell from '../components/layout/AppShell'
 import Button from '../components/ui/Button'
 import { pollStudioToolTask, resolveToolMediaUrl, runStudioTool } from '../api/tools'
 import { defaultToolChips, getToolDef, localizeToolDef, chipDisplayLabel, type ToolDef } from '../lib/toolsCatalog'
-import { useI18n } from '../i18n'
+import { translate, useI18n } from '../i18n'
 
 const VIDEO_POLL_MS = 3000
 
@@ -86,12 +86,12 @@ function ToolWorkspace({ tool: baseTool }: { tool: ToolDef }) {
           setResultUrls(data.urls)
           setBusy(false)
         } else if (data.status === 'failed') {
-          setError(data.error || t('tools.errors.videoFailed'))
+          setError(data.error || translate('tools.errors.videoFailed'))
           setBusy(false)
         }
       } catch (err) {
         if (cancelled) return
-        setError(err instanceof Error ? err.message : t('tools.errors.pollFailed'))
+        setError(err instanceof Error ? err.message : translate('tools.errors.pollFailed'))
         setBusy(false)
       }
     }

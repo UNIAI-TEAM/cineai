@@ -456,6 +456,7 @@ export const enPages = {
     createFailed: 'Couldn’t create the project',
     canvasCreateFailed: 'Couldn’t create the canvas project',
     canvasDefaultTitle: 'Free canvas project',
+    untitledDrama: 'Untitled drama',
     storyPlaceholder: 'Describe your story: the setup, the main characters, how the plot unfolds, and how it ends',
     storyTooShort: 'Your story needs at least {min} characters',
     storyTooLong: 'Keep your story under {max} characters',

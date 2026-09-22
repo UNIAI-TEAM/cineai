@@ -2,12 +2,13 @@
 import { dramaApi, type DramaAsset } from '../api/drama'
 import type { VideoGenerationOptions } from './dramaVideoGenerationOptions'
 import { syncAssetVideoJobToUnified } from './dramaGenQueue'
+import { errorCodeFields, type ErrorCodeFields } from './apiError'
 import { getActiveLocale } from '../i18n/detect'
 import { messages } from '../i18n/messages'
 
 export type DramaVideoGenStatus = 'queued' | 'running' | 'done' | 'failed'
 
-export type DramaVideoGenJob = {
+export type DramaVideoGenJob = ErrorCodeFields & {
   id: string
   projectId: number
   assetId: number
@@ -68,6 +69,8 @@ function toPublicJob(job: InternalJob): DramaVideoGenJob {
     referenceAssetIds: job.referenceAssetIds,
     status: job.status,
     error: job.error,
+    errorCode: job.errorCode,
+    errorStatus: job.errorStatus,
     createdAt: job.createdAt,
     finishedAt: job.finishedAt,
   }
@@ -123,6 +126,8 @@ function emit() {
         assetName: job.assetName,
         status: job.status,
         error: job.error,
+        errorCode: job.errorCode,
+        errorStatus: job.errorStatus,
       })
     }
   }
@@ -183,6 +188,7 @@ async function pollJob(job: InternalJob) {
     const message = err instanceof Error ? err.message : messages[getActiveLocale()].dramaGen.errors.videoFailed
     job.status = 'failed'
     job.error = message
+    Object.assign(job, errorCodeFields(err))
     job.finishedAt = Date.now()
     emit()
     job.reject(err instanceof Error ? err : new Error(message))
@@ -234,6 +240,7 @@ function startJob(job: InternalJob) {
       const message = err instanceof Error ? err.message : messages[getActiveLocale()].dramaGen.errors.videoFailed
       job.status = 'failed'
       job.error = message
+      Object.assign(job, errorCodeFields(err))
       job.finishedAt = Date.now()
       emit()
       job.reject(err instanceof Error ? err : new Error(message))

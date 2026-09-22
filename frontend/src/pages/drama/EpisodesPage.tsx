@@ -6,6 +6,7 @@ import { isCanvasWorkflow } from '../../lib/dramaWorkflow'
 import { resolveStoryboardPath } from '../../lib/dramaStoryboardNav'
 import { dramaApi } from '../../api/drama'
 import { useI18n } from '../../i18n/context'
+import { translate } from '../../i18n/translate'
 import RequireAuth from './RequireAuth'
 import './drama.css'
 
@@ -39,13 +40,13 @@ function EpisodesRedirect() {
         const path = await resolveStoryboardPath(pid)
         if (!cancelled) navigate(path, { replace: true })
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : t('dramaProject.enterFailed'))
+        if (!cancelled) setError(err instanceof Error ? err.message : translate('dramaProject.enterFailed'))
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [pid, navigate, t])
+  }, [pid, navigate])
 
   return (
     <AppShell active="drama" flush>

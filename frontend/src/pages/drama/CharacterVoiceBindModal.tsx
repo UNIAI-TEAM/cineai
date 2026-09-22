@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { dramaApi, resolveDramaMediaUrl, type DramaAsset } from '../../api/drama'
 import Modal from '../../components/ui/Modal'
 import { useI18n } from '../../i18n/context'
+import { translate } from '../../i18n/translate'
 
 export type VoiceBinding = {
   sourceAssetId: number
@@ -163,8 +164,8 @@ export function CharacterVoiceBindModal({
     setNewPrompt('')
     setSuggestedSpeaker('')
     setNewName(
-      t('dramaAssets.voiceBind.defaultName', {
-        name: asset.name || t('dramaAssets.voiceBind.characterFallback'),
+      translate('dramaAssets.voiceBind.defaultName', {
+        name: asset.name || translate('dramaAssets.voiceBind.characterFallback'),
       }),
     )
     setMode('pick')
@@ -182,8 +183,8 @@ export function CharacterVoiceBindModal({
           setMode('create')
         }
       })
-      .catch((err) => onError(err instanceof Error ? err.message : t('dramaAssets.common.loadVoicesFailed')))
-  }, [open, asset, projectId, bound?.sourceAssetId, onError, t])
+      .catch((err) => onError(err instanceof Error ? err.message : translate('dramaAssets.common.loadVoicesFailed')))
+  }, [open, asset, projectId, bound?.sourceAssetId, onError])
 
   // 进入「新建并合成」时自动 AI 生成音色描述
   useEffect(() => {

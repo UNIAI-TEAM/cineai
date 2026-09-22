@@ -456,6 +456,7 @@ export const viPages = {
     createFailed: 'Không tạo được dự án',
     canvasCreateFailed: 'Không tạo được dự án Canvas',
     canvasDefaultTitle: 'Dự án Canvas tự do',
+    untitledDrama: 'Phim ngắn chưa đặt tên',
     storyPlaceholder: 'Kể ý tưởng câu chuyện của bạn: bối cảnh truyện, nhân vật chính, diễn biến và cái kết',
     storyTooShort: 'Ý tưởng câu chuyện cần ít nhất {min} ký tự',
     storyTooLong: 'Ý tưởng câu chuyện tối đa {max} ký tự',

@@ -41,6 +41,9 @@ export type DramaGenJob = {
   /** 本地进度文案 key；有值时优先于 message，展示时翻译 */
   messageKey?: DramaGenMessageKey
   error?: string
+  /** 接口错误码 / HTTP 状态（有则按码分类展示） */
+  errorCode?: string
+  errorStatus?: number
   createdAt: number
   finishedAt?: number
 }
@@ -93,6 +96,7 @@ function snapshotsEqual(a: DramaGenJob[], b: DramaGenJob[]): boolean {
       x.message !== y.message ||
       x.messageKey !== y.messageKey ||
       x.error !== y.error ||
+      x.errorCode !== y.errorCode ||
       x.finishedAt !== y.finishedAt ||
       x.title !== y.title ||
       x.taskId !== y.taskId
@@ -165,6 +169,8 @@ function jobDisplayEqual(a: DramaGenJob, b: DramaGenJob): boolean {
     a.message === b.message &&
     a.messageKey === b.messageKey &&
     a.error === b.error &&
+    a.errorCode === b.errorCode &&
+    a.errorStatus === b.errorStatus &&
     a.finishedAt === b.finishedAt &&
     a.taskId === b.taskId
   )
@@ -205,6 +211,8 @@ export function upsertDramaGenJob(
     message: patch.message,
     messageKey: patch.messageKey,
     error: patch.error,
+    errorCode: patch.errorCode,
+    errorStatus: patch.errorStatus,
     createdAt: patch.createdAt ?? prev?.createdAt ?? Date.now(),
     finishedAt,
   }
@@ -250,6 +258,8 @@ export function syncImageJobToUnified(input: {
   status: DramaGenJobStatus
   taskId?: number
   error?: string
+  errorCode?: string
+  errorStatus?: number
 }): void {
   upsertDramaGenJob({
     id: imageJobId(input.assetId),
@@ -262,6 +272,8 @@ export function syncImageJobToUnified(input: {
     status: input.status,
     taskId: input.taskId,
     error: input.error,
+    errorCode: input.errorCode,
+    errorStatus: input.errorStatus,
     messageKey:
       input.status === 'running'
         ? 'generatingImage'
@@ -283,6 +295,8 @@ export function syncAssetVideoJobToUnified(input: {
   assetName: string
   status: DramaGenJobStatus
   error?: string
+  errorCode?: string
+  errorStatus?: number
 }): void {
   upsertDramaGenJob({
     id: assetVideoJobId(input.assetId),
@@ -293,6 +307,8 @@ export function syncAssetVideoJobToUnified(input: {
     subtype: CANVAS_VIDEO_SUBTYPE,
     status: input.status,
     error: input.error,
+    errorCode: input.errorCode,
+    errorStatus: input.errorStatus,
     messageKey:
       input.status === 'running'
         ? 'generatingVideo'
