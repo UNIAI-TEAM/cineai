@@ -59,6 +59,8 @@ export type TaskRunOut = {
   current_step_status?: string | null
   error_code?: string | null
   error_message?: string | null
+  /** error_code 为业务错误码时的插值参数 */
+  error_params?: Record<string, unknown> | null
   provider_task_id?: string | null
   episode_id?: number | null
   fragment_id?: number | null

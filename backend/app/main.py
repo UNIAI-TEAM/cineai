@@ -246,6 +246,8 @@ async def _apply_schema_patches() -> None:
             await conn.execute(text("ALTER TABLE task_runs ADD COLUMN billing_refunded_fen INTEGER DEFAULT 0"))
         if "billing_status" not in trcols:
             await conn.execute(text("ALTER TABLE task_runs ADD COLUMN billing_status VARCHAR(16) DEFAULT 'none'"))
+        if "error_params" not in trcols:
+            await conn.execute(text("ALTER TABLE task_runs ADD COLUMN error_params JSON"))
 
         # Drop leftover worker-era columns that block the new task platform.
         legacy_task_run_cols = (

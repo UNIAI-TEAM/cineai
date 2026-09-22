@@ -210,6 +210,16 @@ class AppError(ValueError):
         return (_rebuild_app_error, (type(self), self.code, self.status, self.params))
 
 
+def error_code_fields(exc: BaseException, default_code: str | None = None) -> tuple[str | None, dict[str, Any] | None]:
+    """落库用错误码与参数：AppError 取自身 code / params，其余返回 (default_code, None)。
+
+    供任务 / 项目参数等只存文案的地方一并保存错误码，前端据此按界面语言翻译。
+    """
+    if isinstance(exc, AppError):
+        return exc.code, (dict(exc.params) or None)
+    return default_code, None
+
+
 def _rebuild_app_error(
     cls: type[AppError], code: str, status: int | None, params: dict[str, Any]
 ) -> AppError:

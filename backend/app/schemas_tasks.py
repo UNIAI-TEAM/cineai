@@ -147,6 +147,8 @@ class TaskRunBriefOut(BaseModel):
     cancel_requested: bool = False
     provider_task_id: str | None = None
     error_message: str | None = None
+    error_code: str | None = None
+    error_params: dict | None = None
     project_id: int | None = None
     drama_project_id: int | None = None
     episode_id: int | None = None
@@ -183,6 +185,7 @@ class TaskRunOut(BaseModel):
     progress_percent: int = 0
     error_code: str | None = None
     error_message: str | None = None
+    error_params: dict | None = None
     payload: dict | None = None
     result_payload: dict | None = None
     project_id: int | None = None

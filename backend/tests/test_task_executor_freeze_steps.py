@@ -224,3 +224,32 @@ async def test_execute_task_run_insufficient_balance_keeps_special_error_code(
     assert done.billing_status == "none"
     assert done.steps and done.steps[0].status == "failed"
 
+
+
+@pytest.mark.asyncio
+async def test_execute_task_run_stores_app_error_code_and_params(
+    db_session: AsyncSession,
+) -> None:
+    """handler 抛 AppError：error_code 存业务码、error_params 存 params，前端据此按语言翻译。"""
+    from app.errors import AppError
+    from app.services.tasks.handlers import TaskHandler
+
+    task_id, same_session = await _lease_task_with_step(db_session)
+
+    async def _raising_executor(_task):
+        raise AppError("task.payload_out_of_range", field="delay_seconds", min=1, max=600)
+
+    fake = TaskHandler("api", "v1_image", _raising_executor)
+    with (
+        patch("app.services.tasks.executor.AsyncSessionLocal", same_session),
+        patch("app.services.tasks.executor.get_task_handler", return_value=fake),
+    ):
+        await execute_task_run(task_id)
+
+    db_session.expire_all()
+    done = await get_task_for_runtime(db_session, task_id)
+    assert done is not None
+    assert done.status == "failed"
+    assert done.error_code == "task.payload_out_of_range"
+    assert done.error_params == {"field": "delay_seconds", "min": 1, "max": 600}
+    assert done.error_message

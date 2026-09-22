@@ -107,6 +107,8 @@ export type DramaTaskBrief = {
   cancel_requested?: boolean
   provider_task_id?: string | null
   error_message?: string | null
+  error_code?: string | null
+  error_params?: Record<string, unknown> | null
   project_id?: number | null
   drama_project_id?: number | null
   episode_id?: number | null

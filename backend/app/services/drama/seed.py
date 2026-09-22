@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.errors import AppError
+from app.errors import AppError, error_code_fields
 from app.models_drama import (
     DramaAsset,
     DramaAssetEpisode,
@@ -40,6 +40,28 @@ from app.services.drama.seed_asset_params import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def set_seed_error(params: dict[str, Any], error: BaseException | str, *, code: str | None = None) -> None:
+    """记录资产抽取失败：文案 + 错误码 / params（AppError 或显式 code），前端按码翻译。"""
+    params["assets_seed_error"] = str(error)[:500]
+    err_code, err_params = (
+        error_code_fields(error, code) if isinstance(error, BaseException) else (code, None)
+    )
+    if err_code:
+        params["assets_seed_error_code"] = err_code
+    else:
+        params.pop("assets_seed_error_code", None)
+    if err_params:
+        params["assets_seed_error_params"] = err_params
+    else:
+        params.pop("assets_seed_error_params", None)
+
+
+def clear_seed_error(params: dict[str, Any]) -> None:
+    """清除资产抽取失败记录（文案与错误码）。"""
+    for key in ("assets_seed_error", "assets_seed_error_code", "assets_seed_error_params"):
+        params.pop(key, None)
 
 # PROMPT_REFRESH_CONCURRENCY 并发生图提示词 LLM 数
 PROMPT_REFRESH_CONCURRENCY = 3

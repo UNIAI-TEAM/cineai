@@ -14,6 +14,7 @@ from app.schemas_tasks import TaskCreateRequest, TaskEventCreate, TaskStepCreate
 from sqlalchemy import select
 
 from app.config import get_settings
+from app.errors import error_code_fields
 from app.services.billing.context import billing_scope
 from app.services.billing.settlement import freeze_for_task, settle_task
 from app.services.billing.usage import record_line
@@ -116,9 +117,9 @@ async def run_billed_ephemeral(
     )
     try:
         await freeze_for_task(db, task)
-    except ValueError:
+    except ValueError as exc:
         task.status = "failed"
-        task.error_code = "insufficient_balance"
+        task.error_code, task.error_params = error_code_fields(exc, "insufficient_balance")
         task.error_message = "余额不足"
         # 未预扣成功，保持 none，勿标 skipped（skipped 表示全局关闭计费）
         task.billing_status = "none"
@@ -154,7 +155,7 @@ async def run_billed_ephemeral(
         )
     except Exception as exc:
         task.status = "failed"
-        task.error_code = "ephemeral_failed"
+        task.error_code, task.error_params = error_code_fields(exc, "ephemeral_failed")
         task.error_message = str(exc)[:500]
         task.finished_at = datetime.now(UTC)
         await append_task_event(
@@ -219,9 +220,9 @@ async def run_billed_ephemeral_deferred(
     )
     try:
         await freeze_for_task(db, task)
-    except ValueError:
+    except ValueError as exc:
         task.status = "failed"
-        task.error_code = "insufficient_balance"
+        task.error_code, task.error_params = error_code_fields(exc, "insufficient_balance")
         task.error_message = "余额不足"
         task.billing_status = "none"
         await db.flush()
@@ -261,7 +262,7 @@ async def run_billed_ephemeral_deferred(
         )
     except Exception as exc:
         task.status = "failed"
-        task.error_code = "ephemeral_failed"
+        task.error_code, task.error_params = error_code_fields(exc, "ephemeral_failed")
         task.error_message = str(exc)[:500]
         task.finished_at = datetime.now(UTC)
         await append_task_event(
@@ -368,6 +369,7 @@ async def settle_deferred_video_poll(
         task.finished_at = now
         task.error_code = None
         task.error_message = None
+        task.error_params = None
         await append_task_event(
             db,
             task.id,

@@ -1835,7 +1835,7 @@ async def run_seed_assets_job(
     reextract_props: bool = False,
 ) -> dict[str, Any]:
     """从剧本抽取/刷新资产（含 LLM 提示词刷新）。"""
-    from app.services.drama.seed import seed_assets_from_script
+    from app.services.drama.seed import clear_seed_error, seed_assets_from_script, set_seed_error
 
     logger.info(
         "开始抽取漫剧资产 project_id=%s refresh=%s reextract=%s",
@@ -1860,7 +1860,7 @@ async def run_seed_assets_job(
                 reextract_props=reextract_props,
             )
             params["assets_seed_status"] = "done"
-            params.pop("assets_seed_error", None)
+            clear_seed_error(params)
             params.pop("assets_seed_generating_at", None)
             params["assets_seed_created"] = result.created_count
             params["assets_seed_refreshed"] = result.prompts_refreshed
@@ -1883,7 +1883,7 @@ async def run_seed_assets_job(
             }
         except Exception as exc:  # noqa: BLE001
             params["assets_seed_status"] = "failed"
-            params["assets_seed_error"] = str(exc)[:500]
+            set_seed_error(params, exc)
             params.pop("assets_seed_generating_at", None)
             project.params = params
             await db.commit()

@@ -1,7 +1,7 @@
 /**
  * 漫剧生成失败说明：把错误转成可读标题 / 说明 / 处理建议（文案走 i18n 的 dramaGenError）。
  * - 接口错误（ApiError 带 code）按错误码 / 状态码分类；
- * - 任务落库的 error_message（后台任务写入、暂无错误码）与生成队列自己的中文文案仍按文本分类。
+ * - 任务落库的 error_message 带业务错误码时先经 localizeStoredError 翻译；上游原始报错与生成队列自己的中文文案仍按文本分类。
  */
 
 import { getActiveLocale } from '../i18n/detect'

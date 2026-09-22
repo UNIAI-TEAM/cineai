@@ -48,6 +48,33 @@ function toTemplateVars(params: ErrorParams): TVars {
   return vars
 }
 
+/**
+ * 按错误码取当前界面语言的文案并插值；码未登记时返回空串。
+ * 参数 code：后端错误码；params：后端 params（*_fen 按展示货币格式化）。
+ */
+export function translateErrorCode(code?: string | null, params?: unknown): string {
+  if (!code) return ''
+  const table = messages[getActiveLocale()].errors as Record<string, string>
+  const template = table[code]
+  if (!template) return ''
+  const vars = params && typeof params === 'object' ? (params as ErrorParams) : {}
+  return interpolate(template, toTemplateVars(vars))
+}
+
+/**
+ * 落库错误（任务 error_message、项目 params 等）转展示文案：有已登记错误码则按界面语言翻译，否则原文。
+ * 余额不足类会登记，供只拿到字符串的组件识别。
+ */
+export function localizeStoredError(
+  message: string | null | undefined,
+  code?: string | null,
+  params?: unknown,
+): string {
+  const translated = translateErrorCode(code, params)
+  if (translated && isInsufficientBalanceCode(code || undefined)) markBillingMessage(translated)
+  return translated || message || ''
+}
+
 // detail 转可读文案：字符串原样，422 校验数组拼接 msg
 function detailText(detail: unknown): string {
   if (typeof detail === 'string') return detail
@@ -70,10 +97,8 @@ export function parseApiError(status: number, body: unknown, fallback?: string):
   const code = typeof data.code === 'string' ? data.code : undefined
   const params =
     data.params && typeof data.params === 'object' ? (data.params as ErrorParams) : undefined
-  const table = messages[getActiveLocale()].errors as Record<string, string>
-  const template = code ? table[code] : undefined
   const message =
-    (template ? interpolate(template, toTemplateVars(params || {})) : '') ||
+    translateErrorCode(code, params) ||
     detailText(data.detail) ||
     fallback ||
     apiErrorText('requestFailed')

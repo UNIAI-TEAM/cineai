@@ -1,6 +1,7 @@
 /** 漫剧全局生成队列：图片 / 视频等任务统一展示与恢复 */
 import { useSyncExternalStore } from 'react'
 import type { DramaTaskBrief } from '../api/drama'
+import { localizeStoredError } from './apiError'
 import { getActiveLocale } from '../i18n/detect'
 import { interpolate } from '../i18n/lookup'
 import { messages } from '../i18n/messages'
@@ -375,6 +376,12 @@ function resolveVideoJobTitle(
 
 type FragmentTaskItem = DramaTaskBrief
 
+// 任务落库错误转展示文案：带业务错误码时按界面语言翻译，否则原文
+function taskErrorText(task?: FragmentTaskItem): string | undefined {
+  if (!task) return undefined
+  return localizeStoredError(task.error_message, task.error_code, task.error_params) || undefined
+}
+
 export type EpisodeGenerateStatusPayload = {
   episode_id: number
   done: number
@@ -458,7 +465,7 @@ export function syncEpisodeVideoJobs(input: {
             subtype: existing.subtype,
             status: 'failed',
             // 保持中文：dramaGenError 按「任务已中断」识别并给出本地化说明
-            error: latestTask?.error_message || '任务已中断，请重新生成',
+            error: taskErrorText(latestTask) || '任务已中断，请重新生成',
           },
           { silent: true },
         )
@@ -478,7 +485,7 @@ export function syncEpisodeVideoJobs(input: {
     const errText =
       item.error ||
       (raw === 'cancelled' || status === 'failed'
-        ? latestTask?.error_message || undefined
+        ? taskErrorText(latestTask)
         : undefined) ||
       (raw === 'cancelled' ? '已取消' : undefined)
 

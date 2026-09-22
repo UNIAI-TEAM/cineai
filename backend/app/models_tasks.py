@@ -36,6 +36,8 @@ class TaskRun(Base):
     progress_percent: Mapped[int] = mapped_column(Integer, default=0)
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # AppError 的 params（error_code 为 AppError 码时），前端按码翻译插值
+    error_params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     result_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     project_id: Mapped[int | None] = mapped_column(

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { tasksApi, type TaskRunOut } from '../../api/tasks'
+import { localizeStoredError } from '../../lib/apiError'
 import { formatDramaGenError, formatDramaGenJobError, pickRootDramaGenError } from '../../lib/dramaGenError'
 import BillingTopupLink from '../billing/BillingTopupLink'
 import { dramaGenJobMessage, type DramaGenJob } from '../../lib/dramaGenQueue'
@@ -10,6 +11,11 @@ import { useI18n, type TFunction } from '../../i18n/context'
 type Props = {
   job: DramaGenJob
   onClose: () => void
+}
+
+// 任务落库错误转展示文案：带业务错误码时按界面语言翻译，否则原文
+function taskErrorText(task: TaskRunOut): string {
+  return localizeStoredError(task.error_message, task.error_code, task.error_params)
 }
 
 // 拉取该目标相关的多条历史任务（用于挖出被「重试超限」覆盖的根因）
@@ -83,7 +89,7 @@ export function DramaGenTaskDetail({ job, onClose }: Props) {
         for (const task of tasks) {
           // 优先当前 job 绑定的任务；历史 cancelled「跳过重复」不当作根因抢占
           if (job.taskId && task.id === job.taskId) {
-            candidates.unshift(task.error_message)
+            candidates.unshift(taskErrorText(task))
             continue
           }
           if (
@@ -92,7 +98,7 @@ export function DramaGenTaskDetail({ job, onClose }: Props) {
           ) {
             continue
           }
-          candidates.push(task.error_message)
+          candidates.push(taskErrorText(task))
         }
         let best = pickRootDramaGenError(candidates)
         if (!best || /重试超过|超过上限/.test(best)) {
@@ -107,7 +113,7 @@ export function DramaGenTaskDetail({ job, onClose }: Props) {
             try {
               const detail = await tasksApi.get(task.id)
               if (cancelled) return
-              candidates.push(detail.error_message)
+              candidates.push(taskErrorText(detail))
               for (const ev of detail.events || []) {
                 candidates.push(ev.message)
               }

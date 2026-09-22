@@ -7,6 +7,7 @@ import logging
 from datetime import UTC, datetime
 
 from app.database import AsyncSessionLocal
+from app.errors import error_code_fields
 from app.services.billing.context import billing_scope
 from app.services.billing.settlement import freeze_for_task, settle_task
 from app.services.tasks.handlers import get_task_handler
@@ -50,9 +51,10 @@ async def execute_task_run(task_id: int) -> None:
         try:
             await freeze_for_task(db, task)
         except ValueError as exc:
-            # 余额不足：可预期失败，专用错误码便于前端引导充值
+            # 余额不足：可预期失败，专用错误码便于前端引导充值（AppError 时存 billing.insufficient_balance*）
+            code, params = error_code_fields(exc, "insufficient_balance")
             await _fail_task_before_start(
-                db, task, step, error_code="insufficient_balance", message=str(exc)
+                db, task, step, error_code=code, message=str(exc), error_params=params
             )
             return
         except Exception as exc:  # noqa: BLE001
@@ -138,6 +140,7 @@ async def _complete_task(db, task, result: dict) -> None:
     task.result_payload = result
     task.error_code = None
     task.error_message = None
+    task.error_params = None
     task.finished_at = now
     await append_task_event(
         db,
@@ -157,12 +160,15 @@ async def _complete_task(db, task, result: dict) -> None:
 
 # 预扣阶段（handler 尚未执行）失败收敛：此时 _lock_task(populate_existing) 已卸掉
 # task.steps 关系，不能像 _fail_task 那样再访问 task.steps[0]，step 由调用方预读传入。
-async def _fail_task_before_start(db, task, step, *, error_code: str, message: str) -> None:
+async def _fail_task_before_start(
+    db, task, step, *, error_code: str, message: str, error_params: dict | None = None
+) -> None:
     now = datetime.now(UTC)
     set_task_step_state(task, step, status="failed", now=now)
     task.status = "failed"
     task.error_code = error_code
     task.error_message = message[:500]
+    task.error_params = error_params
     task.finished_at = now
     # frozen 之后的异常（如落流水失败）保留 frozen 交 settle_task 对账；未预扣成功保持 none
     if task.billing_status != "frozen":
@@ -192,7 +198,8 @@ async def _fail_task(db, task, exc: Exception) -> None:
     step = task.steps[0] if task.steps else None
     set_task_step_state(task, step, status="failed", now=now)
     task.status = "failed"
-    task.error_code = type(exc).__name__
+    # AppError 存业务码与 params（前端按码翻译），其余存异常类名
+    task.error_code, task.error_params = error_code_fields(exc, type(exc).__name__)
     task.error_message = format_exception_message(exc, fallback="任务执行失败", limit=500)
     task.finished_at = now
     await append_task_event(

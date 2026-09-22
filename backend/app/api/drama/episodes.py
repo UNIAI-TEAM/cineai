@@ -67,10 +67,12 @@ from app.services.drama.jobs import (
 )
 from app.config import get_settings
 from app.services.drama.seed import (
+    clear_seed_error,
     require_confirmable_episode_body,
     seed_assets_from_script,
     seed_episodes_from_script,
     seed_single_episode_from_script,
+    set_seed_error,
 )
 from app.services.tasks.service import (
     cancel_fragment_video_tasks_for_fragments,
@@ -139,6 +141,8 @@ def _expand_episode_task_items(active_tasks: list) -> list[dict]:
                         "cancel_requested": task.cancel_requested,
                         "provider_task_id": task.provider_task_id,
                         "error_message": task.error_message,
+                        "error_code": task.error_code,
+                        "error_params": task.error_params,
                         "project_id": task.project_id,
                         "drama_project_id": task.drama_project_id,
                         "episode_id": task.episode_id,
@@ -162,6 +166,8 @@ def _expand_episode_task_items(active_tasks: list) -> list[dict]:
                 "cancel_requested": task.cancel_requested,
                 "provider_task_id": task.provider_task_id,
                 "error_message": task.error_message,
+                "error_code": task.error_code,
+                "error_params": task.error_params,
                 "project_id": task.project_id,
                 "drama_project_id": task.drama_project_id,
                 "episode_id": task.episode_id,
@@ -304,7 +310,7 @@ async def confirm_episode_from_script(
 
     params["assets_seed_status"] = "generating"
     params["assets_seed_generating_at"] = datetime.now(UTC).isoformat()
-    params.pop("assets_seed_error", None)
+    clear_seed_error(params)
     locked.params = params
     await db.commit()
 
@@ -344,7 +350,7 @@ async def confirm_episode_from_script(
         project = await get_owned_drama_project(db, body.project_id, user, with_script=True)
         params = dict(project.params or {}) if isinstance(project.params, dict) else {}
         params["assets_seed_status"] = "done"
-        params.pop("assets_seed_error", None)
+        clear_seed_error(params)
         params.pop("assets_seed_generating_at", None)
         project.params = params
         await db.commit()
@@ -352,7 +358,7 @@ async def confirm_episode_from_script(
         project = await get_owned_drama_project(db, body.project_id, user, with_script=True)
         params = dict(project.params or {}) if isinstance(project.params, dict) else {}
         params["assets_seed_status"] = "failed"
-        params["assets_seed_error"] = str(exc)[:500]
+        set_seed_error(params, exc)
         params.pop("assets_seed_generating_at", None)
         project.params = params
         await db.commit()
@@ -361,7 +367,7 @@ async def confirm_episode_from_script(
         project = await get_owned_drama_project(db, body.project_id, user, with_script=True)
         params = dict(project.params or {}) if isinstance(project.params, dict) else {}
         params["assets_seed_status"] = "failed"
-        params["assets_seed_error"] = "确认分集未完成"
+        set_seed_error(params, "确认分集未完成", code="drama.asset_extract_failed")
         params.pop("assets_seed_generating_at", None)
         project.params = params
         await db.commit()
@@ -370,7 +376,7 @@ async def confirm_episode_from_script(
         project = await get_owned_drama_project(db, body.project_id, user, with_script=True)
         params = dict(project.params or {}) if isinstance(project.params, dict) else {}
         params["assets_seed_status"] = "failed"
-        params["assets_seed_error"] = "确认分集失败"
+        set_seed_error(params, "确认分集失败", code="drama.asset_extract_failed")
         params.pop("assets_seed_generating_at", None)
         project.params = params
         await db.commit()

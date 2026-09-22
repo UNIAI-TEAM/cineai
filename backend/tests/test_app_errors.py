@@ -260,3 +260,44 @@ def test_drama_service_errors_keep_chinese_text_and_code() -> None:
         parse_skill_markdown("   ")
     assert skill_exc.value.code == "drama.skill_empty"
     assert skill_exc.value.status == 400
+
+
+# ---- 落库错误码：任务 / 资产抽取失败保存 code + params，前端按码翻译 ----
+
+
+def test_error_code_fields_app_error():
+    """AppError 返回自身 code 与 params。"""
+    from app.errors import error_code_fields
+
+    exc = AppError("drama.episode_script_not_found", number=3)
+    assert error_code_fields(exc, "fallback") == ("drama.episode_script_not_found", {"number": 3})
+
+
+def test_error_code_fields_plain_exception():
+    """普通异常返回默认码，params 为 None；无参数的 AppError params 也为 None。"""
+    from app.errors import error_code_fields
+
+    assert error_code_fields(RuntimeError("x"), "RuntimeError") == ("RuntimeError", None)
+    assert error_code_fields(AppError("drama.summary_required")) == ("drama.summary_required", None)
+
+
+def test_seed_error_set_and_clear():
+    """set_seed_error 存文案 + 码 + params；普通异常清掉旧码；clear_seed_error 全部清除。"""
+    from app.services.drama.seed import clear_seed_error, set_seed_error
+
+    params: dict = {}
+    set_seed_error(params, AppError("drama.episode_body_too_short", number=2))
+    assert params["assets_seed_error_code"] == "drama.episode_body_too_short"
+    assert params["assets_seed_error_params"] == {"number": 2}
+    assert params["assets_seed_error"]
+
+    set_seed_error(params, RuntimeError("upstream boom"))
+    assert params["assets_seed_error"] == "upstream boom"
+    assert "assets_seed_error_code" not in params
+    assert "assets_seed_error_params" not in params
+
+    set_seed_error(params, "资产抽取失败", code="drama.asset_extract_failed")
+    assert params["assets_seed_error_code"] == "drama.asset_extract_failed"
+
+    clear_seed_error(params)
+    assert params == {}

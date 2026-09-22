@@ -26,6 +26,7 @@ import { GlobalAssetPickerModal, importGlobalAssetToProject } from './GlobalAsse
 import { DramaVoiceAssetCard } from './DramaVoiceAssetCard'
 import Pagination from '../../components/ui/Pagination'
 import { dialog } from '../../lib/dialog'
+import { localizeStoredError } from '../../lib/apiError'
 import { formatFenActive } from '../../currency'
 import { handleBillingError, isBillingError } from '../../lib/billingError'
 import { alertDramaGenError, formatDramaGenError, isUpstreamAccountError } from '../../lib/dramaGenError'
@@ -636,7 +637,11 @@ export function AssetsStep({ projectId, onError }: AssetsStepProps) {
           : []
         const failed = seedStatus === 'failed'
         let detail = failed
-          ? String(params.assets_seed_error || t('dramaAssets.step.reseedFailedFallback'))
+          ? localizeStoredError(
+              params.assets_seed_error ? String(params.assets_seed_error) : '',
+              typeof params.assets_seed_error_code === 'string' ? params.assets_seed_error_code : undefined,
+              params.assets_seed_error_params,
+            ) || t('dramaAssets.step.reseedFailedFallback')
           : reseedSummaryText(created, refreshed, propsUpdated)
         if (!failed && created === 0 && refreshed === 0 && llmErrors.length === 0) {
           detail += t('dramaAssets.step.reseedNothing')

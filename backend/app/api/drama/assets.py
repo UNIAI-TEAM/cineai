@@ -32,8 +32,10 @@ from app.services.drama.jobs import dispatch_seed_assets_job
 from app.services.drama.seed import (
     _asset_dedupe_key,
     _normalize_asset_name,
+    clear_seed_error,
     purge_voice_like_character_assets,
     seed_assets_from_script,
+    set_seed_error,
 )
 
 router = APIRouter()
@@ -368,7 +370,7 @@ async def seed_assets(
     if heavy:
         params["assets_seed_status"] = "generating"
         params["assets_seed_generating_at"] = datetime.now(timezone.utc).isoformat()
-        params.pop("assets_seed_error", None)
+        clear_seed_error(params)
         locked.params = params
         try:
             await dispatch_seed_assets_job(
@@ -394,7 +396,7 @@ async def seed_assets(
 
     params["assets_seed_status"] = "generating"
     params["assets_seed_generating_at"] = datetime.now(timezone.utc).isoformat()
-    params.pop("assets_seed_error", None)
+    clear_seed_error(params)
     locked.params = params
     await db.commit()
     try:
@@ -422,7 +424,7 @@ async def seed_assets(
         project = await get_owned_drama_project(db, project_id, user, with_script=True)
         params = dict(project.params or {}) if isinstance(project.params, dict) else {}
         params["assets_seed_status"] = "done"
-        params.pop("assets_seed_error", None)
+        clear_seed_error(params)
         params.pop("assets_seed_generating_at", None)
         project.params = params
         await db.commit()
@@ -430,7 +432,7 @@ async def seed_assets(
         project = await get_owned_drama_project(db, project_id, user, with_script=True)
         params = dict(project.params or {}) if isinstance(project.params, dict) else {}
         params["assets_seed_status"] = "failed"
-        params["assets_seed_error"] = str(exc)[:500]
+        set_seed_error(params, exc)
         params.pop("assets_seed_generating_at", None)
         project.params = params
         await db.commit()
@@ -441,7 +443,7 @@ async def seed_assets(
         project = await get_owned_drama_project(db, project_id, user, with_script=True)
         params = dict(project.params or {}) if isinstance(project.params, dict) else {}
         params["assets_seed_status"] = "failed"
-        params["assets_seed_error"] = str(exc)[:500]
+        set_seed_error(params, exc)
         params.pop("assets_seed_generating_at", None)
         project.params = params
         await db.commit()
@@ -451,7 +453,7 @@ async def seed_assets(
         project = await get_owned_drama_project(db, project_id, user, with_script=True)
         params = dict(project.params or {}) if isinstance(project.params, dict) else {}
         params["assets_seed_status"] = "failed"
-        params["assets_seed_error"] = "资产抽取失败"
+        set_seed_error(params, "资产抽取失败", code="drama.asset_extract_failed")
         params.pop("assets_seed_generating_at", None)
         project.params = params
         await db.commit()
