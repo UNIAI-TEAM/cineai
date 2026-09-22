@@ -39,8 +39,8 @@ export function RuntimeSettingsPanel() {
         id: item.capability,
         label: item.label,
         ready: item.ready,
-        readyText: item.model || "就绪",
-        pendingText: "未就绪",
+        readyText: item.model || "Sẵn sàng",
+        pendingText: item.message || "Chưa sẵn sàng",
       })),
     [form?.readiness],
   );
@@ -88,15 +88,17 @@ export function RuntimeSettingsPanel() {
   return (
     <SettingsTabShell onSave={() => void handleSave()} saving={saving}>
       <SettingsStatusBar
-        title="路由就绪状态"
+        title="Trạng thái gán model"
         items={
           statusItems.length > 0
             ? statusItems
-            : [{ id: "empty", label: "能力路由", ready: false, pendingText: "请先在「模型」填写 Key 并选择模型" }]
+            : [{ id: "empty", label: "Gán model", ready: false, pendingText: "Chưa gán model" }]
         }
         extra={
           <span className="settings-status-extra">
-            {form.readiness?.every((item) => item.ready) ? "四类能力已就绪" : "请在「模型」填写 TokenFree Key 并选择模型"}
+            {form.readiness?.every((item) => item.ready)
+              ? "Đủ 4 slot năng lực"
+              : "Vào tab “Mô hình” để thêm provider và gán model"}
           </span>
         }
       />
@@ -104,32 +106,32 @@ export function RuntimeSettingsPanel() {
       <div className="settings-routing-grid">
         <SettingsPanel
           className="settings-panel--compact"
-          title="1. 质量与默认值"
-          description="生图尺寸、视频清晰度、Seedance 时长与轮询"
+          title="1. Chất lượng và mặc định"
+          description="Kích thước ảnh, độ phân giải và tỉ lệ video, thời lượng video, chu kỳ kiểm tra kết quả"
         >
           <div className="settings-field-grid">
-            <LabeledControl label="默认生图尺寸">
+            <LabeledControl label="Kích thước ảnh mặc định" hint="VD: 2K, 1K hoặc 1024x1024">
               <input
                 className="settings-input"
                 value={form.ark_image_size}
                 onChange={(e) => patchField("ark_image_size", e.target.value)}
               />
             </LabeledControl>
-            <LabeledControl label="默认视频清晰度">
+            <LabeledControl label="Độ phân giải video mặc định" hint="480p / 720p / 1080p">
               <input
                 className="settings-input"
                 value={form.ark_video_resolution}
                 onChange={(e) => patchField("ark_video_resolution", e.target.value)}
               />
             </LabeledControl>
-            <LabeledControl label="默认视频比例">
+            <LabeledControl label="Tỉ lệ video mặc định">
               <input
                 className="settings-input"
                 value={form.ark_video_ratio}
                 onChange={(e) => patchField("ark_video_ratio", e.target.value)}
               />
             </LabeledControl>
-            <LabeledControl label="Seedance 最小时长（秒）">
+            <LabeledControl label="Thời lượng video tối thiểu (giây)">
               <input
                 className="settings-input"
                 type="number"
@@ -138,7 +140,7 @@ export function RuntimeSettingsPanel() {
                 onChange={(e) => patchField("seedance_duration_min", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="Seedance 最大时长（秒）">
+            <LabeledControl label="Thời lượng video tối đa (giây)">
               <input
                 className="settings-input"
                 type="number"
@@ -147,7 +149,7 @@ export function RuntimeSettingsPanel() {
                 onChange={(e) => patchField("seedance_duration_max", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="视频轮询间隔（秒）">
+            <LabeledControl label="Chu kỳ kiểm tra video (giây)">
               <input
                 className="settings-input"
                 type="number"
@@ -156,7 +158,7 @@ export function RuntimeSettingsPanel() {
                 onChange={(e) => patchField("ark_video_poll_interval", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="视频轮询超时（秒）">
+            <LabeledControl label="Thời gian chờ video tối đa (giây)">
               <input
                 className="settings-input"
                 type="number"
@@ -248,8 +250,8 @@ export function RuntimeSettingsPanel() {
           </div>
           <div className="settings-toggle-row mt-3">
             <div>
-              <strong>ARK Mock 模式</strong>
-              <span>开发环境模拟生成，不调用真实上游</span>
+              <strong>Chế độ mô phỏng (mock)</strong>
+              <span>Không gọi nhà cung cấp thật; trả ảnh/video mẫu để thử luồng</span>
             </div>
             <Switch checked={form.ark_mock} onCheckedChange={(v) => patchField("ark_mock", v)} />
           </div>

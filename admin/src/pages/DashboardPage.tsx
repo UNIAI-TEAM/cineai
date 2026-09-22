@@ -16,11 +16,10 @@ import {
 import { toast } from "sonner";
 import { PageSection } from "@/components/admin/PageSection";
 import { PageHeader } from "@/components/ui/page";
-import { api, type AdminOrder, type AdminStats, type AdminUpstreamUsage, type PageMeta } from "@/api/client";
+import { api, type AdminOrder, type AdminStats, type PageMeta } from "@/api/client";
 import { AdminEntityLink } from "@/components/admin/AdminEntityLink";
 import { useCurrency } from "@/lib/currency";
 import { projectStatusLabel, taskDomainLabel } from "@/lib/statusLabels";
-import { Button } from "@/components/ui/button";
 import {
   buildStatsQuery,
   dashboardRangeLabel,
@@ -76,31 +75,7 @@ export function DashboardPage() {
   const [filters, setFilters] = useState<DashboardFilterState>(DEFAULT_DASHBOARD_FILTERS);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
-  const [upstreamUsage, setUpstreamUsage] = useState<AdminUpstreamUsage | null>(null);
-  const [upstreamSyncing, setUpstreamSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  const loadUpstreamUsage = useCallback(async () => {
-    try {
-      const data = await api<AdminUpstreamUsage>("/api/admin/stats/upstream-usage?days=30");
-      setUpstreamUsage(data);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "官方用量加载失败");
-    }
-  }, []);
-
-  const syncUpstreamUsage = useCallback(async () => {
-    setUpstreamSyncing(true);
-    try {
-      await api("/api/admin/stats/upstream-usage/sync?days=30", { method: "POST" });
-      toast.success("官方用量已刷新");
-      await loadUpstreamUsage();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "刷新失败");
-    } finally {
-      setUpstreamSyncing(false);
-    }
-  }, [loadUpstreamUsage]);
 
   const loadData = useCallback(async (nextFilters: DashboardFilterState) => {
     setLoading(true);
@@ -127,10 +102,6 @@ export function DashboardPage() {
     void loadData(statsFilters);
   }, [statsFilters, loadData]);
 
-  useEffect(() => {
-    void loadUpstreamUsage();
-  }, [loadUpstreamUsage]);
-
   const statusEntries = Object.entries(stats?.project_status_counts ?? {}).sort((a, b) => b[1] - a[1]);
   const daily = stats?.daily_usage ?? [];
   const byCapability = stats?.usage_by_capability ?? [];
@@ -139,7 +110,7 @@ export function DashboardPage() {
   const rangeLabel = dashboardRangeLabel(filters.days);
   const showUsageFilters = section === "overview" || section === "usage";
   const domainInsights = buildDomainInsights(byDomain, filters.metric, format, domainChartLabel);
-  const financeInsights = buildFinanceInsights(stats, upstreamUsage, format);
+  const financeInsights = buildFinanceInsights(stats, format);
   const projectInsights = buildProjectInsights(stats, sumDailyUsage(daily));
   const metricHint =
     filters.metric === "cost" ? "上游成本" : filters.metric === "calls" ? "调用次数" : "扣费金额";
@@ -322,63 +293,6 @@ export function DashboardPage() {
             className="admin-dashboard-glass min-h-0 admin-dashboard-body--full"
           >
             <DashboardInsightGrid items={financeInsights} columns={3} />
-          </PageSection>
-
-          <PageSection
-            title="TokenFree 官方用量对照"
-            description={
-              upstreamUsage?.configured
-                ? `近 30 日本地成本 vs TokenFree New API 用量${upstreamUsage.last_sync_at ? ` · 最近同步 ${new Date(upstreamUsage.last_sync_at).toLocaleString()}` : ""}`
-                : "未配置 TokenFree API Key，请在「系统设置 → 模型」填写后刷新官方数据"
-            }
-            actions={
-              upstreamUsage?.configured ? (
-                <Button type="button" size="sm" variant="outline" disabled={upstreamSyncing} onClick={() => void syncUpstreamUsage()}>
-                  {upstreamSyncing ? "刷新中…" : "刷新官方数据"}
-                </Button>
-              ) : null
-            }
-            bodyClassName="!pt-0"
-            className="admin-dashboard-glass min-h-0"
-          >
-            <div className="admin-table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>日期</th>
-                    <th>本地成本</th>
-                    <th>本地 token</th>
-                    <th>官方 token</th>
-                    <th>官方成本</th>
-                    <th>差额</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(upstreamUsage?.series ?? []).length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="!text-center text-[var(--admin-muted)]">
-                        暂无对照数据
-                      </td>
-                    </tr>
-                  ) : (
-                    [...(upstreamUsage?.series ?? [])].reverse().slice(0, 14).map((row) => (
-                      <tr key={row.date}>
-                        <td className="font-mono text-xs">{row.date}</td>
-                        <td>{format(row.local_cost_fen)}</td>
-                        <td>{row.local_tokens.toLocaleString()}</td>
-                        <td>{row.official_tokens > 0 ? row.official_tokens.toLocaleString() : "—"}</td>
-                        <td>{row.official_cost_fen > 0 ? format(row.official_cost_fen) : "—"}</td>
-                        <td>
-                          {row.official_cost_fen > 0
-                            ? `${format(row.delta_fen)}${row.delta_pct != null ? ` (${row.delta_pct}%)` : ""}`
-                            : "—"}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
           </PageSection>
 
           <PageSection

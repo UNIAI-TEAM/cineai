@@ -8,12 +8,11 @@ import {
   Layers,
   Percent,
   TrendingDown,
-  TrendingUp,
   Wallet,
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import type { AdminStats, AdminUpstreamUsage } from "@/api/client";
+import type { AdminStats } from "@/api/client";
 import type { DashboardInsightItem } from "@/pages/dashboard/DashboardInsightGrid";
 import {
   calcProfitFen,
@@ -24,20 +23,12 @@ import {
 import { projectStatusLabel } from "@/lib/statusLabels";
 
 /** 财务账单 Tab 图标指标（format：分 → 当前展示货币） */
-export function buildFinanceInsights(
-  stats: AdminStats | null,
-  upstream: AdminUpstreamUsage | null,
-  format: MoneyFormatter,
-): DashboardInsightItem[] {
+export function buildFinanceInsights(stats: AdminStats | null, format: MoneyFormatter): DashboardInsightItem[] {
   if (!stats) return [];
 
   const monthCharge = stats.usage_charge_month_fen ?? 0;
   const monthCost = stats.usage_cost_month_fen ?? 0;
   const profitFen = calcProfitFen(monthCharge, monthCost);
-  const recent = (upstream?.series ?? []).slice(-7);
-  const localCost7 = recent.reduce((sum, row) => sum + row.local_cost_fen, 0);
-  const officialCost7 = recent.reduce((sum, row) => sum + row.official_cost_fen, 0);
-  const delta7 = localCost7 - officialCost7;
 
   const items: DashboardInsightItem[] = [
     {
@@ -73,17 +64,6 @@ export function buildFinanceInsights(
       tone: profitFen >= 0 ? "mint" : "rose",
     },
   ];
-
-  if (upstream?.configured && officialCost7 > 0) {
-    items.push({
-      key: "upstream-delta",
-      label: "近 7 日成本差额",
-      value: format(delta7),
-      hint: `本地 ${format(localCost7)} / 官方 ${format(officialCost7)}`,
-      icon: delta7 >= 0 ? TrendingUp : TrendingDown,
-      tone: delta7 >= 0 ? "teal" : "rose",
-    });
-  }
 
   items.push({
     key: "paid-today",

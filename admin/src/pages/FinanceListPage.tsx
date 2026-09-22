@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import { AdminChipFilter } from "@/components/admin/AdminChipFilter";
 import { AdminFilterBar } from "@/components/admin/AdminFilterBar";
 import { PageSection } from "@/components/admin/PageSection";
-import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, type AdminFinanceDaily } from "@/api/client";
@@ -24,13 +23,12 @@ function profitClass(profitFen: number): string {
   return "";
 }
 
-/** 管理端财务列表：按日展示扣费、成本、token、实际成本与利润 */
+/** 管理端财务列表：按日展示扣费、成本、token 与利润 */
 export function FinanceListPage() {
   const { format } = useCurrency();
   const [days, setDays] = useState<FinanceDays>("30");
   const [data, setData] = useState<AdminFinanceDaily | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -45,19 +43,6 @@ export function FinanceListPage() {
     }
   }, [days]);
 
-  const syncOfficial = useCallback(async () => {
-    setSyncing(true);
-    try {
-      const res = await api<AdminFinanceDaily>(`/api/admin/finance/daily/sync?days=${days}`, { method: "POST" });
-      setData(res);
-      toast.success("官方成本已刷新");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "刷新失败");
-    } finally {
-      setSyncing(false);
-    }
-  }, [days]);
-
   useEffect(() => {
     void loadData();
   }, [loadData]);
@@ -68,7 +53,7 @@ export function FinanceListPage() {
 
   return (
     <div className="admin-page">
-      <PageHeader description="按日汇总本地扣费、成本与官方实际成本，计算利润" />
+      <PageHeader description="按日汇总扣费、成本（按模型价目表计算）与利润" />
 
       <AdminFilterBar>
         <AdminChipFilter
@@ -83,18 +68,7 @@ export function FinanceListPage() {
       <PageSection
         title="财务列表"
         description={
-          rangeMismatch
-            ? "数据与当前时间范围不一致，请重新加载"
-            : data?.configured
-            ? `近 ${days} 日 · 实际成本来自 TokenFree New API${data.last_sync_at ? ` · 最近同步 ${new Date(data.last_sync_at).toLocaleString()}` : ""}`
-            : "未配置 TokenFree API Key，实际成本列为空；请在「系统设置 → 模型」填写后刷新"
-        }
-        actions={
-          data?.configured ? (
-            <Button type="button" size="sm" variant="outline" disabled={syncing || loading} onClick={() => void syncOfficial()}>
-              {syncing ? "刷新中…" : "刷新官方成本"}
-            </Button>
-          ) : null
+          rangeMismatch ? "数据与当前时间范围不一致，请重新加载" : `近 ${days} 日 · 成本 = 按模型价目表计算的上游成本`
         }
         bodyClassName="!pt-0"
       >
@@ -103,23 +77,22 @@ export function FinanceListPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>日期</TableHead>
-                <TableHead>本地扣费</TableHead>
-                <TableHead>本地成本</TableHead>
+                <TableHead>扣费</TableHead>
+                <TableHead>成本</TableHead>
                 <TableHead>Token</TableHead>
-                <TableHead>实际成本</TableHead>
                 <TableHead>利润</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="!text-center text-[var(--admin-muted)]">
+                  <TableCell colSpan={5} className="!text-center text-[var(--admin-muted)]">
                     加载中…
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="!text-center text-[var(--admin-muted)]">
+                  <TableCell colSpan={5} className="!text-center text-[var(--admin-muted)]">
                     暂无数据
                   </TableCell>
                 </TableRow>
@@ -131,9 +104,6 @@ export function FinanceListPage() {
                       <TableCell>{format(row.charge_fen)}</TableCell>
                       <TableCell>{format(row.cost_fen)}</TableCell>
                       <TableCell>{row.tokens.toLocaleString()}</TableCell>
-                      <TableCell>
-                        {row.actual_cost_fen > 0 ? format(row.actual_cost_fen) : "—"}
-                      </TableCell>
                       <TableCell className={profitClass(row.profit_fen)}>
                         {format(row.profit_fen)}
                         {row.profit_pct != null ? ` (${row.profit_pct}%)` : ""}
@@ -146,9 +116,6 @@ export function FinanceListPage() {
                       <TableCell>{format(totals.charge_fen)}</TableCell>
                       <TableCell>{format(totals.cost_fen)}</TableCell>
                       <TableCell>{totals.tokens.toLocaleString()}</TableCell>
-                      <TableCell>
-                        {totals.actual_cost_fen > 0 ? format(totals.actual_cost_fen) : "—"}
-                      </TableCell>
                       <TableCell className={profitClass(totals.profit_fen)}>
                         {format(totals.profit_fen)}
                         {totals.profit_pct != null ? ` (${totals.profit_pct}%)` : ""}

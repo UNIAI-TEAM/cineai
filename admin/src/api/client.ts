@@ -139,30 +139,6 @@ export type AdminStats = {
   top_users_by_charge?: AdminTopUser[];
 };
 
-export type AdminUpstreamUsageDay = {
-  date: string;
-  local_cost_fen: number;
-  local_tokens: number;
-  official_tokens: number;
-  official_cost_fen: number;
-  delta_fen: number;
-  delta_pct?: number | null;
-};
-
-export type AdminUpstreamUsage = {
-  configured: boolean;
-  days: number;
-  last_sync_at?: string | null;
-  series: AdminUpstreamUsageDay[];
-};
-
-export type AdminUpstreamUsageSync = {
-  configured: boolean;
-  synced: number;
-  skipped: number;
-  last_sync_at?: string | null;
-};
-
 export type AdminFinanceDailyRow = {
   date: string;
   charge_fen: number;
@@ -183,9 +159,7 @@ export type AdminFinanceDailyTotals = {
 };
 
 export type AdminFinanceDaily = {
-  configured: boolean;
   days: number;
-  last_sync_at?: string | null;
   totals: AdminFinanceDailyTotals;
   series: AdminFinanceDailyRow[];
 };
@@ -575,18 +549,12 @@ export type ModelCapabilityReadiness = {
   message: string;
 };
 
+/**
+ * Cấu hình flat (DB overlay trên .env). Các field khoá / Base URL / model phẳng cũ theo từng nhà cung cấp vẫn có
+ * trong payload backend nhưng chỉ dùng để seed provider lần khởi động đầu và làm nhãn dòng tính phí — admin cấu
+ * hình provider/model ở tab "Mô hình", nên không khai báo và không hiển thị ở đây.
+ */
 export type AdminModelSettings = {
-  openai_api_key: string;
-  openai_base_url: string;
-  model_llm: string;
-  has_openai_api_key: boolean;
-  ark_api_key: string;
-  ark_base_url: string;
-  model_image: string;
-  model_image_45: string;
-  model_video: string;
-  model_audio: string;
-  has_ark_api_key: boolean;
   volc_tts_app_id: string;
   volc_tts_access_key: string;
   volc_tts_api_key: string;
