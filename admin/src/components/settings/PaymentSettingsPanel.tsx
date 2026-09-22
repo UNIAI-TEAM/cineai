@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   LabeledControl,
   SettingsLoading,
@@ -8,26 +9,10 @@ import {
 } from "@/components/settings/SettingsPanel";
 import { SecretField } from "@/components/settings/SecretField";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
 import { useAdminModelSettings } from "@/hooks/useAdminModelSettings";
+import { useProviderRates } from "@/hooks/useProviderRates";
 import { useCurrency } from "@/lib/currency";
-import { api } from "@/api/client";
-
-/** TokenFree 官方价目行（金额字段为内部记账元） */
-type ModelRateRow = {
-  id: string;
-  label: string;
-  provider: string;
-  capability: string;
-  basis: string;
-  rate_label: string;
-  markup: number;
-  recommended?: boolean;
-  note?: string;
-  official_cost_yuan?: number;
-  user_charge_yuan?: number;
-  verify_url?: string;
-};
+import { ProviderRatesEditor } from "@/components/settings/ProviderRatesEditor";
 
 // 银行转账收款、汇率与展示货币、Token 计费与告警配置
 export function PaymentSettingsPanel() {
@@ -35,14 +20,8 @@ export function PaymentSettingsPanel() {
   const { format } = useCurrency();
   const [smtpPasswordInput, setSmtpPasswordInput] = useState("");
   const [clearSmtpPassword, setClearSmtpPassword] = useState(false);
-  /*
-   * tokenfreeBusy 查询 New API 余额中
-   * tokenfreeInfo 余额或错误文案
-   */
-  const [tokenfreeBusy, setTokenfreeBusy] = useState(false);
-  const [tokenfreeInfo, setTokenfreeInfo] = useState<string>("");
-  const [modelRates, setModelRates] = useState<ModelRateRow[]>([]);
-  const [modelRatesBusy, setModelRatesBusy] = useState(false);
+  // rates: bảng giá provider_rates (mục 5), lưu riêng qua PUT model-rates
+  const rates = useProviderRates();
 
   // 银行转账收款就绪：银行名 / 账号 / 户名齐全（BIN 可选）
   const bankReady = useMemo(() => {
@@ -51,8 +30,6 @@ export function PaymentSettingsPanel() {
       form.topup_bank_name?.trim() && form.topup_bank_account?.trim() && form.topup_bank_holder?.trim(),
     );
   }, [form]);
-
-  const tokenfreeReady = Boolean(form?.has_openai_api_key);
 
   const smtpReady = useMemo(() => {
     if (!form?.smtp_enabled) return false;
@@ -67,6 +44,11 @@ export function PaymentSettingsPanel() {
 
   async function handleSave() {
     if (!form) return;
+    // Bảng giá lưu riêng (PUT model-rates); lỗi thì dừng để admin sửa trước
+    if (rates.dirty && !(await rates.save())) {
+      toast.error("Bảng giá model chưa lưu được, xem lỗi ở mục 5");
+      return;
+    }
     await save(
       {
         billing_display_currency: form.billing_display_currency,
@@ -85,7 +67,6 @@ export function PaymentSettingsPanel() {
         billing_llm_per_m: form.billing_llm_per_m,
         billing_seedream_per_m: form.billing_seedream_per_m,
         billing_tts_per_m: form.billing_tts_per_m,
-        billing_kie_fen_per_credit: form.billing_kie_fen_per_credit,
         billing_est_llm_tokens: form.billing_est_llm_tokens,
         billing_est_seedream_tokens: form.billing_est_seedream_tokens,
         billing_est_tts_tokens: form.billing_est_tts_tokens,
@@ -112,46 +93,6 @@ export function PaymentSettingsPanel() {
     setClearSmtpPassword(false);
   }
 
-  // 拉取各模型计费口径表
-  async function loadModelRates() {
-    setModelRatesBusy(true);
-    try {
-      const res = await api<{ items: ModelRateRow[] }>("/api/admin/settings/billing/model-rates");
-      setModelRates(res.items || []);
-    } catch (err) {
-      setModelRates([]);
-      setTokenfreeInfo(err instanceof Error ? err.message : "加载模型费率失败");
-    } finally {
-      setModelRatesBusy(false);
-    }
-  }
-
-  // 查询 TokenFree / New API 剩余额度（remain_yuan 为内部记账元，展示时换算为当前货币）
-  async function queryTokenfreeQuota() {
-    setTokenfreeBusy(true);
-    setTokenfreeInfo("");
-    try {
-      const res = await api<{
-        quota: number | null;
-        used_quota: number | null;
-        remain_yuan: number;
-        used_yuan: number;
-        remain_usd: number | null;
-        usd_cny: number;
-        console_url: string;
-      }>("/api/admin/settings/tokenfree/quota");
-      const remainUsd = res.remain_usd != null ? `$${res.remain_usd.toFixed(4)}` : "—";
-      setTokenfreeInfo(
-        `剩余 ${res.quota ?? "—"} quota ≈ ${format(res.remain_yuan * 100)}（上游 ${remainUsd}）` +
-          `；已用 ${res.used_quota ?? "—"} ≈ ${format(res.used_yuan * 100)}。控制台 ${res.console_url}`,
-      );
-    } catch (err) {
-      setTokenfreeInfo(err instanceof Error ? err.message : "查询 TokenFree 余额失败");
-    } finally {
-      setTokenfreeBusy(false);
-    }
-  }
-
   if (loading || !form) {
     return <SettingsLoading />;
   }
@@ -176,11 +117,11 @@ export function PaymentSettingsPanel() {
             pendingText: "已关闭",
           },
           {
-            id: "tokenfree",
-            label: "上游成本",
-            ready: tokenfreeReady,
-            readyText: "已配置 Key",
-            pendingText: "缺 TokenFree Key",
+            id: "rates",
+            label: "模型价目",
+            ready: !rates.loadError && (rates.data?.unpriced_models.length ?? 0) === 0,
+            readyText: "已覆盖全部模型",
+            pendingText: rates.loadError ? "加载失败" : `${rates.data?.unpriced_models.length ?? 0} 个模型未定价`,
           },
           {
             id: "smtp",
@@ -274,7 +215,7 @@ export function PaymentSettingsPanel() {
                 onChange={(e) => patchField("billing_cny_vnd", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="USD 汇率（1 USD = ? 记账元）" hint="也用于把 TokenFree 上游 USD 成本折算为记账单位">
+            <LabeledControl label="USD 汇率（1 USD = ? 记账元）" hint="也用于把模型价目（美元）折算为记账单位">
               <input
                 className="settings-input"
                 type="number"
@@ -295,7 +236,7 @@ export function PaymentSettingsPanel() {
         <SettingsPanel
           className="settings-panel--compact"
           title="3. Token 计费"
-          description="按 TokenFree 官方成本 1:1 扣费，不再加价"
+          description="按模型价目表（美元）折算成本 1:1 扣费，不加价"
         >
           <div className="settings-toggle-row">
             <div>
@@ -326,7 +267,7 @@ export function PaymentSettingsPanel() {
             </LabeledControl>
           </div>
 
-          <div className="settings-subsection-title">单价（记账元 / 百万 token）</div>
+          <div className="settings-subsection-title">兜底单价（未匹配价目表时，记账元 / 百万 token）</div>
           <p className="settings-field-hint">1 记账元 = 100 分 ≈ {format(100)}</p>
           <div className="settings-field-grid">
             <LabeledControl label="LLM">
@@ -375,73 +316,6 @@ export function PaymentSettingsPanel() {
               />
             </LabeledControl>
           </div>
-
-          <div className="settings-subsection-title mt-3">TokenFree 上游与模型费率</div>
-          <div className="flex flex-wrap items-center gap-2 mt-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={tokenfreeBusy}
-              onClick={() => void queryTokenfreeQuota()}
-            >
-              {tokenfreeBusy ? "查询中…" : "查询 TokenFree 余额"}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={modelRatesBusy}
-              onClick={() => void loadModelRates()}
-            >
-              {modelRatesBusy ? "加载中…" : "查看 TokenFree 官方价目"}
-            </Button>
-          </div>
-          {tokenfreeInfo ? <p className="text-sm text-muted-foreground mt-2">{tokenfreeInfo}</p> : null}
-          {modelRates.length > 0 ? (
-            <div className="mt-3 overflow-x-auto rounded border">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/40 text-left">
-                    <th className="p-2">模型</th>
-                    <th className="p-2">能力</th>
-                    <th className="p-2">官方成本</th>
-                    <th className="p-2">用户价</th>
-                    <th className="p-2">口径</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {modelRates.map((row) => (
-                    <tr key={row.id} className="border-b last:border-0">
-                      <td className="p-2">
-                        <div className="font-medium">
-                          {row.label}
-                          {row.recommended ? <span className="ml-1 text-xs text-[#409eff]">推荐</span> : null}
-                        </div>
-                        <div className="text-xs text-muted-foreground font-mono">{row.id}</div>
-                        {row.note ? <div className="text-xs text-muted-foreground">{row.note}</div> : null}
-                      </td>
-                      <td className="p-2">{row.capability}</td>
-                      <td className="p-2">
-                        {row.official_cost_yuan ? format(row.official_cost_yuan * 100) : "—"}
-                      </td>
-                      <td className="p-2">
-                        {row.user_charge_yuan ? format(row.user_charge_yuan * 100) : "—"}
-                      </td>
-                      <td className="p-2">
-                        <div>{row.rate_label}</div>
-                        {row.verify_url ? (
-                          <a className="text-xs text-[#409eff] hover:underline" href={row.verify_url} target="_blank" rel="noreferrer">
-                            去 TokenFree 核对
-                          </a>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
 
           <div className="settings-subsection-title">估算 token（缺 usage 时）</div>
           <div className="settings-field-grid">
@@ -610,6 +484,25 @@ export function PaymentSettingsPanel() {
           </div>
         </SettingsPanel>
       </div>
+
+      <SettingsPanel
+        className="settings-panel--compact"
+        title="5. Bảng giá model (USD)"
+        description="Giá chính thức của từng provider; dùng cho tạm giữ trước và quyết toán. Lưu bằng nút Lưu phía trên."
+      >
+        <ProviderRatesEditor
+          rows={rates.rows}
+          units={rates.data?.units ?? []}
+          unpriced={rates.data?.unpriced_models ?? []}
+          usdCny={rates.data?.usd_cny ?? form.billing_usd_cny}
+          loading={rates.loading}
+          loadError={rates.loadError}
+          saveError={rates.saveError}
+          onChange={rates.setRows}
+          onReset={rates.resetToDefaults}
+          onReload={() => void rates.load()}
+        />
+      </SettingsPanel>
     </SettingsTabShell>
   );
 }

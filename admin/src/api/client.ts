@@ -648,7 +648,6 @@ export type AdminModelSettings = {
   billing_llm_per_m: number;
   billing_seedream_per_m: number;
   billing_tts_per_m: number;
-  billing_kie_fen_per_credit: number;
   billing_est_llm_tokens: number;
   billing_est_seedream_tokens: number;
   billing_est_tts_tokens: number;
