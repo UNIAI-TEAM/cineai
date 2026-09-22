@@ -374,6 +374,7 @@ async def settle_deferred_video_poll(
                 project_id=task.project_id,
                 drama_project_id=task.drama_project_id,
                 shot_id=task.shot_id,
+                channel_id=task.provider_channel_id,
             )
         task.status = "succeeded"
         task.progress_percent = 100

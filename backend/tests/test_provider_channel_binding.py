@@ -5,9 +5,10 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models import UsageEvent
 from app.services import ark as ark_module
 from app.services.providers.base import TaskResult
 
@@ -111,4 +112,92 @@ async def test_record_seedream_image_usage_provider_from_channel(db_session: Asy
         image_result=image,
     )
     await db_session.commit()
+    assert ev.provider == "byteplus"
+
+
+@pytest.mark.asyncio
+async def test_settle_deferred_video_poll_usage_row_provider_matches_task_channel(
+    db_session: AsyncSession,
+) -> None:
+    """settle_deferred_video_poll phải ghi usage.provider = task.provider_channel_id (nhánh usage_tokens > 0,
+    TaskResult được construct tay không tự set channel_id)."""
+    from app.services.billing.ephemeral import settle_deferred_video_poll
+    from app.services.billing.settlement import freeze_for_task
+
+    user = await make_user(db_session, balance_fen=50_000)
+    task = await make_task(
+        db_session,
+        user,
+        domain="api",
+        task_type="v1_video",
+        status="awaiting_poll",
+        billing_status="none",
+        provider_task_id="upstream-chan-1",
+    )
+    task.provider_channel_id = "byteplus"
+    await freeze_for_task(db_session, task)
+    task.status = "awaiting_poll"
+    await db_session.commit()
+
+    await settle_deferred_video_poll(
+        db_session,
+        user,
+        provider_task_id="upstream-chan-1",
+        poll_status="succeeded",
+        billing_task_id=task.id,
+        usage_tokens=120_000,
+        completion_tokens=120_000,
+    )
+    await db_session.commit()
+
+    ev = (
+        await db_session.execute(select(UsageEvent).where(UsageEvent.task_run_id == task.id))
+    ).scalar_one()
+    assert ev.provider == "byteplus"
+
+
+@pytest.mark.asyncio
+async def test_settle_deferred_video_poll_refetch_passes_task_channel(
+    db_session: AsyncSession, monkeypatch
+) -> None:
+    """Nhánh usage_tokens == 0: settle_deferred_video_poll phải truyền task.provider_channel_id
+    vào fetch_task_once re-fetch (không rơi về None/_task_channels/"ark")."""
+    from app.services.billing.ephemeral import settle_deferred_video_poll
+    from app.services.billing.settlement import freeze_for_task
+
+    user = await make_user(db_session, balance_fen=50_000)
+    task = await make_task(
+        db_session,
+        user,
+        domain="api",
+        task_type="v1_video",
+        status="awaiting_poll",
+        billing_status="none",
+        provider_task_id="upstream-chan-2",
+    )
+    task.provider_channel_id = "byteplus"
+    await freeze_for_task(db_session, task)
+    task.status = "awaiting_poll"
+    await db_session.commit()
+
+    gw = ark_module.get_ark()
+    spy = AsyncMock(
+        return_value=TaskResult(status="succeeded", total_tokens=90_000, completion_tokens=90_000)
+    )
+    monkeypatch.setattr(gw, "fetch_task_once", spy)
+
+    await settle_deferred_video_poll(
+        db_session,
+        user,
+        provider_task_id="upstream-chan-2",
+        poll_status="succeeded",
+        billing_task_id=task.id,
+        usage_tokens=0,
+    )
+    await db_session.commit()
+
+    assert spy.await_args.kwargs["channel_id"] == "byteplus"
+    ev = (
+        await db_session.execute(select(UsageEvent).where(UsageEvent.task_run_id == task.id))
+    ).scalar_one()
     assert ev.provider == "byteplus"
