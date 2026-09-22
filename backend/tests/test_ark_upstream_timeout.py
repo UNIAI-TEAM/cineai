@@ -1,4 +1,4 @@
-"""TokenFree 图/视频 HTTP 超时：读体要够长，ReadTimeout 文案区分于连不上。"""
+"""上游图/视频 HTTP 超时：读体要够长，ReadTimeout 文案区分于连不上。"""
 
 import pytest
 import httpx

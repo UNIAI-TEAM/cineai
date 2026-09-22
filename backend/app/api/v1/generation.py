@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.database import get_db
 from app.deps import get_api_user
+from app.errors import AppError
 from app.models import User
 from app.models_tasks import TaskRun
 from app.schemas_api import (
@@ -70,6 +71,9 @@ async def generate_image(
                 shot_no=user.id,
                 size=size,
             )
+        except AppError:
+            # Lỗi cấu hình model phải giữ nguyên code/status, không bọc thành 502
+            raise
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=502, detail=str(exc)[:400]) from exc
 
@@ -126,6 +130,9 @@ async def generate_video(
                 resolution=body.resolution,
                 generate_audio=body.generate_audio,
             )
+        except AppError:
+            # Lỗi cấu hình model phải giữ nguyên code/status, không bọc thành 502
+            raise
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=502, detail=str(exc)[:400]) from exc
 
@@ -180,6 +187,9 @@ async def forward_seedance(
             upstream_id = await ark.gen_video_seedance_body(
                 payload, function_id="tools.video", project_id=0
             )
+        except AppError:
+            # Lỗi cấu hình model phải giữ nguyên code/status, không bọc thành 502
+            raise
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=502, detail=str(exc)[:400]) from exc
 

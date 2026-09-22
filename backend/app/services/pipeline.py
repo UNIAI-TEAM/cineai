@@ -27,6 +27,7 @@ from app.services.ffmpeg_compose import (
     probe_duration,
 )
 from app.services.progress import publish_progress
+from app.services.providers.ark_adapter import sanitize_seedream_prompt
 from app.services import storage
 from app.services.style_lock import (
     build_locked_image_prompt,
@@ -746,7 +747,7 @@ async def _script_stage(project_id: int) -> None:
             if bible and bible[:24] in scene:
                 scene = scene.replace(bible, "", 1)
             scene = strip_lock_blocks(scene)
-            img_prompt = ark._sanitize_seedream_prompt(scene)
+            img_prompt = sanitize_seedream_prompt(scene)
             segment_script = (plan.segment_script or plan.video_prompt or "").strip()
             db.add(
                 Shot(

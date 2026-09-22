@@ -35,7 +35,7 @@ def format_exception_message(
         tip = detail or "上游已连通但发送请求超时"
         return f"网络错误（{name}）：{tip}"[:limit]
     if name in _CONNECT_EXC_NAMES:
-        tip = detail or "无法连接上游服务（请检查网络、代理或 nhà cung cấp mô hình 是否可达）"
+        tip = detail or "无法连接上游服务（请检查网络、代理或上游模型服务是否可达）"
         return f"网络错误（{name}）：{tip}"[:limit]
     if not detail:
         return f"{name}：{fallback}"[:limit]

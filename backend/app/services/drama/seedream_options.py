@@ -123,14 +123,18 @@ def is_seedream_family(model: str) -> bool:
 
 
 def resolve_seedream_model_endpoint(model_id: str | None) -> str:
-    """Model ảnh cho phim ngắn: model user chọn (nếu admin cho phép) hoặc model đầu của slot; rỗng → settings.model_image."""
-    from app.services.function_router import ModelNotAllowed, resolve_function_route
+    """Model ảnh phim ngắn: giữ id user chọn nếu admin cho phép, ngược lại binding đầu của slot.
 
-    try:
-        route = resolve_function_route("drama.asset_image", (model_id or "").strip() or None)
-    except ModelNotAllowed:
-        route = resolve_function_route("drama.asset_image")
-    return route.upstream_model if route else ((model_id or "").strip() or get_settings().model_image)
+    Slot chưa gán binding nào thì trả `settings.model_image` — không bao giờ trả lại một id
+    mà không provider nào phục vụ.
+    """
+    from app.services.function_router import allowed_bindings, is_model_allowed
+
+    mid = (model_id or "").strip()
+    if mid and is_model_allowed("drama.asset_image", mid):
+        return mid
+    bindings = allowed_bindings("drama.asset_image")
+    return bindings[0].model if bindings else get_settings().model_image
 
 
 # 将清晰度 + 比例解析为 Ark size；Pro 自动降到 ≤2K

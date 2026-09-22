@@ -123,6 +123,8 @@ async def _synthesize_via_voice_design(
         audio_url[:80],
     )
     return audio_url, result.speaker_id
+
+
 def _drama_tts_model() -> str:
     """Model giọng đọc đang gán cho phim ngắn (rỗng nếu chưa gán)."""
     from app.services.function_router import resolve_function_route

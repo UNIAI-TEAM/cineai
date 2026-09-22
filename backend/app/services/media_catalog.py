@@ -62,11 +62,17 @@ def catalog_payload(scope: str | None = None) -> dict[str, Any]:
     if scope in _SCOPE_FUNCTIONS:
         image_function, video_function = _SCOPE_FUNCTIONS[scope]
         return build_media_catalog(image_function=image_function, video_function=video_function)
+    from app.services.model_settings import get_routing_snapshot
+
+    # Một snapshot dùng chung cho cả 3 scope: tránh đọc cấu hình đổi giữa chừng
+    snapshot = get_routing_snapshot()
     merged: dict[str, Any] = {"image_models": [], "video_models": []}
     seen: dict[str, set[str]] = {"image_models": set(), "video_models": set()}
     for key in ("kepu", "drama", "tools"):
         image_function, video_function = _SCOPE_FUNCTIONS[key]
-        part = build_media_catalog(image_function=image_function, video_function=video_function)
+        part = build_media_catalog(
+            image_function=image_function, video_function=video_function, snapshot=snapshot
+        )
         for bucket in ("image_models", "video_models"):
             for row in part[bucket]:
                 norm = normalize_model_name(row["id"])

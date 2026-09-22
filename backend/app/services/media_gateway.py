@@ -71,6 +71,7 @@ class MediaGateway:
     _is_seedance_text_policy_error = staticmethod(ark_adapter.is_seedance_text_policy_error)
     _is_seedance_input_privacy_error = staticmethod(ark_adapter.is_seedance_input_privacy_error)
     _seedance_content_with_cg_style = staticmethod(ark_adapter.seedance_content_with_cg_style)
+    _sanitize_seedream_prompt = staticmethod(ark_adapter.sanitize_seedream_prompt)
     _build_tts_additions = staticmethod(volc_tts_adapter.build_tts_additions)
 
     def __init__(self, settings: Settings | None = None) -> None:

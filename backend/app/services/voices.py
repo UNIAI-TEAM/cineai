@@ -311,7 +311,7 @@ async def ensure_voice_preview(voice_id: str) -> str:
 
     ark = get_ark()
     shot_no = int(hashlib.md5(speaker.encode()).hexdigest()[:4], 16) % 800 + 100
-    url = await ark.tts(PREVIEW_TEXT, speaker, project_id=0, shot_no=shot_no)
+    url = await ark.tts(PREVIEW_TEXT, speaker, function_id="kepu.tts", project_id=0, shot_no=shot_no)
     src = storage.local_path_from_url(url)
     if src and src.exists():
         dest.write_bytes(src.read_bytes())
