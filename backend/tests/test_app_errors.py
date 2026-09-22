@@ -139,3 +139,16 @@ def test_tool_router_maps_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     assert res.status_code == 500
     assert res.json()["code"] == "tool.run_failed"
     assert "secret" not in res.text
+
+
+def test_projects_api_has_no_chinese_http_detail() -> None:
+    """projects.py 不再直接抛中文 detail 的 HTTPException。"""
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[1].joinpath("app/api/projects.py").read_text(encoding="utf-8")
+    offenders = [
+        line.strip()
+        for line in src.splitlines()
+        if "detail=" in line and re.search(r"[一-鿿]", line)
+    ]
+    assert offenders == []

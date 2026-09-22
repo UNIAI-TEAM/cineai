@@ -3,9 +3,9 @@
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
 
 from app.api.projects import _ensure_side_task_allowed
+from app.errors import AppError
 
 
 def _project(*tasks: SimpleNamespace, status: str = "SCRIPT_READY") -> SimpleNamespace:
@@ -25,29 +25,33 @@ def test_side_task_allows_parallel_shot_regen():
 
 
 def test_side_task_blocks_project_pipeline():
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         _ensure_side_task_allowed(_project(_task("project_pipeline"), status="SCRIPTING"))
-    assert exc.value.status_code == 409
+    assert exc.value.status == 409
+    assert exc.value.code == "project.full_generation_running"
 
 
 def test_side_task_blocks_shot_regen_audio():
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         _ensure_side_task_allowed(_project(_task("shot_regen_audio"), status="AUDIOING"))
-    assert exc.value.status_code == 409
+    assert exc.value.status == 409
+    assert exc.value.code == "project.full_generation_running"
 
 
 def test_side_task_blocks_compose():
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         _ensure_side_task_allowed(_project(_task("project_compose_only"), status="COMPOSING"))
-    assert exc.value.status_code == 409
+    assert exc.value.status == 409
+    assert exc.value.code == "project.full_generation_running"
 
 
 def test_side_task_blocks_cancel_requested_pipeline():
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         _ensure_side_task_allowed(
             _project(_task("project_pipeline", status="cancel_requested", cancel_requested=True))
         )
-    assert exc.value.status_code == 409
+    assert exc.value.status == 409
+    assert exc.value.code == "project.full_generation_running"
 
 
 def test_side_task_allows_terminal_cancelled_pipeline():

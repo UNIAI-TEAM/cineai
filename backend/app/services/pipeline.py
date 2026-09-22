@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.database import AsyncSessionLocal
+from app.errors import AppError
 from app.models import PipelineJob, Project, ProjectStatus, Shot, ShotStatus
 from app.services.ark import get_ark
 from app.services.ffmpeg_compose import (
@@ -294,7 +295,7 @@ async def _synthesize_continuous_audio(
     narrations = [(getattr(s, "narration", None) or "") for s in shot_rows]
     full_text = join_shot_narrations(narrations)
     if not full_text.strip():
-        raise ValueError("全部镜头旁白为空，无法配音")
+        raise AppError("project.narration_empty")
 
     ark = get_ark()
     regenerated = force or not _continuous_audio_ok(project_id)
@@ -1561,7 +1562,7 @@ async def regen_shot_video(project_id: int, shot_id: int) -> None:
         )
         project = result.scalar_one()
         if _is_image_text(project):
-            raise ValueError("图文模式无需生成 AI 视频，请直接重新合成成片")
+            raise AppError("project.image_text_no_video")
         shot = next((s for s in project.shots if s.id == shot_id), None)
         if not shot or not (shot.image_url or shot.image_ark_url):
             raise ValueError("shot image required")
@@ -1657,7 +1658,7 @@ async def regen_shot_audio(project_id: int, shot_id: int) -> None:
         if not (shot.narration or "").strip() and not any(
             (s.narration or "").strip() for s in project.shots
         ):
-            raise ValueError("旁白为空，无法配音")
+            raise AppError("project.shot_narration_empty")
         voice = _project_voice(project)
         shots = sorted(project.shots, key=lambda s: s.shot_no)
     await _synthesize_continuous_audio(
