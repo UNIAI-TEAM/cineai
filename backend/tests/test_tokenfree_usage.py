@@ -7,8 +7,6 @@ from datetime import UTC, datetime
 import pytest
 
 from app.config import get_settings
-from app.services.billing.display import resolve_billing_basis
-from app.services.billing.pricing import parse_upstream_cost_fen
 from app.services.tokenfree_usage import (
     aggregate_quota_data_by_day,
     billing_usage_to_cost_fen,
@@ -61,36 +59,6 @@ def test_aggregate_quota_data_by_day():
 def test_used_quota_from_raw_json():
     assert used_quota_from_raw_json('{"used_quota": 123}') == 123
     assert used_quota_from_raw_json("not-json") is None
-
-
-def test_parse_upstream_cost_fen_from_newapi_quota():
-    settings = get_settings()
-    settings.billing_usd_cny = 7.0
-    assert parse_upstream_cost_fen({"usage": {"quota_consumed": 500_000}}, settings) == 700
-    assert parse_upstream_cost_fen(
-        {"usage": {"prompt_tokens": 1, "quota": 500_000}},
-        settings,
-    ) == 700
-    assert parse_upstream_cost_fen({"prompt_tokens": 1, "quota": 500_000}, settings) == 700
-    assert parse_upstream_cost_fen({"quota": 500_000}, settings) is None
-
-
-def test_parse_upstream_cost_fen_prefers_quota_over_usd_cost():
-    """New API 的 cost 是美元；与 quota 同时出现时按 quota，避免 0.625 被当成 63 分。"""
-    settings = get_settings()
-    settings.billing_usd_cny = 7.0
-    # 0.625 USD × 500000 quota/USD = 312500 quota → ¥4.375 → 438 分
-    assert parse_upstream_cost_fen(
-        {"usage": {"prompt_tokens": 1, "quota": 312_500, "cost": 0.625}},
-        settings,
-    ) == 438
-    # 无 quota 字段时仍把火山 cost 当人民币元
-    assert parse_upstream_cost_fen({"usage": {"cost": 1.23}}, settings) == 123
-
-
-def test_resolve_billing_basis_newapi_quota():
-    raw = '{"usage": {"prompt_tokens": 10, "quota": 500000}}'
-    assert resolve_billing_basis(estimated=False, raw_usage_json=raw) == "upstream_cost"
 
 
 @pytest.mark.asyncio

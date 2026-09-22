@@ -6,6 +6,14 @@ import math
 from typing import Any
 
 from app.config import Settings, get_settings
+from app.services.billing.money import usd_to_fen
+from app.services.billing.provider_rates import (
+    first_priced_model,
+    match_rate,
+    provider_cost_fen,
+    rate_cost_usd,
+    usage_block,
+)
 
 # 充值包以 VND 定义；下单时按 billing_cny_vnd 换算成分（见 topup.sku_quote）
 SKUS: list[dict[str, Any]] = [
@@ -30,9 +38,6 @@ def order_expire_seconds(pay_type: str | None, settings: Settings | None = None)
         return max(1, hours) * 3600
     return ORDER_EXPIRE_SECONDS
 
-# Kie 1 credit ≈ $0.005；按约 7 CNY/USD 折合 ¥0.035 ≈ 3.5 分（可配置）
-DEFAULT_KIE_FEN_PER_CREDIT = 3.5
-
 
 def provider_yuan_per_m(billing_key: str, settings: Settings | None = None) -> float:
     s = settings or get_settings()
@@ -46,32 +51,8 @@ def provider_yuan_per_m(billing_key: str, settings: Settings | None = None) -> f
     return float(table.get(billing_key, s.billing_llm_per_m))
 
 
-def kie_fen_per_credit(settings: Settings | None = None) -> float:
-    s = settings or get_settings()
-    raw = getattr(s, "billing_kie_fen_per_credit", None)
-    try:
-        value = float(raw if raw is not None else DEFAULT_KIE_FEN_PER_CREDIT)
-    except (TypeError, ValueError):
-        value = DEFAULT_KIE_FEN_PER_CREDIT
-    return max(0.01, value)
-
-
-def kie_credits_to_cost_fen(
-    credits: Any,
-    settings: Settings | None = None,
-) -> int | None:
-    """Kie creditsConsumed → 上游成本（分）。"""
-    try:
-        amount = float(credits)
-    except (TypeError, ValueError):
-        return None
-    if amount <= 0:
-        return None
-    return max(1, int(math.ceil(amount * kie_fen_per_credit(settings))))
-
-
 def user_charge_fen(cost_fen: int, settings: Settings | None = None) -> int:
-    """用户扣费 = TokenFree / 上游成本，不再乘 markup。"""
+    """Tiền trừ user = chi phí upstream (không cộng markup)."""
     if cost_fen <= 0:
         return 0
     return max(1, int(cost_fen))
@@ -95,91 +76,18 @@ def charge_fen_for_tokens(
     return cost, charge
 
 
-def _has_request_tokens(block: dict[str, Any]) -> bool:
-    """是否像单次调用 usage（带 token 字段），而不是账户余额。"""
-    return any(
-        block.get(key) is not None
-        for key in ("prompt_tokens", "completion_tokens", "total_tokens", "input_tokens", "output_tokens")
-    )
-
-
-def _extract_newapi_quota(data: dict[str, Any], usage: dict[str, Any]) -> Any:
-    """从单次调用响应提取 New API 消耗额度（不是账户剩余）。"""
-    for key in ("quota_consumed", "consumed_quota"):
-        if usage.get(key) is not None:
-            return usage.get(key)
-        if data.get(key) is not None:
-            return data.get(key)
-    if usage.get("quota") is None:
-        return None
-    if usage is not data or _has_request_tokens(usage):
-        return usage.get("quota")
-    return None
-
-
-def parse_upstream_cost_fen(
-    data: dict[str, Any] | None,
-    settings: Settings | None = None,
-) -> int | None:
-    """从 New API quota / 火山 usage / Kie credits 解析上游成本（分）；无则 None。"""
+def parse_upstream_cost_fen(data: dict[str, Any] | None) -> int | None:
+    """Chi phí đã quy sẵn ra fen trong usage (`cost_fen` / `cost_cents`); không có → None."""
     if not data:
         return None
-    usage = data.get("usage") if isinstance(data.get("usage"), dict) else data
-    if not isinstance(usage, dict):
-        return None
+    usage = usage_block(data)
     for key in ("cost_fen", "cost_cents"):
         if usage.get(key) is not None:
             try:
                 return max(0, int(usage[key]))
             except (TypeError, ValueError):
                 pass
-    from app.services.tokenfree_usage import quota_to_cost_fen
-
-    newapi_quota = _extract_newapi_quota(data, usage)
-    if newapi_quota is not None:
-        converted = quota_to_cost_fen(newapi_quota, settings)
-        if converted > 0:
-            return converted
-    # 明确人民币字段；无 New API quota 时才把火山 cost 当人民币元
-    has_quota_field = any(
-        usage.get(key) is not None or data.get(key) is not None
-        for key in ("quota", "quota_consumed", "consumed_quota")
-    )
-    yuan_keys = ("cost_yuan", "total_cost_yuan")
-    if not has_quota_field:
-        yuan_keys = yuan_keys + ("cost", "total_cost", "amount")
-    for key in yuan_keys:
-        if usage.get(key) is not None:
-            try:
-                return max(0, int(math.ceil(float(usage[key]) * 100)))
-            except (TypeError, ValueError):
-                pass
-    # Kie：任务级 creditsConsumed（usage 内或顶层）
-    credits = usage.get("creditsConsumed")
-    if credits is None:
-        credits = data.get("creditsConsumed")
-    converted = kie_credits_to_cost_fen(credits, settings)
-    if converted is not None:
-        return converted
     return None
-
-
-def _image_size_from_raw(raw_usage: dict[str, Any] | None) -> str:
-    """用量里的生图清晰度；忽略 480p 等视频档。"""
-    if not isinstance(raw_usage, dict):
-        return ""
-    usage = raw_usage.get("usage") if isinstance(raw_usage.get("usage"), dict) else {}
-    for block in (raw_usage, usage):
-        if not isinstance(block, dict):
-            continue
-        for key in ("size", "image_size"):
-            text = str(block.get(key) or "").strip()
-            if text:
-                return text
-        res = str(block.get("resolution") or "").strip()
-        if res and res.lower() not in {"480p", "720p", "1080p"}:
-            return res
-    return ""
 
 
 def charge_fen_for_usage(
@@ -189,46 +97,37 @@ def charge_fen_for_usage(
     raw_usage: dict[str, Any] | None = None,
     settings: Settings | None = None,
     model: str = "",
-    size: str = "",
 ) -> tuple[int, int, bool]:
-    """按上游实际成本或 token 用量计算 (cost_fen, charge_fen, used_upstream_cost)。
+    """(cost_fen, charge_fen, used_upstream_cost): cost_fen sẵn có → provider_rates theo model → giá token dự phòng.
 
-    用户扣费与 TokenFree / 上游成本相同，不再加价。
-    生图无 quota 时：按张官方价，避免 8 元/百万 token 低估约十倍。
+    Model tra giá: `model` (model lúc tạo tác vụ) trước, `raw_usage["model"]` (model upstream echo) sau.
+    Chi phí 0 chỉ được tin cho ảnh (upstream báo rõ 0 ảnh); ảnh không usage dùng rate_quotes.image_fallback_fen
+    (cùng quy tắc với số đóng băng) nên model ảnh/video chưa có giá không bao giờ ra 0.
     """
     s = settings or get_settings()
-    upstream_cost = parse_upstream_cost_fen(raw_usage, settings=s)
-    if upstream_cost is not None and upstream_cost > 0:
-        cost = upstream_cost
-        charge = user_charge_fen(cost, s)
-        return cost, charge, True
-    if (billing_key or "").strip() == "seedream":
-        catalog = _catalog_image_fen_if_per_call(
-            s, model, size=size or _image_size_from_raw(raw_usage)
-        )
-        if catalog is not None:
-            charge = user_charge_fen(catalog, s)
-            return catalog, charge, False
-    cost, charge = charge_fen_for_tokens(tokens, billing_key, settings=s)
+    key = (billing_key or "").strip()
+    is_image = key == "seedream"
+    upstream_cost = parse_upstream_cost_fen(raw_usage)
+    if upstream_cost is not None and (upstream_cost > 0 or is_image):
+        return upstream_cost, user_charge_fen(upstream_cost, s), True
+    t = max(0, int(tokens or 0))
+    raw_model = str(raw_usage.get("model") or "") if isinstance(raw_usage, dict) else ""
+    name, priced = first_priced_model(model, raw_model)
+    if priced:
+        exact = provider_cost_fen(name, raw_usage, settings=s)
+        if exact is not None and (exact > 0 or is_image):
+            return exact, user_charge_fen(exact, s), False
+        usd = rate_cost_usd(match_rate(name), usage_block(raw_usage), fallback_tokens=t) if t else None
+        if usd:
+            cost = usd_to_fen(usd, s)
+            return cost, user_charge_fen(cost, s), False
+    if is_image and t <= 0:
+        from app.services.billing.rate_quotes import image_fallback_fen
+
+        cost = image_fallback_fen(name, s)
+        return cost, user_charge_fen(cost, s), False
+    cost, charge = charge_fen_for_tokens(t, key, settings=s)
     return cost, charge, False
-
-
-def _catalog_image_fen_if_per_call(settings: Settings, model: str, *, size: str = "") -> int | None:
-    """gpt-image / Seedream 按张价；token 计价模型返回 None。"""
-    from app.services.drama.seedream_options import is_seedream_family
-    from app.services.tokenfree_pricing import charge_fen_official_image, lookup_rate, resolve_billing_image_size
-
-    raw = (model or getattr(settings, "model_image", "") or "").strip()
-    mid = raw
-    rate = lookup_rate(mid)
-    if rate and rate.billing == "token":
-        return None
-    resolved = resolve_billing_image_size(settings, model=raw, size=size)
-    if rate and rate.billing == "per_call" and rate.cny_per_call > 0:
-        return charge_fen_official_image(settings, model=mid, size=resolved)
-    if is_seedream_family(raw) or "gpt-image" in mid.lower():
-        return charge_fen_official_image(settings, model=mid, size=resolved)
-    return None
 
 
 def parse_usage_dict(data: dict[str, Any] | None) -> dict[str, int]:
@@ -265,13 +164,6 @@ def billing_key_label(billing_key: str) -> str:
     cap = billing_key_to_capability(billing_key)
     labels = {"llm": "LLM 对话", "image": "图片生成", "video": "视频生成", "tts": "语音合成"}
     return labels.get(cap, billing_key or "其他")
-
-
-def billing_model_rate_rows(settings: Settings | None = None) -> list[dict[str, Any]]:
-    """管理端展示：推荐模型走 TokenFree /api/pricing；无缓存时仍列出短名单。"""
-    from app.services.tokenfree_pricing import build_official_rate_rows, cached_rates
-
-    return build_official_rate_rows(cached_rates(), settings)
 
 
 def sku_by_id(sku_id: str) -> dict[str, Any] | None:

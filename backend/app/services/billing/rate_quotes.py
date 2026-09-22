@@ -129,3 +129,43 @@ def tts_fen(function_id: str, tokens: int, *, settings: Any | None = None, snaps
     s = settings or get_settings()
     return _max_fen(function_models(function_id, settings=s, snapshot=snapshot),
                     lambda m: _token_price(m, int(tokens), "tts", s))
+
+
+# billing_key → (chức năng khi domain=kepu, chức năng cho domain khác)
+_LINE_FUNCTIONS: dict[str, tuple[str, str]] = {
+    "llm_chat": ("kepu.script", "drama.script"),
+    "tts": ("kepu.tts", "drama.tts"),
+}
+
+
+def priciest_model(
+    function_id: str,
+    tokens: int,
+    billing_key: str,
+    *,
+    settings: Any | None = None,
+    snapshot: Any | None = None,
+) -> str:
+    """Model đắt nhất của chức năng cho `tokens` (cùng quy tắc với số đóng băng); không có model → ""."""
+    s = settings or get_settings()
+    models = function_models(function_id, settings=s, snapshot=snapshot)
+    if not models:
+        return ""
+    return max(models, key=lambda m: _token_price(m, int(tokens), billing_key, s))
+
+
+def estimated_line_model(
+    billing_key: str,
+    domain: str | None,
+    tokens: int,
+    *,
+    fallback: str = "",
+    settings: Any | None = None,
+    snapshot: Any | None = None,
+) -> str:
+    """Nhãn model cho dòng usage LLM/TTS ước tính: model đắt nhất của chức năng theo domain; key khác → fallback."""
+    pair = _LINE_FUNCTIONS.get(billing_key)
+    if pair is None:
+        return fallback
+    function_id = pair[0] if (domain or "") == "kepu" else pair[1]
+    return priciest_model(function_id, tokens, billing_key, settings=settings, snapshot=snapshot) or fallback

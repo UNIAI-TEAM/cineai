@@ -12,7 +12,7 @@ from app.config import get_settings
 from app.models import UsageEvent, User
 from app.services.billing import record_line
 from app.services.billing.context import get_current_task_run_id
-from app.services.billing.provider_rates import first_priced_model
+from app.services.billing.provider_rates import first_priced_model, usage_block
 from app.services.drama.seed import SeedAssetsResult
 
 if TYPE_CHECKING:
@@ -126,10 +126,7 @@ async def record_seedance_video_usage(
     if raw_usage:
         raw = dict(raw_usage) if isinstance(raw_usage, dict) else {"usage": dict(raw_usage)}
         # 统一把计费字段放进 usage，便于 charge_fen_for_usage / display
-        usage_block = raw.get("usage") if isinstance(raw.get("usage"), dict) else {}
-        merged_usage = {**usage_block}
-        if "creditsConsumed" in raw and "creditsConsumed" not in merged_usage:
-            merged_usage["creditsConsumed"] = raw.get("creditsConsumed")
+        merged_usage = {**usage_block(raw)}
         if upstream_from_result is not None:
             merged_usage["cost_fen"] = int(upstream_from_result)
         elif raw.get("cost_fen") is not None:
@@ -231,7 +228,8 @@ async def record_seedream_image_usage(
     # Provider chỉ lấy từ kênh thực tế đã sinh ảnh (ImageResult.channel_id); không còn dò "kie" trong raw/model
     provider = getattr(image_result, "channel_id", "") or "ark"
 
-    if total_tokens > 0 or upstream_cost:
+    # upstream_cost 0 (upstream báo rõ 0 ảnh) là chi phí thật, khác None (không biết chi phí)
+    if total_tokens > 0 or upstream_cost is not None:
         return await record_line(
             db,
             user_id=user_id,

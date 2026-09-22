@@ -11,6 +11,7 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from app.models import UsageEvent
 from app.services.billing.pricing import parse_upstream_cost_fen
+from app.services.billing.provider_rates import usage_block
 
 _BASIS_LABELS = {
     "estimate": "估算",
@@ -22,15 +23,6 @@ _BASIS_LABELS = {
 _UPSTREAM_COST_JSON_KEYS = (
     "cost_fen",
     "cost_cents",
-    "cost",
-    "total_cost",
-    "amount",
-    "cost_yuan",
-    "total_cost_yuan",
-    "creditsConsumed",
-    "quota",
-    "quota_consumed",
-    "consumed_quota",
 )
 
 
@@ -46,7 +38,7 @@ def resolve_billing_basis(*, estimated: bool, raw_usage_json: str | None = None)
                 raw = parsed
         except json.JSONDecodeError:
             raw = None
-    usage = raw.get("usage") if isinstance(raw, dict) and isinstance(raw.get("usage"), dict) else raw
+    usage = usage_block(raw)
     if isinstance(usage, dict):
         if parse_upstream_cost_fen({"usage": usage}) is not None:
             return "upstream_cost"

@@ -109,6 +109,10 @@ async def chat_completions(
             data = res.json()
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"LLM 响应不是合法 JSON: {body[:200]}") from exc
+    # Import lười: gói billing nạp nặng và import ngược các module drama/kepu đang dùng llm_client
+    from app.services.billing.context import note_llm_usage
+
+    note_llm_usage(model, data.get("usage") if isinstance(data, dict) else None)
     content = _message_content(data)
     logger.info("文字 LLM 返回 content_len=%s", len(content))
     return content

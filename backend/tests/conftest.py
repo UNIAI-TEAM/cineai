@@ -61,20 +61,6 @@ def reset_provider_rates() -> None:
     set_provider_rates(None)
 
 
-@pytest.fixture(autouse=True)
-def skip_tokenfree_pricing_network(monkeypatch: pytest.MonkeyPatch) -> None:
-    """单测不打 TokenFree 公开价目，避免预估被外网拖慢或改数。"""
-
-    async def _empty(_settings=None):
-        """返回空价目，预估走本地回退。"""
-        return {}
-
-    monkeypatch.setattr("app.services.tokenfree_pricing.ensure_official_rates", _empty)
-    from app.services.tokenfree_pricing import set_cached_rates
-
-    set_cached_rates(None)
-
-
 @pytest.fixture
 def priced_routing():
     """Snapshot routing chuẩn cho test tính giá: BytePlus (ảnh/video) + OpenAI (văn bản/giọng), 4 slot đã gán."""

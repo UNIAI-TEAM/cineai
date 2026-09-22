@@ -9,8 +9,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models import UsageEvent
-from app.services.billing.context import get_current_task_run_id
-from app.services.billing.pricing import billing_key_to_capability, charge_fen_for_usage
+from app.services.billing.context import drain_llm_usage, get_current_task_run_id
+from app.services.billing.pricing import billing_key_to_capability, charge_fen_for_tokens, charge_fen_for_usage
+from app.services.billing.provider_rates import provider_cost_fen
+from app.services.billing.rate_quotes import estimated_line_model
+
+
+def _captured_llm_usage(raw: dict | None, settings: Any) -> tuple[str, int, int, dict] | None:
+    """Gộp các lần gọi LLM thật đã ghi trong scope → (model chính, prompt, completion, raw có cost_fen); không có → None.
+
+    Mỗi lần gọi tính theo provider_rates của model route thực chạy, không có giá → giá token dự phòng llm_chat.
+    """
+    calls = drain_llm_usage()
+    if not calls:
+        return None
+    prompt = sum(c["prompt_tokens"] for c in calls)
+    completion = sum(c["completion_tokens"] for c in calls)
+    total = sum(c["total_tokens"] for c in calls)
+    cost = sum(
+        provider_cost_fen(c["model"], c, settings=settings)
+        or charge_fen_for_tokens(c["total_tokens"], "llm_chat", settings=settings)[0]
+        for c in calls
+    )
+    model = max(calls, key=lambda c: c["total_tokens"])["model"]
+    usage = {"prompt_tokens": prompt, "completion_tokens": completion, "total_tokens": total, "cost_fen": cost}
+    return model, prompt, completion, {**(raw or {}), "model": model, "llm_calls": len(calls), "usage": usage}
 
 
 async def record_line(
@@ -33,13 +56,18 @@ async def record_line(
 ) -> UsageEvent:
     s = get_settings()
     tid = task_run_id if task_run_id is not None else get_current_task_run_id()
+    # LLM: usage thật do llm_client ghi trong billing_scope thắng số token ước tính
+    captured = _captured_llm_usage(raw, s) if billing_key == "llm_chat" and estimated else None
+    if captured is not None:
+        model, prompt_tokens, completion_tokens, raw = captured
+        tokens, estimated = 0, False
     total = int(tokens) or (int(prompt_tokens) + int(completion_tokens))
     if total <= 0:
         if billing_key == "llm_chat":
             total = s.billing_est_llm_tokens
             estimated = True
         elif billing_key == "seedream":
-            # TokenFree /responses 常回 0 token；按张价在 charge_fen_for_usage 计算
+            # Ảnh không có usage: charge_fen_for_usage tính theo giá/ảnh của provider_rates
             estimated = True
         elif billing_key == "tts":
             total = s.billing_est_tts_tokens
@@ -47,6 +75,10 @@ async def record_line(
         elif billing_key.startswith("seedance"):
             total = s.billing_est_seedance_tokens_per_sec * 5
             estimated = True
+    # Dòng LLM/TTS ước tính còn mang nhãn settings.model_* → đổi sang model đắt nhất của slot (khớp số đã đóng băng)
+    label = {"llm_chat": s.model_llm, "tts": s.model_audio}.get(billing_key)
+    if estimated and label is not None and (not model or model == label):
+        model = estimated_line_model(billing_key, domain, total, fallback=model, settings=s)
     cost, charge, from_upstream = charge_fen_for_usage(
         total, billing_key, raw_usage=raw, settings=s, model=model
     )
