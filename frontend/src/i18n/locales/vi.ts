@@ -5,6 +5,7 @@ import { viBilling } from './vi/billing'
 import { viSettingsPanels } from './vi/settingsPanels'
 import { viShell } from './vi/shell'
 import { viErrors } from './vi/errors'
+import { viDramaAssets } from './vi/dramaAssets'
 import { viDramaProject } from './vi/dramaProject'
 import { viDramaCanvas } from './vi/dramaCanvas'
 import { viDramaGen } from './vi/dramaGen'
@@ -17,6 +18,7 @@ export const vi = {
   ...viBilling,
   ...viSettingsPanels,
   ...viErrors,
+  ...viDramaAssets,
   ...viDramaProject,
   ...viDramaCanvas,
   ...viDramaGen,

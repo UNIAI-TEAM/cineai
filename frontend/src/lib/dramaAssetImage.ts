@@ -1,5 +1,7 @@
 /** 漫剧资产是否已有形象图（AI 生成或本地上传） */
 import type { DramaAsset } from '../api/drama'
+import { getActiveLocale } from '../i18n/detect'
+import { messages } from '../i18n/messages'
 
 // 从 params 中读取可能存在的预览 URL（画布同步等）
 function readParamsMediaUrl(asset: DramaAsset): string {
@@ -40,5 +42,6 @@ export function dramaAssetImageGenButtonLabel(
   queueLabel: string | null,
 ): string {
   if (queueLabel) return queueLabel
-  return dramaAssetHasImage(asset) ? '重新生成形象' : '生成形象'
+  const labels = messages[getActiveLocale()].dramaAssets.imageGen
+  return dramaAssetHasImage(asset) ? labels.regenerate : labels.generate
 }
