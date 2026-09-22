@@ -47,3 +47,13 @@ def test_validate_unknown_override_function():
 def test_slot_assigned():
     b = FunctionBindings(slots={"audio": [ModelBinding(channel_id="a", model="m")]})
     assert fb.slot_assigned(b, "audio") and not fb.slot_assigned(b, "image")
+
+
+def test_parse_tolerates_wrong_typed_slots_and_overrides():
+    assert fb.parse_function_bindings({"slots": "garbage", "overrides": ["a", "b"]}) == FunctionBindings()
+
+
+def test_validate_reports_unknown_slot_key_without_raising():
+    b = FunctionBindings(slots={"junk": [ModelBinding(channel_id="byteplus", model="dola-seedream-5-0-pro-260628")]})
+    errs = fb.validate_function_bindings(b, [_ch()])
+    assert any("junk" in e for e in errs)

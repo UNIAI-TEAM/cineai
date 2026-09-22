@@ -28,8 +28,12 @@ def parse_function_bindings(raw: Any) -> FunctionBindings:
     """Đọc từ config_json; bỏ khoá lạ và phần tử hỏng."""
     if not isinstance(raw, dict):
         return FunctionBindings()
-    slots = {k: _parse_list(v) for k, v in (raw.get("slots") or {}).items() if k in CAPABILITIES}
-    overrides = {k: _parse_list(v) for k, v in (raw.get("overrides") or {}).items() if k in FUNCTION_BY_ID}
+    slots_raw = raw.get("slots")
+    slots_raw = slots_raw if isinstance(slots_raw, dict) else {}
+    overrides_raw = raw.get("overrides")
+    overrides_raw = overrides_raw if isinstance(overrides_raw, dict) else {}
+    slots = {k: _parse_list(v) for k, v in slots_raw.items() if k in CAPABILITIES}
+    overrides = {k: _parse_list(v) for k, v in overrides_raw.items() if k in FUNCTION_BY_ID}
     return FunctionBindings(slots=slots, overrides=overrides)
 
 
@@ -67,7 +71,7 @@ def _check(label: str, capability: str, items: list[ModelBinding], channels: dic
         else:
             cap = infer_model_capability(item.model)
         if cap != capability:
-            errs.append(f"{label}: model '{item.model}' không phải model {_CAP_LABEL[capability].lower()}")
+            errs.append(f"{label}: model '{item.model}' không phải model {_CAP_LABEL.get(capability, capability).lower()}")
     return errs
 
 
@@ -76,6 +80,9 @@ def validate_function_bindings(b: FunctionBindings, channels: list[SystemModelCh
     by_id = {c.id: c for c in channels}
     errs: list[str] = []
     for cap, items in b.slots.items():
+        if cap not in CAPABILITIES:
+            errs.append(f"Slot '{cap}' không hợp lệ")
+            continue
         errs.extend(_check(f"Slot {_CAP_LABEL.get(cap, cap)}", cap, items, by_id))
     for fid, items in b.overrides.items():
         fn = FUNCTION_BY_ID.get(fid)
