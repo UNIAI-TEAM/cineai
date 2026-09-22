@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Download, Loader2 } from 'lucide-react'
+import { ApiError } from '../lib/apiError'
 import BillingErrorNotice from '../components/billing/BillingErrorNotice'
 import AppShell from '../components/layout/AppShell'
 import Button from '../components/ui/Button'
@@ -190,7 +191,7 @@ function ToolWorkspace({ tool: baseTool }: { tool: ToolDef }) {
       setBusy(false)
     } catch (err) {
       const message = err instanceof Error ? err.message : t('tools.errors.generateFailed')
-      if (message === t('common.loginRequired')) {
+      if (err instanceof ApiError && err.status === 401) {
         nav(`/auth?next=/tools/${tool.id}`, { replace: true })
         return
       }

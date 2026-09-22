@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, defaultsFromTemplate } from '../../api'
 import type { Project, Shot, Template } from '../../api'
+import { ApiError } from '../../lib/apiError'
 import AppShell from '../../components/layout/AppShell'
 import Stepper from '../../components/ui/Stepper'
 import {
@@ -321,7 +322,7 @@ export default function StoryboardPage() {
       setProject(await api.generate(project.id))
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('studioBoard.continueFailed')
-      if (msg.includes('合成成片')) {
+      if (err instanceof ApiError && err.code === 'project.ready_to_compose') {
         try {
           setError('')
           setProject(await api.compose(project.id))

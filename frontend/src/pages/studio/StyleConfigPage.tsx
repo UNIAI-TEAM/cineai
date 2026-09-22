@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, defaultsFromTemplate, resolveVoiceId } from '../../api'
 import type { MediaModelOption, MediaModelsCatalog, PipelineMode, Project, Template, VoicePreset } from '../../api'
+import { ApiError } from '../../lib/apiError'
 import AppShell from '../../components/layout/AppShell'
 import Stepper from '../../components/ui/Stepper'
 import ComingSoon from '../../components/ui/ComingSoon'
@@ -216,7 +217,7 @@ export default function StyleConfigPage() {
       nav(`/studio/${started.id}`)
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('common.generateFailed')
-      if (msg.includes('合成成片')) {
+      if (err instanceof ApiError && err.code === 'project.ready_to_compose') {
         try {
           const composed = await api.compose(project.id)
           nav(`/studio/${composed.id}`)
