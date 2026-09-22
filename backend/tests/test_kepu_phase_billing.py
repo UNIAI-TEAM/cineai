@@ -121,43 +121,34 @@ def test_videos_estimate_only_remaining_shots() -> None:
     assert abs(two - one * 2) <= 1
 
 
-def test_videos_estimate_hd_doubles_480p_preview() -> None:
-    """HD 且配置 480p 时预扣按 720p（×2）。"""
+def test_videos_estimate_hd_uses_720p_price(monkeypatch, priced_routing) -> None:
+    """HD 和配置 480p → 按 720p 冻结（Seedance 2.5、5 秒：365 → 809 分）。"""
     settings = get_settings()
-    settings.ark_video_resolution = "480p"
-    settings.billing_estimate_buffer = 1.0
-    settings.model_video = "seedance-2-5"
+    monkeypatch.setattr(settings, "ark_video_resolution", "480p")
+    monkeypatch.setattr(settings, "billing_estimate_buffer", 1.0)
+    monkeypatch.setattr(settings, "billing_usd_cny", 7.0)
     shots = [_shot(image_url="/i.png", audio_url="/a.wav", duration=5)]
     preview = estimate_phase_fen(_project(shots), "videos", settings=settings)
-    hd = estimate_phase_fen(
-        _project(shots, resolution_mode="hd"),
-        "videos",
-        settings=settings,
-    )
-    assert hd == preview * 2
+    hd = estimate_phase_fen(_project(shots, resolution_mode="hd"), "videos", settings=settings)
+    assert preview == 365
+    assert hd == 809
 
 
 @pytest.mark.asyncio
-async def test_shot_regen_video_estimate_uses_project_hd() -> None:
-    """单镜重生成视频预扣跟随项目 HD（480p→720p）。"""
+async def test_shot_regen_video_estimate_uses_project_hd(monkeypatch, priced_routing) -> None:
+    """单镜重生成视频跟随项目 HD（480p→720p）。"""
     settings = get_settings()
-    settings.ark_video_resolution = "480p"
-    settings.billing_estimate_buffer = 1.0
-    settings.model_video = "seedance-2-5"
+    monkeypatch.setattr(settings, "ark_video_resolution", "480p")
+    monkeypatch.setattr(settings, "billing_estimate_buffer", 1.0)
+    monkeypatch.setattr(settings, "billing_usd_cny", 7.0)
     db = MagicMock()
     db.get = AsyncMock(return_value=SimpleNamespace(resolution_mode="hd"))
-    task = TaskRun(
-        id=9,
-        domain="kepu",
-        task_type="shot_regen_video",
-        requested_by=1,
-        project_id=3,
-        payload={"duration": 5},
-    )
+    task = TaskRun(id=9, domain="kepu", task_type="shot_regen_video", requested_by=1, project_id=3,
+                   payload={"duration": 5})
     hd = await estimate_task_fen(db, task, settings=settings)
     db.get = AsyncMock(return_value=SimpleNamespace(resolution_mode="preview"))
     preview = await estimate_task_fen(db, task, settings=settings)
-    assert hd == preview * 2
+    assert (hd, preview) == (809, 365)
 
 
 def test_normalize_produce_maps_to_current_phase(monkeypatch) -> None:

@@ -1,4 +1,4 @@
-"""fragment_video 预扣估算：时长来自正文 / payload。"""
+"""fragment_video: đóng băng theo thời lượng (payload / nội dung phân cảnh) × độ phân giải × giá Seedance."""
 
 from __future__ import annotations
 
@@ -7,104 +7,53 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.config import get_settings
 from app.models_tasks import TaskRun
 from app.services.billing.estimates import estimate_task_fen
 
 
-@pytest.mark.asyncio
-async def test_fragment_video_estimate_uses_payload_duration_sec(monkeypatch):
-    """有 duration_sec 时按秒数估算，不再默认 8s。"""
-    from app.config import get_settings
-
+@pytest.fixture
+def _settings(monkeypatch):
+    """Tỉ giá 7, buffer 1.0 để so số tuyệt đối."""
     settings = get_settings()
-    monkeypatch.setattr(settings, "billing_est_seedance_tokens_per_sec", 32_000)
-    monkeypatch.setattr(settings, "billing_estimate_buffer", 1.2)
-    monkeypatch.setattr(settings, "billing_markup", 1.0)
+    monkeypatch.setattr(settings, "billing_usd_cny", 7.0)
+    monkeypatch.setattr(settings, "billing_estimate_buffer", 1.0)
+    return settings
 
-    task = TaskRun(
-        id=1,
-        domain="drama",
-        task_type="fragment_video",
-        requested_by=1,
-        payload={"duration_sec": 16, "fragment_ids": [9], "resolution": "720p"},
-        fragment_id=9,
-    )
+
+def _task(payload: dict, fragment_id: int = 9, task_id: int = 4) -> TaskRun:
+    return TaskRun(id=task_id, domain="drama", task_type="fragment_video", requested_by=1,
+                   payload=payload, fragment_id=fragment_id)
+
+
+async def test_fragment_video_estimate_uses_payload_duration_sec(_settings, priced_routing):
     db = MagicMock()
     db.get = AsyncMock(return_value=None)
-
-    fen8 = await estimate_task_fen(
-        db,
-        TaskRun(
-            id=2,
-            domain="drama",
-            task_type="fragment_video",
-            requested_by=1,
-            payload={"duration_sec": 8, "resolution": "720p"},
-            fragment_id=9,
-        ),
-        settings=settings,
-    )
-    fen16 = await estimate_task_fen(db, task, settings=settings)
+    fen8 = await estimate_task_fen(db, _task({"duration_sec": 8, "resolution": "720p"}), settings=_settings)
+    fen16 = await estimate_task_fen(db, _task({"duration_sec": 16, "resolution": "720p"}), settings=_settings)
     assert fen16 > fen8
 
 
-@pytest.mark.asyncio
-async def test_fragment_video_estimate_720p_doubles_480p(monkeypatch):
-    """漫剧缺省 720p；视频部分相对 480p 翻倍，静帧加价不变。"""
-    from app.config import get_settings
-    from app.services.tokenfree_pricing import set_cached_rates
-
-    settings = get_settings()
-    monkeypatch.setattr(settings, "billing_estimate_buffer", 1.0)
-    monkeypatch.setattr(settings, "billing_markup", 1.0)
-    monkeypatch.setattr(settings, "billing_usd_cny", 7.0)
-    monkeypatch.setattr(settings, "model_video", "seedance-2-5")
-    set_cached_rates(None)
+async def test_fragment_video_estimate_by_resolution(_settings, priced_routing):
+    """Seedance 2.5 5 giây: 480p 365 fen, 720p 809 fen; cộng nửa giá ảnh (32 // 2 = 16); mặc định 720p."""
     db = MagicMock()
     db.get = AsyncMock(return_value=None)
-
-    def _task(resolution: str | None) -> TaskRun:
-        payload: dict = {"duration_sec": 5}
-        if resolution:
-            payload["resolution"] = resolution
-        return TaskRun(
-            id=4,
-            domain="drama",
-            task_type="fragment_video",
-            requested_by=1,
-            payload=payload,
-            fragment_id=9,
-        )
-
-    fen_480 = await estimate_task_fen(db, _task("480p"), settings=settings)
-    fen_720 = await estimate_task_fen(db, _task("720p"), settings=settings)
-    fen_default = await estimate_task_fen(db, _task(None), settings=settings)
-    # 5s Seedance 2.5：480p 336 分，720p 672 分；静帧加价相同
-    assert fen_720 - fen_480 == 336
+    fen_480 = await estimate_task_fen(db, _task({"duration_sec": 5, "resolution": "480p"}), settings=_settings)
+    fen_720 = await estimate_task_fen(db, _task({"duration_sec": 5, "resolution": "720p"}), settings=_settings)
+    fen_default = await estimate_task_fen(db, _task({"duration_sec": 5}), settings=_settings)
+    assert fen_480 == 365 + 16
+    assert fen_720 == 809 + 16
     assert fen_default == fen_720
 
 
-@pytest.mark.asyncio
-async def test_fragment_video_estimate_reads_fragment_content(monkeypatch):
-    """无 payload duration 时从分镜正文 @duration 解析。"""
-    from app.config import get_settings
+async def test_fragment_video_estimate_reads_fragment_content(_settings, priced_routing):
+    """Không có thời lượng trong payload → đọc @duration trong nội dung phân cảnh.
 
-    settings = get_settings()
-    monkeypatch.setattr(settings, "billing_est_seedance_tokens_per_sec", 32_000)
-    monkeypatch.setattr(settings, "billing_estimate_buffer", 1.2)
-
-    frag = SimpleNamespace(content="@duration:12 台词", duration_sec=8)
+    Seedance 2.5 720p 12 giây: 259 200 token → 1942 fen; cộng nửa giá ảnh (32 // 2 = 16) → 1958 fen.
+    """
+    frag = SimpleNamespace(content="@duration:12 thoại", duration_sec=8)
     db = MagicMock()
     db.get = AsyncMock(return_value=frag)
-
-    task = TaskRun(
-        id=3,
-        domain="drama",
-        task_type="fragment_video",
-        requested_by=1,
-        payload={"fragment_ids": [11]},
-        fragment_id=11,
-    )
-    fen = await estimate_task_fen(db, task, settings=settings)
-    assert fen > 0
+    fen = await estimate_task_fen(db, _task({"fragment_ids": [11]}, fragment_id=11), settings=_settings)
+    assert fen == 1958
     db.get.assert_awaited()

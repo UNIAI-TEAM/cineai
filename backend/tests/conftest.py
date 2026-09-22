@@ -70,10 +70,34 @@ def skip_tokenfree_pricing_network(monkeypatch: pytest.MonkeyPatch) -> None:
         return {}
 
     monkeypatch.setattr("app.services.tokenfree_pricing.ensure_official_rates", _empty)
-    monkeypatch.setattr("app.services.billing.estimates.ensure_official_rates", _empty)
     from app.services.tokenfree_pricing import set_cached_rates
 
     set_cached_rates(None)
+
+
+@pytest.fixture
+def priced_routing():
+    """Snapshot routing chuẩn cho test tính giá: BytePlus (ảnh/video) + OpenAI (văn bản/giọng), 4 slot đã gán."""
+    from app.schemas_routing import FunctionBindings, ModelBinding, SystemModelChannel
+    from app.services.model_settings import _refresh_routing_snapshot, get_routing_snapshot
+
+    prev = get_routing_snapshot()
+    channels = [
+        SystemModelChannel(id="byteplus", name="BytePlus", base_url="https://ark.ap-southeast.bytepluses.com/api/v3",
+                           api_key="k", has_api_key=True, protocol="ark",
+                           models=["dola-seedream-5-0-pro-260628", "dreamina-seedance-2-5-260628"], enabled=True),
+        SystemModelChannel(id="openai", name="OpenAI", base_url="https://api.openai.com/v1", api_key="k",
+                           has_api_key=True, protocol="openai", models=["gpt-5.6-sol", "gpt-4o-mini-tts"], enabled=True),
+    ]
+    bindings = FunctionBindings(slots={
+        "text": [ModelBinding(channel_id="openai", model="gpt-5.6-sol")],
+        "image": [ModelBinding(channel_id="byteplus", model="dola-seedream-5-0-pro-260628")],
+        "video": [ModelBinding(channel_id="byteplus", model="dreamina-seedance-2-5-260628")],
+        "audio": [ModelBinding(channel_id="openai", model="gpt-4o-mini-tts")],
+    })
+    _refresh_routing_snapshot(channels, bindings)
+    yield
+    _refresh_routing_snapshot(prev.channels, prev.function_bindings)
 
 
 @pytest.fixture
