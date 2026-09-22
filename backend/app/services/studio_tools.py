@@ -12,8 +12,8 @@ from pathlib import Path
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.billing.money import format_money
 from app.config import get_settings
+from app.errors import AppError
 from app.models import ToolRun, User
 from app.models_tasks import TaskRun
 from app.services.ark import get_ark
@@ -228,7 +228,7 @@ async def _ensure_image_tool_balance(db: AsyncSession, user: User, tool_id: str)
     need = await estimate_task_fen(db, synthetic)
     available = int(user.balance_fen or 0)
     if available < need:
-        raise ValueError(f"余额不足：需要 {format_money(need)}，当前 {format_money(available)}，请先充值")
+        raise AppError("billing.insufficient_balance", need_fen=need, available_fen=available)
 
 
 # 提交生图任务：立即返回 task_id，实际生成在后台执行

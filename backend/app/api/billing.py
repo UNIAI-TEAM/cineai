@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user
+from app.errors import AppError
 from app.models import Order, Project, UsageEvent, User
 from app.models_tasks import TaskRun
 from app.services import billing
@@ -121,9 +122,9 @@ async def create_order(
     try:
         return await topup.create_bank_transfer_order(db, user, body.sku_id, get_settings())
     except KeyError as exc:
-        raise HTTPException(status_code=400, detail="未知充值包") from exc
+        raise AppError("billing.unknown_package") from exc
     except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise AppError("billing.topup_unavailable") from exc
 
 
 @router.get("/usage/summary")
@@ -196,7 +197,7 @@ async def billing_alert_ack(
 
     ok = await acknowledge_user_alert(db, user.id, alert_id)
     if not ok:
-        raise HTTPException(status_code=404, detail="告警不存在")
+        raise AppError("billing.alert_not_found")
     await db.commit()
     return {"ok": True}
 
@@ -306,7 +307,7 @@ async def get_order(
     result = await db.execute(select(Order).where(Order.out_trade_no == out_trade_no))
     order = result.scalar_one_or_none()
     if not order or order.user_id != user.id:
-        raise HTTPException(status_code=404, detail="订单不存在")
+        raise AppError("billing.order_not_found")
     return {
         "out_trade_no": order.out_trade_no,
         "status": order.status,
@@ -329,13 +330,13 @@ async def close_order(
     result = await db.execute(select(Order).where(Order.out_trade_no == out_trade_no))
     order = result.scalar_one_or_none()
     if not order or order.user_id != user.id:
-        raise HTTPException(status_code=404, detail="订单不存在")
+        raise AppError("billing.order_not_found")
     if order.status == "paid":
-        raise HTTPException(status_code=400, detail="已支付订单无法关闭")
+        raise AppError("billing.order_paid_cannot_close")
     if order.status == "closed":
         return {"out_trade_no": order.out_trade_no, "status": "closed"}
     if order.status != "pending":
-        raise HTTPException(status_code=400, detail="当前状态不可关闭")
+        raise AppError("billing.order_cannot_close")
     order.status = "closed"
     await db.commit()
     return {"out_trade_no": order.out_trade_no, "status": "closed"}

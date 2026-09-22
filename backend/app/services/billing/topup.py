@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
+from app.errors import AppError
 from app.models import Order, User
 from app.services.billing.money import display_currency, vnd_to_fen
 from app.services.billing.pricing import SKUS, order_expire_seconds, sku_by_id
@@ -150,7 +151,7 @@ async def confirm_order(
     if order.status == "paid":
         return order
     if order.status != "pending":
-        raise ValueError("订单已关闭，无法确认到账")
+        raise AppError("billing.order_closed")
     user = await db.get(User, order.user_id)
     if user is None:
         raise LookupError(f"user:{order.user_id}")
@@ -177,7 +178,7 @@ async def close_order_by_admin(db: AsyncSession, out_trade_no: str, *, note: str
     if order is None:
         raise LookupError(out_trade_no)
     if order.status == "paid":
-        raise ValueError("已支付订单无法关闭")
+        raise AppError("billing.order_paid_cannot_close")
     if order.status == "pending":
         order.status = "closed"
         if note:

@@ -10,9 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
+from app.errors import AppError
 from app.models import UsageEvent, User, WalletLedger
 from app.models_tasks import TaskRun
-from app.services.billing.money import format_money
 from app.services.billing.estimates import estimate_task_fen
 
 logger = logging.getLogger(__name__)
@@ -115,7 +115,7 @@ async def ensure_balance_for_task(db: AsyncSession, user: User, task: TaskRun) -
         return 0
     locked = await _lock_user(db, int(user.id))
     if locked is None:
-        raise ValueError("用户不存在")
+        raise AppError("common.user_not_found")
     # 同步调用方持有的 user 对象余额
     user.balance_fen = int(locked.balance_fen or 0)
     user.frozen_fen = int(locked.frozen_fen or 0)
@@ -125,11 +125,8 @@ async def ensure_balance_for_task(db: AsyncSession, user: User, task: TaskRun) -
     required = pending + need
     if available < required:
         if pending > 0:
-            raise ValueError(
-                f"余额不足：本次需要 {format_money(need)}（含排队中 {format_money(pending)}），"
-                f"当前 {format_money(available)}，请先充值"
-            )
-        raise ValueError(f"余额不足：需要 {format_money(need)}，当前 {format_money(available)}，请先充值")
+            raise AppError("billing.insufficient_balance_pending", need_fen=need, pending_fen=pending, available_fen=available)
+        raise AppError("billing.insufficient_balance", need_fen=need, available_fen=available)
     return need
 
 
@@ -145,7 +142,7 @@ async def ensure_balance_for_task_batch(
     qty = max(1, int(count))
     locked = await _lock_user(db, int(user.id))
     if locked is None:
-        raise ValueError("用户不存在")
+        raise AppError("common.user_not_found")
     user.balance_fen = int(locked.balance_fen or 0)
     user.frozen_fen = int(locked.frozen_fen or 0)
     unit = await estimate_task_fen(db, task)
@@ -154,10 +151,7 @@ async def ensure_balance_for_task_batch(
     required = pending + additional
     available = int(locked.balance_fen or 0)
     if available < required:
-        raise ValueError(
-            f"余额不足：批量生成 {qty} 项需 {format_money(additional)}"
-            f"（含排队中 {format_money(pending)}），当前 {format_money(available)}，请先充值"
-        )
+        raise AppError("billing.insufficient_balance_batch", qty=qty, need_fen=additional, pending_fen=pending, available_fen=available)
     return {
         "unit_estimate_fen": unit,
         "pending_commitment_fen": pending,
@@ -188,7 +182,7 @@ async def freeze_for_task(db: AsyncSession, task: TaskRun) -> int:
     need = await estimate_task_fen(db, task)
     available = int(user.balance_fen or 0)
     if available < need:
-        raise ValueError(f"余额不足：需要 ¥{need/100:.2f}，当前 ¥{available/100:.2f}，请先充值")
+        raise AppError("billing.insufficient_balance", need_fen=need, available_fen=available)
     # 仅通过 _ledger 扣余额，避免双重扣款
     user.frozen_fen = int(user.frozen_fen or 0) + need
     task.billing_estimate_fen = need
@@ -462,7 +456,7 @@ async def settle_usage_charge(
     target = locked or user
     available = int(target.balance_fen or 0)
     if available < need:
-        raise ValueError(f"余额不足：需要 ¥{need / 100:.2f}，当前 ¥{available / 100:.2f}，请先充值")
+        raise AppError("billing.insufficient_balance", need_fen=need, available_fen=available)
     await _ledger(
         db,
         target,

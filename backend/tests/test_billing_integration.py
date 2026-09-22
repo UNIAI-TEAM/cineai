@@ -75,8 +75,9 @@ async def test_ensure_balance_rejects_insufficient_funds(db_session: AsyncSessio
     task = await make_task(db_session, user, domain="api", task_type="v1_image")
     await db_session.commit()
 
-    with pytest.raises(ValueError, match="余额不足"):
+    with pytest.raises(ValueError, match="余额不足") as exc_info:
         await ensure_balance_for_task(db_session, user, task)
+    assert getattr(exc_info.value, "code", "").startswith("billing.insufficient_balance")
 
 
 @pytest.mark.asyncio
@@ -85,13 +86,14 @@ async def test_create_task_rejects_insufficient_balance(db_session: AsyncSession
     user = await make_user(db_session, balance_fen=0)
     await db_session.commit()
 
-    with pytest.raises(ValueError, match="余额不足"):
+    with pytest.raises(ValueError, match="余额不足") as exc_info:
         await create_task(
             db_session,
             user,
             TaskCreateRequest(domain="api", task_type="v1_image"),
             commit=False,
         )
+    assert getattr(exc_info.value, "code", "").startswith("billing.insufficient_balance")
 
 
 @pytest.mark.asyncio
@@ -121,8 +123,9 @@ async def test_ensure_balance_counts_pending_unfrozen_tasks(db_session: AsyncSes
         status="pending",
         billing_status="none",
     )
-    with pytest.raises(ValueError, match="余额不足"):
+    with pytest.raises(ValueError, match="余额不足") as exc_info:
         await ensure_balance_for_task(db_session, user, task2)
+    assert getattr(exc_info.value, "code", "").startswith("billing.insufficient_balance")
 
 
 @pytest.mark.asyncio
