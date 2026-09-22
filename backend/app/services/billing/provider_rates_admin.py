@@ -35,24 +35,27 @@ def _row(rate: ProviderRate) -> ProviderRateRow:
 
 
 def unpriced_models(snapshot: Any | None = None, rates: list[ProviderRate] | None = None) -> list[UnpricedModel]:
-    """Model được gán ở slot/override mà không khớp dòng giá nào (theo thứ tự slot rồi override, không trùng)."""
-    from app.services.functions import FUNCTION_BY_ID
+    """Model hiệu lực (provider còn bật + đủ key, qua allowed_bindings) mà không khớp dòng giá nào, không trùng.
+
+    Đi qua từng chức năng trong catalog (không phải slot thô) để tái dùng đúng bộ lọc provider tắt/thiếu key/
+    model không còn bật mà `rate_quotes.function_models()` đã dùng khi ước tính (Review Focus #5); binding của
+    provider đã tắt hoặc thiếu key không bao giờ được gọi nên không được liệt vào đây.
+    """
+    from app.services.function_router import allowed_bindings
+    from app.services.functions import FUNCTIONS
     from app.services.model_settings import get_routing_snapshot
 
     snap = snapshot if snapshot is not None else get_routing_snapshot()
     table = rates if rates is not None else get_provider_rates()
-    groups = list(snap.function_bindings.slots.items())
-    groups += [(FUNCTION_BY_ID[fid].capability, items)
-               for fid, items in snap.function_bindings.overrides.items() if fid in FUNCTION_BY_ID]
     seen: set[tuple[str, str]] = set()
     out: list[UnpricedModel] = []
-    for capability, items in groups:
-        for b in items:
+    for fn in FUNCTIONS:
+        for b in allowed_bindings(fn.id, snapshot=snap):
             key = (b.channel_id, b.model)
             if key in seen or match_rate(b.model, table) is not None:
                 continue
             seen.add(key)
-            out.append(UnpricedModel(channel_id=b.channel_id, model=b.model, capability=capability))
+            out.append(UnpricedModel(channel_id=b.channel_id, model=b.model, capability=fn.capability))
     return out
 
 
