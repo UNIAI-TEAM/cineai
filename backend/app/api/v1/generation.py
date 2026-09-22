@@ -222,16 +222,16 @@ async def get_task(
         raise HTTPException(status_code=400, detail="缺少 task_id")
     tid = task_id.strip()
     # 归属校验：上游 task_id 本身是可传递的凭据，不校验会拖走他人视频
-    owned = (
+    owned_row = (
         await db.execute(
-            select(TaskRun.id)
+            select(TaskRun.id, TaskRun.provider_channel_id)
             .where(TaskRun.requested_by == user.id, TaskRun.provider_task_id == tid)
             .limit(1)
         )
-    ).scalar_one_or_none()
-    if owned is None:
+    ).first()
+    if owned_row is None:
         raise HTTPException(status_code=404, detail="任务不存在")
-    data = await poll_video_task(user, tid)
+    data = await poll_video_task(user, tid, channel_id=owned_row.provider_channel_id)
     await settle_deferred_video_poll(
         db,
         user,

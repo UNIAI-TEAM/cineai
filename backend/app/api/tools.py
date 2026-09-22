@@ -13,6 +13,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.errors import AppError
 from app.models import ToolRun, User
+from app.models_tasks import TaskRun
 from app.schemas_tools import ToolRunListOut, ToolRunOut, ToolRunRecordOut, ToolTaskOut
 from app.services.billing import run_billed_ephemeral_deferred, settle_deferred_video_poll
 from app.services.billing.http import http_exception_for_value_error
@@ -159,7 +160,14 @@ async def get_tool_task(
     if row.kind == "image":
         data = await poll_image_tool_task(db, user, tid)
     else:
-        data = await poll_video_task(user, tid)
+        channel_id = (
+            await db.execute(
+                select(TaskRun.provider_channel_id)
+                .where(TaskRun.requested_by == user.id, TaskRun.provider_task_id == tid)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        data = await poll_video_task(user, tid, channel_id=channel_id)
         await settle_deferred_video_poll(
             db,
             user,

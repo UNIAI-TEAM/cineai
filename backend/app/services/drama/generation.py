@@ -1741,6 +1741,7 @@ async def apply_fragment_video_assets(
     attempt_limit: int = 3,
     task_result: "TaskResult | None" = None,
     provider_task_id: str | None = None,
+    channel_id: str | None = None,
 ) -> DramaEpisodeFragment:
     from app.services import storage as storage_svc
     from app.services.ffmpeg_compose import extract_video_last_frame, extract_video_poster_frame
@@ -1817,6 +1818,7 @@ async def apply_fragment_video_assets(
         fallback_duration_sec=fragment.duration_sec,
         provider_task_id=provider_task_id,
         drama_project_id=project.id,
+        channel_id=channel_id,
     )
     await db.commit()
     await db.refresh(fragment)

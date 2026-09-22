@@ -25,6 +25,8 @@ class TaskRun(Base):
     dedupe_key: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     batch_key: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     provider_task_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    # Kênh (channel_id) đã tạo tác vụ upstream, dùng để poll đúng provider (không suy đoán lại sau restart)
+    provider_channel_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     cancelable: Mapped[bool] = mapped_column(Boolean, default=True)
     current_step_key: Mapped[str | None] = mapped_column(String(64), nullable=True)

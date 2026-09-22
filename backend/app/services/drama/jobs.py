@@ -1039,6 +1039,7 @@ async def run_episode_fragment_plan_job(
 
 # 任务平台（NIO）：Worker 短生命周期 — prepare → submit → 注册 awaiting_poll，由 Selector 轮询。
 async def submit_fragment_video_task(task: TaskRun) -> dict[str, Any]:
+    from app.services.ark import get_ark
     from app.services.tasks.service import append_task_event, get_task_for_runtime, set_task_step_state
 
     payload = task.payload if isinstance(task.payload, dict) else {}
@@ -1200,6 +1201,7 @@ async def submit_fragment_video_task(task: TaskRun) -> dict[str, Any]:
         frag.params = params
         task_row.status = "awaiting_poll"
         task_row.provider_task_id = provider_task_id
+        task_row.provider_channel_id = get_ark().channel_for_task(provider_task_id)
         task_row.progress_percent = 40
         task_row.current_step_status = "polling"
         task_row.next_action_at = now + timedelta(seconds=poll_interval)
@@ -1408,7 +1410,7 @@ async def poll_fragment_video_task(task_id: int) -> None:
                 await _fail_task(db, task, RuntimeError("Kênh video cũ không còn, hãy tạo lại phân cảnh này"))
                 return
 
-            result = await get_ark().fetch_task_once(task.provider_task_id)
+            result = await get_ark().fetch_task_once(task.provider_task_id, channel_id=task.provider_channel_id)
             if result.status == "running":
                 task.next_action_at = now + timedelta(seconds=poll_interval)
                 task.progress_percent = min(95, int(task.progress_percent or 40) + 3)
@@ -1487,6 +1489,7 @@ async def poll_fragment_video_task(task_id: int) -> None:
                     attempt_limit=attempt_limit,
                     task_result=result,
                     provider_task_id=task.provider_task_id,
+                    channel_id=task.provider_channel_id,
                 )
                 # apply 已 commit：行锁复查。下载期间用户可能已取消（status=cancel_requested），
                 # 此时不能走常规 complete，也不能放任 frozen 全额退款，按实际用量结算为 cancelled。

@@ -174,6 +174,7 @@ class TaskRunOut(BaseModel):
     dedupe_key: str | None = None
     batch_key: str | None = None
     provider_task_id: str | None = None
+    provider_channel_id: str | None = None
     cancel_requested: bool = False
     cancelable: bool = True
     current_step_key: str | None = None

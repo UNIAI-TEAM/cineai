@@ -444,10 +444,10 @@ async def start_video_tool(
     }
 
 
-# 单次查询视频任务；成功则下载并同步 OSS
-async def poll_video_task(user: User, task_id: str) -> dict:
+# 单次查询视频任务；成功则下载并同步 OSS；channel_id 指定提交时锁定的上游渠道
+async def poll_video_task(user: User, task_id: str, *, channel_id: str | None = None) -> dict:
     ark = get_ark()
-    result = await ark.fetch_task_once(task_id)
+    result = await ark.fetch_task_once(task_id, channel_id=channel_id)
     usage = {
         "total_tokens": int(result.total_tokens or 0),
         "completion_tokens": int(result.completion_tokens or 0),

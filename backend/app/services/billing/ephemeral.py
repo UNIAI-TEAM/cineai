@@ -173,6 +173,10 @@ async def run_billed_ephemeral(
     await settle_task(db, task.id)
     if commit:
         await db.commit()
+    else:
+        # refresh() expire trước autoflush: không flush trước thì các cột vừa gán
+        # sẽ bị refresh() ghi đè mất khi commit=False.
+        await db.flush()
     await db.refresh(task)
     return task, result
 
@@ -247,8 +251,11 @@ async def run_billed_ephemeral_deferred(
         provider_id = _extract_provider_task_id(result)
         if not provider_id:
             raise RuntimeError("上游未返回 task_id")
+        from app.services.ark import get_ark
+
         task.status = "awaiting_poll"
         task.provider_task_id = provider_id
+        task.provider_channel_id = get_ark().channel_for_task(provider_id)
         task.progress_percent = 30
         task.next_action_at = now
         task.result_payload = {"awaiting_poll": True, "provider_task_id": provider_id}
@@ -279,6 +286,10 @@ async def run_billed_ephemeral_deferred(
 
     if commit:
         await db.commit()
+    else:
+        # refresh() expire trước autoflush: không flush trước thì các cột vừa gán
+        # (provider_task_id/provider_channel_id...) sẽ bị refresh() ghi đè mất khi commit=False.
+        await db.flush()
     await db.refresh(task)
     return task, result
 

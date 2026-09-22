@@ -50,6 +50,7 @@ async def record_seedance_video_usage(
     drama_project_id: int | None = None,
     project_id: int | None = None,
     shot_id: int | None = None,
+    channel_id: str | None = None,
 ) -> UsageEvent:
     """按官方任务 usage / 成本或时长估算写入 Seedance 视频用量行。
 
@@ -98,7 +99,7 @@ async def record_seedance_video_usage(
         from app.services.ark import get_ark
 
         try:
-            refreshed = await get_ark().fetch_task_once(provider_id)
+            refreshed = await get_ark().fetch_task_once(provider_id, channel_id=channel_id)
             if int(getattr(refreshed, "total_tokens", 0) or 0) > 0 or refreshed.raw_usage:
                 task_result = refreshed
         except Exception:  # noqa: BLE001
@@ -140,10 +141,8 @@ async def record_seedance_video_usage(
     if upstream_cost is not None and raw is not None:
         raw["usage"] = {**(raw.get("usage") or {}), "cost_fen": upstream_cost}
 
-    provider = "kie" if (
-        (isinstance(raw, dict) and (raw.get("provider") == "kie" or raw.get("kie_task_id")))
-        or (isinstance(raw_usage, dict) and (raw_usage.get("provider") == "kie" or raw_usage.get("kie_task_id")))
-    ) else "ark"
+    # Provider chỉ lấy từ kênh đã gọi thật (tham số hoặc TaskResult.channel_id); không còn dò "kie" trong raw
+    provider = channel_id or getattr(task_result, "channel_id", "") or "ark"
 
     if total_tokens > 0 or upstream_cost:
         return await record_line(
@@ -214,11 +213,8 @@ async def record_seedream_image_usage(
     if upstream_cost is not None:
         raw["usage"] = {**(raw.get("usage") or {}), "cost_fen": int(upstream_cost)}
 
-    provider = "kie" if (
-        (isinstance(raw_usage, dict) and (raw_usage.get("provider") == "kie" or raw_usage.get("kie_task_id")))
-        or (isinstance(extra_raw, dict) and (extra_raw.get("provider") == "kie" or extra_raw.get("kie_task_id")))
-        or ("kie" in (model or "").lower())
-    ) else "ark"
+    # Provider chỉ lấy từ kênh thực tế đã sinh ảnh (ImageResult.channel_id); không còn dò "kie" trong raw/model
+    provider = getattr(image_result, "channel_id", "") or "ark"
 
     if total_tokens > 0 or upstream_cost:
         return await record_line(
