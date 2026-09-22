@@ -187,9 +187,9 @@ test("validateBindingsDraft mirrors backend messages", () => {
     overrides: { "nope.fn": [] },
   };
   assert.deepEqual(validateBindingsDraft(b, [draft()], CATALOG), [
-    "Slot Ảnh: provider 'ghost' không tồn tại",
+    "Slot Ảnh: nhà cung cấp 'ghost' không tồn tại",
     "Slot Video: model 'dola-seedream-5-0-pro-260628' không phải model video",
-    "Slot Giọng đọc: model 'not-enabled-tts' chưa được bật ở provider BytePlus ModelArk",
+    "Slot Giọng đọc: model 'not-enabled-tts' chưa được bật ở nhà cung cấp BytePlus ModelArk",
     "Chức năng 'nope.fn' không tồn tại",
   ]);
 });
@@ -205,7 +205,7 @@ test("validateProviderDraft checks new id, name and base url", () => {
   ]);
   assert.deepEqual(validateProviderDraft(draft({ is_new: true }), [draft()]), ["ID 'byteplus' đã tồn tại"]);
   assert.deepEqual(validateProviderDraft(draft({ name: " ", base_url: "" }), []), [
-    "Cần nhập tên provider",
+    "Cần nhập tên nhà cung cấp",
     "Cần nhập Base URL",
   ]);
   assert.deepEqual(validateProviderDraft(draft({ protocol: "volc_tts", base_url: "" }), []), []);
@@ -225,7 +225,7 @@ test("providerDeleteBlocker names the functions", () => {
   const draftB = { slots: {}, overrides: { "drama.video": [{ channel_id: "byteplus", model: "dreamina-seedance-2-5-260628", weight: 1 }] } };
   assert.equal(
     providerDeleteBlocker("byteplus", [{ slots: {}, overrides: {} }, draftB], CATALOG),
-    "Provider đang được gán cho: Video phim ngắn. Hãy đổi gán trước khi xoá.",
+    "Nhà cung cấp đang được gán cho: Video phim ngắn. Hãy đổi gán trước khi xoá.",
   );
   assert.equal(providerDeleteBlocker("openai", [draftB], CATALOG), null);
 });
@@ -266,6 +266,6 @@ test("providerSaveBlockers asks for a new key when the base url host changes", (
 
 test("connectionTestLabel says ark and volc_tts only check the key", () => {
   assert.equal(connectionTestLabel("openai", { ok: true, message: "Kết nối thành công, 12 model" }), "Kết nối thành công, 12 model");
-  assert.equal(connectionTestLabel("ark", { ok: true, message: "Kết nối thành công, 17 model" }), "Đã có key (chưa gọi thử provider)");
+  assert.equal(connectionTestLabel("ark", { ok: true, message: "Kết nối thành công, 17 model" }), "Đã có key (chưa gọi thử nhà cung cấp)");
   assert.equal(connectionTestLabel("volc_tts", { ok: false, message: "Cần API key" }), "Cần API key");
 });

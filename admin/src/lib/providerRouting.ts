@@ -67,11 +67,11 @@ export type BindingProblem =
   | "provider_incomplete";
 
 export const BINDING_PROBLEM_LABELS: Record<BindingProblem, string> = {
-  missing_provider: "Provider đã bị xoá",
-  model_not_enabled: "Model chưa được bật ở provider",
+  missing_provider: "Nhà cung cấp đã bị xoá",
+  model_not_enabled: "Model chưa được bật ở nhà cung cấp",
   wrong_capability: "Model không đúng năng lực của hàng này",
-  provider_disabled: "Provider đang tắt",
-  provider_incomplete: "Provider thiếu key hoặc Base URL",
+  provider_disabled: "Nhà cung cấp đang tắt",
+  provider_incomplete: "Nhà cung cấp thiếu key hoặc Base URL",
 };
 
 /** Một model đã bật ở một provider (dùng cho hộp chọn model) */
@@ -345,11 +345,11 @@ export function validateBindingsDraft(
     for (const item of items) {
       const p = providers.find((x) => x.id === item.channel_id);
       if (!p) {
-        errs.push(`${label}: provider '${item.channel_id}' không tồn tại`);
+        errs.push(`${label}: nhà cung cấp '${item.channel_id}' không tồn tại`);
         continue;
       }
       if (!p.models.some((m) => normalizeModelName(m) === normalizeModelName(item.model))) {
-        errs.push(`${label}: model '${item.model}' chưa được bật ở provider ${p.name}`);
+        errs.push(`${label}: model '${item.model}' chưa được bật ở nhà cung cấp ${p.name}`);
         continue;
       }
       if (modelCapability(p.protocol, item.model) !== capability) {
@@ -380,7 +380,7 @@ export function validateProviderDraft(d: ProviderDraft, others: ProviderDraft[])
       errs.push(`ID '${id}' đã tồn tại`);
     }
   }
-  if (!d.name.trim()) errs.push("Cần nhập tên provider");
+  if (!d.name.trim()) errs.push("Cần nhập tên nhà cung cấp");
   if (d.protocol !== "volc_tts" && !d.base_url.trim()) errs.push("Cần nhập Base URL");
   return errs;
 }
@@ -400,15 +400,15 @@ export function urlOrigin(value: string): string {
 
 /** Câu giải thích nút "Kiểm tra kết nối" theo protocol (ark / volc_tts chỉ kiểm tra có key) — theo `admin_test_provider` (backend/app/api/admin/settings.py) */
 export const CONNECTION_TEST_HINTS: Record<ProviderProtocol, string> = {
-  openai: "Gọi thử GET /models của provider bằng key này.",
-  ark: "BytePlus ModelArk không có endpoint kiểm tra miễn phí: nút này chỉ xác nhận đã có key, chưa gọi thử provider.",
-  volc_tts: "Seed Speech không có endpoint kiểm tra miễn phí: nút này chỉ xác nhận đã có key, chưa gọi thử provider.",
+  openai: "Gọi thử GET /models của nhà cung cấp bằng key này.",
+  ark: "BytePlus ModelArk không có endpoint kiểm tra miễn phí: nút này chỉ xác nhận đã có key, chưa gọi thử nhà cung cấp.",
+  volc_tts: "Seed Speech không có endpoint kiểm tra miễn phí: nút này chỉ xác nhận đã có key, chưa gọi thử nhà cung cấp.",
 };
 
 /** Câu hiển thị kết quả kiểm tra; ark / volc_tts thành công thì không nói "kết nối thành công" */
 export function connectionTestLabel(protocol: ProviderProtocol, result: ProviderTestResult): string {
   if (!result.ok || protocol === "openai") return result.message;
-  return "Đã có key (chưa gọi thử provider)";
+  return "Đã có key (chưa gọi thử nhà cung cấp)";
 }
 
 /**
@@ -447,7 +447,7 @@ export function providerDeleteBlocker(
   catalog: FunctionInfo[],
 ): string | null {
   const uses = [...new Set(bindingSets.flatMap((b) => providerUsages(b, catalog, id)))];
-  return uses.length ? `Provider đang được gán cho: ${uses.join(", ")}. Hãy đổi gán trước khi xoá.` : null;
+  return uses.length ? `Nhà cung cấp đang được gán cho: ${uses.join(", ")}. Hãy đổi gán trước khi xoá.` : null;
 }
 
 /** Danh sách nháp → body PATCH (key trống = giữ key cũ; nhập key mới thì bỏ cờ xoá) */

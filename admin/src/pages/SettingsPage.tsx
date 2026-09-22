@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Loader2, Save } from "lucide-react";
+import { ModelsSettingsPanel } from "@/components/settings/models/ModelsSettingsPanel";
 import { OssSettingsPanel } from "@/components/settings/OssSettingsPanel";
 import { PaymentSettingsPanel } from "@/components/settings/PaymentSettingsPanel";
-import { RoutingSettingsPanel } from "@/components/settings/RoutingSettingsPanel";
 import { RuntimeSettingsPanel } from "@/components/settings/RuntimeSettingsPanel";
 import { SiteSettingsPanel } from "@/components/settings/SiteSettingsPanel";
 import {
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 type SettingsTab = "routing" | "runtime" | "oss" | "payment" | "site";
 
 const TABS: { id: SettingsTab; label: string }[] = [
-  { id: "routing", label: "模型" },
+  { id: "routing", label: "Mô hình" },
   { id: "runtime", label: "运行参数" },
   { id: "oss", label: "存储 OSS" },
   { id: "payment", label: "支付与汇率" },
@@ -29,7 +29,7 @@ function SettingsPageHeader() {
       <div className="min-w-0">
         <h1 className="settings-page-title">系统设置</h1>
         <p className="settings-head-desc">
-          TokenFree API Key、运行参数、OSS / 银行转账收款 / 汇率与计费与站点配置；密钥加密存库，留空保存不修改。
+          模型服务商与功能分配、运行参数、OSS / 银行转账收款 / 汇率与计费与站点配置；密钥加密存库，留空保存不修改。
         </p>
       </div>
       {action ? (
@@ -71,7 +71,7 @@ function SettingsPageInner() {
       </div>
 
       <div className="settings-main">
-        {tab === "routing" ? <RoutingSettingsPanel /> : null}
+        {tab === "routing" ? <ModelsSettingsPanel /> : null}
         {tab === "runtime" ? <RuntimeSettingsPanel /> : null}
         {tab === "oss" ? <OssSettingsPanel /> : null}
         {tab === "payment" ? <PaymentSettingsPanel /> : null}

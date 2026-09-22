@@ -28,7 +28,7 @@ type ModelPickerDialogProps = {
 export function ModelPickerDialog({ title, capability, providers, value, onApply, onClose }: ModelPickerDialogProps) {
   /*
    * selected: danh sách binding đang chọn (khởi tạo từ value lúc mở)
-   * query: ô tìm theo provider / model
+   * query: ô tìm theo nhà cung cấp / model
    */
   const [selected, setSelected] = useState<ModelBinding[]>(value);
   const [query, setQuery] = useState("");
@@ -68,14 +68,14 @@ export function ModelPickerDialog({ title, capability, providers, value, onApply
     >
       <input
         className="settings-input"
-        aria-label="Tìm theo provider hoặc model"
-        placeholder="Tìm theo provider hoặc model"
+        aria-label="Tìm theo nhà cung cấp hoặc model"
+        placeholder="Tìm theo nhà cung cấp hoặc model"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
       {options.length === 0 ? (
         <p className="settings-empty-hint">
-          Chưa có model {capLabel} nào được bật. Mở một provider ở cột trái và tick model trước.
+          Chưa có model {capLabel} nào được bật. Mở một nhà cung cấp ở cột trái và tick model trước.
         </p>
       ) : null}
       <div className="settings-model-catalog">

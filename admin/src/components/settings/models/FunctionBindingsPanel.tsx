@@ -120,7 +120,10 @@ export function FunctionBindingsPanel({ providers, bindings, catalog, dirty, err
           aria-expanded={overridesOpen}
           onClick={() => setOverridesOpen((v) => !v)}
         >
-          <ChevronRight className={cn("h-4 w-4 transition-transform", overridesOpen && "rotate-90")} />
+          <ChevronRight
+            className={cn("h-4 w-4 transition-transform", overridesOpen && "rotate-90")}
+            aria-hidden
+          />
           Ghi đè theo chức năng
           <span className="settings-overrides-count">
             {Object.keys(bindings.overrides).length}/{catalog.length}

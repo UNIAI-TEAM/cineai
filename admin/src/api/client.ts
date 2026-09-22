@@ -680,51 +680,6 @@ export type AdminModelSettings = {
   readiness: ModelCapabilityReadiness[];
 };
 
-export type AdminRoutingChannel = {
-  id: string;
-  name: string;
-  base_url: string;
-  api_key: string;
-  has_api_key: boolean;
-  api_format: "openai" | "ark" | "kie";
-  protocol: "auto" | "openai" | "ark" | "volc_tts" | "kie";
-  models: string[];
-  enabled: boolean;
-  sort_order: number;
-};
-
-export type AdminLogicalModelBinding = {
-  id: string;
-  channel_id: string;
-  upstream_model: string;
-  enabled: boolean;
-  priority: number;
-  weight?: number | null;
-};
-
-export type AdminLogicalModel = {
-  id: string;
-  name: string;
-  capability: "text" | "image" | "video" | "audio";
-  enabled: boolean;
-  bindings: AdminLogicalModelBinding[];
-};
-
-export type AdminDefaultModels = {
-  text_model: string;
-  image_model: string;
-  video_model: string;
-  audio_model: string;
-};
-
-export type AdminRoutingSettings = {
-  system_channels: AdminRoutingChannel[];
-  logical_models: AdminLogicalModel[];
-  default_models: AdminDefaultModels;
-  validation_errors: string[];
-  updated_at?: string | null;
-};
-
 export type AdminTemplate = {
   id: string;
   name: string;
