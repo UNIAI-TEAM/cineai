@@ -22,6 +22,7 @@ import { dialog } from '../../lib/dialog'
 import {
   buildEpisodeContentUpdate,
   buildOutlineDirectory,
+  episodeTitleForDisplay,
   episodeBodyCharLen,
   isSubstantialEpisodeBody,
   isSubstantialEpisodeCreative,
@@ -246,7 +247,7 @@ export function OutlineEpisodePanel({
   useEffect(() => {
     setEditingSection(null)
     setSectionDraft('')
-    setTitleDraft(selected?.title || '')
+    setTitleDraft(episodeTitleForDisplay(selected?.title))
     setLocalError('')
     setLocalNotice('')
     setScriptModalOpen(false)
@@ -419,7 +420,7 @@ export function OutlineEpisodePanel({
     setLocalError('')
     setLocalNotice('')
     try {
-      if (editingSection === 'creative' || titleDraft !== selected.title) {
+      if (editingSection === 'creative' || titleDraft !== episodeTitleForDisplay(selected.title)) {
         const next = displayEpisodes.map((ep) =>
           ep.episodeNumber === targetEpisode
             ? {
@@ -650,7 +651,7 @@ export function OutlineEpisodePanel({
                 </span>
                 <span className="drama-outline-ep-meta">
                   <strong>{t('dramaProject.episodeNo', { n: ep.episodeNumber })}</strong>
-                  <small>{ep.title || t('dramaProject.untitled')}</small>
+                  <small>{episodeTitleForDisplay(ep.title) || t('dramaProject.untitled')}</small>
                   <em className={shot && shot.fragmentCount > 0 ? 'is-shot' : undefined}>
                     {statusLabel}
                   </em>
@@ -685,10 +686,10 @@ export function OutlineEpisodePanel({
             />
           ) : (
             <h2>
-              {selected.title
+              {episodeTitleForDisplay(selected.title)
                 ? t('dramaProject.panel.headingWithTitle', {
                     n: selected.episodeNumber ?? '',
-                    title: selected.title,
+                    title: episodeTitleForDisplay(selected.title),
                   })
                 : t('dramaProject.episodeNo', { n: selected.episodeNumber ?? '' })}
             </h2>

@@ -12,6 +12,11 @@ export function markBillingMessage(message: string) {
   billingMessages.add(message)
 }
 
+/** 是否为已登记（已按界面语言翻译）的余额不足文案 */
+export function isMarkedBillingMessage(message: string) {
+  return billingMessages.has(message)
+}
+
 /** 是否为余额不足 / 计费拦截类错误（错误码登记 + 旧中文文案兜底，漫剧第二阶段前保留） */
 export function isBillingError(message: string) {
   return billingMessages.has(message) || /余额不足|请先充值|insufficient_balance|\b(?:HTTP|status)\s*402\b|\b402\s+Payment/i.test(message)

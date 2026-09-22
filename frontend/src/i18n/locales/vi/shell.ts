@@ -37,7 +37,7 @@ export const viShell = {
     generateFailed: 'Tạo thất bại',
     queryFailed: 'Tra cứu thất bại',
     requestFailed: 'Có lỗi xảy ra, vui lòng thử lại',
-    uploadFailed: 'Tải lên không thành công',
+    uploadFailed: 'Không tải lên được',
     avatarUploadFailed: 'Không tải lên được ảnh đại diện',
     coverUploadFailed: 'Không tải lên được ảnh bìa',
     zipDownloadFailed: 'Không tải được file nén',

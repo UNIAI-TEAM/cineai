@@ -78,7 +78,7 @@ function EpisodeStoryboardInner() {
   const eid = Number(episodeId)
   const navigate = useNavigate()
   const { fitView } = useReactFlow()
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
 
   /*
    * episode / fragments / assets 数据
@@ -122,7 +122,9 @@ function EpisodeStoryboardInner() {
     const flow = buildEpisodeFragmentFlow(fragmentsRef.current, assetsRef.current)
     setNodes(flow.nodes)
     setEdges(flow.edges)
-  }, [structureKey, assets, setNodes, setEdges])
+    // locale：节点标签按界面语言生成，切换语言时重建
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [structureKey, assets, locale, setNodes, setEdges])
 
   useEffect(() => {
     fittedRef.current = false

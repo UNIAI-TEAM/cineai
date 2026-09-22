@@ -8,7 +8,7 @@ import { getActiveLocale } from '../i18n/detect'
 import { interpolate, type TVars } from '../i18n/lookup'
 import { messages } from '../i18n/messages'
 import { ApiError, type ErrorCodeFields } from './apiError'
-import { isBillingError, isInsufficientBalanceCode } from './billingError'
+import { isBillingError, isInsufficientBalanceCode, isMarkedBillingMessage } from './billingError'
 import { dialog } from './dialog'
 
 export type DramaGenErrorView = {
@@ -182,9 +182,12 @@ function formatErrorText(raw: string | null | undefined): DramaGenErrorView {
   }
 
   if (isBillingError(text)) {
+    // 仅展示已翻译的登记文案或中文界面下的后端原句；HTTP 402 / 错误码等原始文本换成友好文案
+    const readable =
+      isMarkedBillingMessage(text) || (getActiveLocale() === 'zh' && /余额不足|请先充值/.test(text))
     return {
       title: c.billing.title,
-      message: text || c.billing.message,
+      message: readable ? text : c.billing.message,
       suggestion: c.billing.suggestion,
       billingBlocked: true,
     }

@@ -50,7 +50,7 @@ export const viErrors = {
     'tool.first_frame_extract_failed': 'Không lấy được khung hình đầu từ video',
     'tool.first_frame_required': 'Thiếu ảnh khung hình đầu, không thể tạo video',
     'tool.run_failed': 'Không tạo được, vui lòng thử lại sau',
-    'api_key.not_found': 'API Key không tồn tại hoặc đã bị thu hồi',
+    'api_key.not_found': 'API key không tồn tại hoặc đã bị thu hồi',
     'template.not_found': 'Không tìm thấy mẫu',
     'project.not_found': 'Không tìm thấy dự án',
     'project.invalid_template': 'Mẫu không hợp lệ',
@@ -92,7 +92,7 @@ export const viErrors = {
     'drama.episode_creative_required': 'Vui lòng nhập ý tưởng của tập này trước (ít nhất {min} ký tự)',
     'drama.episode_body_required': 'Tập này cần có nội dung kịch bản trước, AI mới bổ sung được ý tưởng và tóm tắt',
     'drama.max_episodes': 'Tối đa {max} tập',
-    'drama.llm_unavailable': 'Mô hình viết chữ đang tạm ngưng, vui lòng thử lại sau',
+    'drama.llm_unavailable': 'Mô hình tạo văn bản đang tạm ngưng, vui lòng thử lại sau',
     'drama.episode_not_found': 'Không tìm thấy tập phim',
     'drama.invalid_episode_number': 'Số tập không hợp lệ',
     'drama.episode_script_not_found': 'Không tìm thấy kịch bản tập {number}',
@@ -157,7 +157,7 @@ export const viErrors = {
     timeout: {
       title: 'Nhà cung cấp mô hình phản hồi quá lâu',
       suggestion:
-        'Đã kết nối được TokenFree nhưng tạo ảnh/video mất quá thời gian cho phép. Vui lòng thử lại sau. Nếu tạo chữ vẫn được mà chỉ ảnh/video bị quá giờ thì thường là do hàng đợi bên nhà cung cấp chậm, không phải mất mạng.',
+        'Đã kết nối được TokenFree nhưng tạo ảnh/video mất quá thời gian cho phép. Vui lòng thử lại sau. Nếu tạo văn bản vẫn được mà chỉ ảnh/video bị quá giờ thì thường là do hàng chờ bên nhà cung cấp chậm, không phải mất mạng.',
     },
     network: {
       title: 'Không kết nối được dịch vụ tạo ảnh/video',
@@ -244,7 +244,7 @@ export const viErrors = {
       message: 'Nhà cung cấp mô hình báo lỗi tham số hoặc nội dung, chưa tạo được{where}.',
       whereIndex: ' ({item})',
       suggestion:
-        'Kiểm tra ảnh tham chiếu, độ dài audio tham chiếu (ít nhất 1,8 giây) và kịch bản của cảnh này rồi thử lại. Nếu vẫn lỗi, hãy liên hệ hỗ trợ kèm mã tác vụ.',
+        'Kiểm tra ảnh tham chiếu, độ dài audio tham chiếu (ít nhất 1,8 giây) và kịch bản của cảnh này rồi thử lại. Nếu vẫn lỗi, hãy liên hệ hỗ trợ kèm mã yêu cầu.',
     },
     videoFailed: {
       title: 'Không tạo được video',
@@ -254,7 +254,7 @@ export const viErrors = {
       title: 'Đã bỏ qua lần tạo cũ',
       message: 'Hệ thống thấy phân cảnh này đã có video nên huỷ lần tạo cũ bị xếp hàng trùng.',
       suggestion:
-        'Nếu bạn đang tạo lại, hãy xem hàng đợi còn lần tạo mới nào đang chạy không; nếu không có thì bấm tạo lại lần nữa. Lần huỷ cũ này không phải lỗi hiện tại.',
+        'Nếu bạn đang tạo lại, hãy xem hàng chờ còn lần tạo mới nào đang chạy không; nếu không có thì bấm tạo lại lần nữa. Lần huỷ cũ này không phải lỗi hiện tại.',
     },
     cancelled: {
       title: 'Đã huỷ',

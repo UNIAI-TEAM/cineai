@@ -288,7 +288,7 @@ export const viDramaProject = {
         camera: [
           'Trong ô soạn, gõ `@` → “Công cụ” → “Cỡ cảnh / chuyển động máy quay” để chèn nhanh tiền tố như `{empty}`, `{close}`, `{push}`',
           'Công thức: chủ thể + hành động + bối cảnh + (cỡ cảnh/chuyển động máy quay) + (ánh sáng); mỗi đoạn không quá 2 hướng chuyển động',
-          'Xoay mạnh ở cận cảnh dễ làm méo mặt; quay vòng quanh nên để cho trung cảnh trở lên',
+          'Cận cảnh mà xoay máy nhiều dễ méo mặt, quay vòng quanh nên để từ trung cảnh trở ra',
         ],
       },
       usage: {
@@ -310,7 +310,7 @@ export const viDramaProject = {
           'Khi bật “Nối khung hình cuối” trên thanh công cụ của tập: nếu cảnh có ảnh tham chiếu nhân vật/bối cảnh hoặc giọng, khung hình cuối được gửi kèm ở cuối dưới dạng `reference_image` (Seedance không cho dùng chung với `first_frame`); chỉ khi không có tư liệu tham chiếu mới dùng `first_frame`',
           'Khi tạo bình thường, đừng viết kiểu “sửa / kéo dài” trong kịch bản để yêu cầu không bị hiểu sai loại; tính năng kéo dài video thật sự chưa có',
         ],
-        audioTitle: 'Giọng và âm thanh tham chiếu (tạm tắt)',
+        audioTitle: 'Giọng và audio tham chiếu (tạm tắt)',
         audio: [
           'Tạm thời không gửi reference_audio, không gán giọng mẫu cho nhân vật/lời dẫn; Seedance tự lồng tiếng',
           'Nếu thiếu ảnh tham chiếu, hệ thống sẽ thử tự tạo ảnh rồi mới gửi sang Seedance',

@@ -31,7 +31,7 @@ export const viDramaAssets = {
       scene: 'Bối cảnh',
       prop: 'Đạo cụ',
       voice: 'Giọng',
-      file: 'Tệp',
+      file: 'File',
       image: 'Ảnh',
       video: 'Video',
       audio: 'Âm thanh',

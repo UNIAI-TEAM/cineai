@@ -135,7 +135,7 @@ function EpisodeEditInner() {
   const pid = Number(projectId)
   const eid = Number(episodeId)
   const navigate = useNavigate()
-  const { t, m } = useI18n()
+  const { t, m, locale } = useI18n()
   /*
    * episode 分集
    * fragments 分镜
@@ -270,7 +270,9 @@ function EpisodeEditInner() {
         const voice = readAssetVoiceBinding(asset)
         return voice ? { label: voice.label, url: voice.url } : null
       }),
-    [selected, assets],
+    // locale：片段标签 / 资产兜底名按界面语言生成，切换语言时需重算
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selected, assets, locale],
   )
   // selectedGateIssues 当前镜脚本/资产门禁（编辑区即时提示）
   const selectedGateIssues = useMemo(() => {
