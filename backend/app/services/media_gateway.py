@@ -701,8 +701,17 @@ class MediaGateway:
         duration_hint: float = 4.0,
         emotion_hint: str | None = None,
     ) -> str:
-        """Sinh lời bình theo route của chức năng (điền ở Task 9)."""
-        raise NotImplementedError("Task 9")
+        """Sinh lời bình theo route của chức năng: uỷ quyền cho TtsService (cascade slot → edge-tts)."""
+        from app.services.tts_service import TtsService
+
+        return await TtsService(self.settings, mock=self.mock).synthesize(
+            text,
+            voice,
+            function_id=function_id,
+            project_id=project_id,
+            shot_no=shot_no,
+            emotion_hint=emotion_hint,
+        )
 
     async def chat_storyboard(self, *args: Any, **kwargs: Any) -> kepu_text.StoryboardResult:
         """Tách phân cảnh khoa học: uỷ quyền cho kepu_text (giữ nguyên chữ ký cũ)."""
