@@ -211,7 +211,7 @@ docker compose --env-file deploy/.env.docker down -v
 
 开源版图 / 视频 / 文字**直接对接 OpenAI + BytePlus ModelArk**（不再经 TokenFree 等中转网关，按功能分别配置渠道与模型；架构与限制见 [docs/PROVIDERS.md](docs/PROVIDERS.md)）。视频口播交给 Seedance 自行发挥，不必再配 TTS / 音色。
 
-可在管理后台 **系统设置 → 模型** 填写渠道 Key 并拉取模型；`deploy/.env.docker` 或 `backend/.env` 仅作首次导入（DB 已有 provider 后不再生效）。
+管理后台 **系统设置 → 模型** 是两栏界面：左栏添加渠道（OpenAI / BytePlus ModelArk / OpenRouter / BytePlus Seed Speech / 自定义 OpenAI 兼容），填 Key、点「测试连接」（Ark、Seed Speech 这一步只确认已填 Key，不会真的调用上游）、勾选启用的模型，在对话框内直接保存；右栏把模型分配到文本 / 图片 / 视频 / 配音 4 个能力槽，需要时再按功能单独覆盖，同一槽内多个模型按权重轮流使用，用页面顶部「保存」按钮统一保存分配结果。换渠道 Base URL 的主机后要重新填 Key；正被分配使用的渠道或模型不能删除。`deploy/.env.docker` 或 `backend/.env` 仅作首次导入（DB 已有 provider 后不再生效）。
 
 ### 环境变量
 
@@ -242,7 +242,7 @@ MODEL_VIDEO=dreamina-seedance-2-5-260628
 curl http://localhost:8000/api/health
 ```
 
-返回 JSON 中 `ok` 表示任务运行时健康；`models` 为当前 LLM / 图像 / 视频模型；`ark_mock` 为是否 mock。
+返回 JSON 中 `ok` 表示任务运行时健康；`models` 是按能力槽（文本 / 图片 / 视频 / 配音）给出的状态，形如 `{"text": {"status": "ready", "model": "..."}}`（`status` 为 `ready` / `unavailable` / `not_configured` / `unknown`）；`ark_mock` 为是否 mock。
 
 ### 常见问题
 

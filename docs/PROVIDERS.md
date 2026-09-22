@@ -149,7 +149,30 @@ Ví dụ JSON `function_bindings` với 1 slot ảnh 2 model (weight 70/30) + 1 
 }
 ```
 
-### Cấu hình qua curl khi chưa có UI
+### Cấu hình qua trang quản trị
+
+Admin → **Hệ thống → Mô hình** là màn hình 2 cột (`ModelsSettingsPanel`):
+
+- **Cột trái — Nhà cung cấp** (`ProviderSidebar` + `ProviderDialog`): "+ Thêm nhà cung cấp" mở hộp thoại,
+  chọn mẫu (OpenAI, BytePlus ModelArk, OpenRouter, BytePlus Seed Speech, hoặc tự nhập cho endpoint tương
+  thích OpenAI khác) → nhập Base URL / API key → **Kiểm tra kết nối** → tick model ở phần "Model bật" →
+  **Lưu**. Nhà cung cấp lưu ngay từ hộp thoại (PATCH riêng), không phụ thuộc nút Lưu của trang. Với
+  protocol `ark` và `volc_tts`, nút "Kiểm tra kết nối" chỉ xác nhận đã nhập key (hai upstream này không có
+  endpoint kiểm tra miễn phí) chứ chưa thật sự gọi thử nhà cung cấp; chỉ `openai` gọi `GET /models` thật.
+  Đổi Base URL sang host khác (khác scheme/host/port) thì phải nhập lại API key — key cũ không được dùng
+  lại cho host mới, hộp thoại nhắc ngay trong ô key. Không xoá được nhà cung cấp, và không bỏ tick được
+  một model, nếu nó đang được gán ở cột phải (bản đã lưu hoặc bản nháp chưa lưu) — thông báo lỗi liệt kê
+  đích danh chức năng nào đang dùng.
+- **Cột phải — Gán chức năng AI** (`FunctionBindingsPanel`): 4 slot năng lực Văn bản / Ảnh / Video / Giọng
+  đọc, mỗi slot chọn một hoặc nhiều model kèm tỉ lệ (weight) để luân phiên. Nhóm "Ghi đè theo chức năng" cho
+  từng chức năng cụ thể (mục 3), để trống thì dùng slot mặc định. Thay đổi ở cột này chỉ lưu khi bấm
+  **Lưu gán chức năng** ở đầu trang (khác với cột trái, lưu ngay trong hộp thoại); nút bị chặn nếu bản nháp
+  còn lỗi (model/nhà cung cấp không tồn tại hoặc sai năng lực). Binding trỏ vào nhà cung cấp đang tắt hoặc
+  thiếu key vẫn được giữ nguyên, chỉ hiện badge "tạm không dùng được" và không nhận yêu cầu mới.
+- Bảng giá USD theo model (đổi được, dùng để dự tính phí và quyết toán) nằm ở tab **Thanh toán & tỉ giá →
+  mục 5** (`ProviderRatesEditor`, xem `docs/BILLING.md`), không nằm trong tab Mô hình.
+
+### Cấu hình qua curl (tự động hoá)
 
 `GET/PATCH /api/admin/settings/routing` (`backend/app/api/admin/settings.py`) đọc/ghi toàn bộ cấu hình
 provider + function_bindings, yêu cầu admin đăng nhập (Bearer token của user có quyền admin).
@@ -249,6 +272,54 @@ dụng cho từng nhóm chức năng — dùng để hiển thị dropdown chọ
   `usage_events.model`, không phải model mà `TtsService` thực tế đã dùng (cascade mock → slot → edge-tts
   có thể rơi vào một nhánh khác). Số tiền vẫn bị chặn trên bởi giá ước tính nên không bị tính quá, nhưng
   tên model trên dòng usage có thể sai — hạn chế đã biết, chưa khắc phục.
+
+## 5. Nâng cấp từ bản TokenFree
+
+Checklist cho người vận hành nâng cấp một bản cài đã chạy TokenFree lên bản gọi thẳng provider (không có
+đường tương thích ngược tự động — admin phải cấu hình lại provider và gán chức năng sau khi deploy).
+
+- **Kênh `tokenfree` bị xoá ở lần khởi động đầu tiên** (mục "Seed provider từ `.env`" ở trên), cùng với
+  mọi provider có base URL chứa `tokenfree.com`. Cấu hình `logical_models` / `default_models` kiểu cũ
+  không còn được đọc.
+- **Tác vụ còn đang chạy lúc deploy** (video đang chờ poll qua kênh TokenFree, hoặc task cũ có
+  `submit_mode == "kie"`) sẽ thất bại với thông báo "Kênh cũ không còn, hãy tạo lại" và được **hoàn tiền
+  tạm giữ** theo luồng quyết toán thường (không mất tiền, nhưng tác vụ phải tạo lại). Nên deploy lúc ít
+  tác vụ, hoặc chờ hàng đợi video trống.
+- **Cập nhật env trước lần khởi động đầu**: `OPENAI_API_KEY` (+ `OPENAI_BASE_URL`, mặc định
+  `https://api.openai.com/v1`), `ARK_API_KEY` (+ `ARK_BASE_URL`, mặc định mới
+  `https://ark.ap-southeast.bytepluses.com/api/v3`), `VOLC_TTS_*` nếu dùng Seed Speech. Provider chỉ được
+  **seed từ env đúng một lần** — khi DB chưa có provider nào (cờ `app_settings.config_json["providers_seeded"]`,
+  xem mục "Seed provider từ `.env`"); sau đó sửa env không còn tác dụng, mọi thay đổi làm ở admin →
+  Mô hình. Env còn trỏ `tokenfree.com` sẽ không được seed, key giữ chỗ cũng bị bỏ qua.
+- **`VOLC_TTS_URL` có giá trị mặc định mới**: BytePlus quốc tế
+  (`https://voice.ap-southeast-1.bytepluses.com/api/v3/tts/unidirectional`). Bộ key openspeech Trung Quốc
+  (Volcengine) phải đặt tường minh `VOLC_TTS_URL=https://openspeech.bytedance.com/api/v3/tts/unidirectional`
+  (trong env trước lần khởi động đầu, hoặc làm Base URL của provider Seed Speech ở admin), nếu không request
+  sẽ đi nhầm sang endpoint quốc tế và thất bại.
+- **Key đã lưu không được dùng lại khi đổi host của Base URL** (đổi scheme/host/port): xem mục "Cấu hình
+  qua trang quản trị" và "Cấu hình qua curl" ở trên — backend luôn yêu cầu nhập lại API key trong trường
+  hợp này, kể cả qua API.
+- **`GET /api/health` đổi shape của `models`**: từ chuỗi LLM/ảnh/video đơn sang
+  `{slot: {status, model}}` theo 4 năng lực (`text|image|video|audio`), `status` là `ready` / `unavailable`
+  / `not_configured` / `unknown`. Script/monitoring nào đọc field cũ phải cập nhật.
+- **Giới hạn tính phí đã biết (kế thừa từ Plan B, chưa khắc phục)**:
+  - `gpt-image` chỉ tính phí theo token đầu ra (`per_m_output_tokens`); token đầu vào (ảnh tham chiếu,
+    prompt dài) không được tính vào chi phí.
+  - Seedream trả nhiều ảnh trong một lần gọi: tiền tạm giữ ước tính lúc tạo tác vụ không biết trước số
+    ảnh, nên phần chênh giữa số ảnh thật và ước tính được quyết toán qua nhánh "vượt mức tạm giữ" (xem
+    ngay dưới), không có bước ước tính riêng cho nhiều ảnh.
+  - Số tiền quyết toán có thể **vượt mức tạm giữ** (không có trần): `settlement.py::settle_task` trừ
+    thẳng phần vượt từ số dư khi usage thật cao hơn ước tính lúc freeze — hành vi đã có từ trước, không
+    phải lỗi mới.
+  - Nhãn model trên dòng usage TTS phim ngắn có thể không khớp model thực chạy (xem mục 4 ở trên,
+    `_drama_tts_model()`).
+  - Bảng giá `provider_rates` là **cache trong tiến trình** (`get_provider_rates()`/`set_provider_rates()`
+    ở `services/billing/provider_rates.py`), không có pub/sub giữa các process — chạy nhiều worker
+    uvicorn thì admin sửa giá ở worker này sẽ không tới được worker khác cho tới khi restart. Giữ
+    `--workers 1`.
+- **Đối chiếu dùng lượng upstream (upstream-usage reconciliation) và đồng bộ tài chính (finance sync) kiểu
+  TokenFree đã bị gỡ bỏ** — không còn job định kỳ gọi API "dùng lượng" của TokenFree hay endpoint đồng bộ
+  tài chính cũ; số liệu tài chính giờ tính hoàn toàn từ `usage_events` nội bộ theo `provider_rates`.
 - **Mock khi chưa có key**: đặt `ARK_MOCK=true`, hoặc không cấu hình bất kỳ provider nào có `api_key` —
   `MediaGateway.mock` sẽ tự phát hiện (`get_routing_snapshot().channels` không có channel nào
   `enabled` + có key) và chuyển toàn bộ ảnh/video/TTS sang sinh dữ liệu giả cục bộ (`static/mock/...`),
