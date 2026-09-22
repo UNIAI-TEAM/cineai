@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from app.config import Settings, get_settings
@@ -29,6 +30,23 @@ def _usd_cny(settings: Settings) -> float:
     except (TypeError, ValueError):
         rate = DEFAULT_USD_CNY
     return rate if rate > 0 else DEFAULT_USD_CNY
+
+
+def usd_cny_rate(settings: Settings | None = None) -> float:
+    """Tỉ giá 1 USD → CNY (BILLING_USD_CNY) dùng quy đổi bảng giá provider sang fen."""
+    return _usd_cny(settings or get_settings())
+
+
+def usd_to_fen(usd: float, settings: Settings | Any | None = None) -> int:
+    """USD → fen: usd × BILLING_USD_CNY × 100, làm tròn lên (khử nhiễu float); ≤ 0 → 0, > 0 tối thiểu 1."""
+    try:
+        value = float(usd)
+    except (TypeError, ValueError):
+        return 0
+    if not math.isfinite(value) or value <= 0:
+        return 0
+    rate = _usd_cny(settings or get_settings())
+    return max(1, int(math.ceil(round(value * rate * 100, 6))))
 
 
 def display_currency(settings: Settings | None = None) -> str:

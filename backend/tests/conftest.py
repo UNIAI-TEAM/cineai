@@ -54,6 +54,14 @@ async def _ensure_test_database(test_url: str, test_name: str) -> None:
 
 
 @pytest.fixture(autouse=True)
+def reset_provider_rates() -> None:
+    """Mỗi test bắt đầu với bảng provider_rates mặc định (load_model_settings_cache ghi đè cache toàn process)."""
+    from app.services.billing.provider_rates import set_provider_rates
+
+    set_provider_rates(None)
+
+
+@pytest.fixture(autouse=True)
 def skip_tokenfree_pricing_network(monkeypatch: pytest.MonkeyPatch) -> None:
     """单测不打 TokenFree 公开价目，避免预估被外网拖慢或改数。"""
 
