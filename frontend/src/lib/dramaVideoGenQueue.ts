@@ -2,6 +2,8 @@
 import { dramaApi, type DramaAsset } from '../api/drama'
 import type { VideoGenerationOptions } from './dramaVideoGenerationOptions'
 import { syncAssetVideoJobToUnified } from './dramaGenQueue'
+import { reconcileCatalogModel } from './mediaModelChoice'
+import { peekMediaModelsCatalog } from './mediaModelsCatalogStore'
 import { errorCodeFields, type ErrorCodeFields } from './apiError'
 import { getActiveLocale } from '../i18n/detect'
 import { messages } from '../i18n/messages'
@@ -224,7 +226,8 @@ function startJob(job: InternalJob) {
           project_id: job.projectId,
           asset_id: job.assetId,
           prompt: job.prompt,
-          model_id: job.options.model_id,
+          // Model đã bị admin gỡ → bỏ trống (Tự động); catalog chưa tải thì gửi nguyên giá trị
+          model_id: reconcileCatalogModel(job.options.model_id, peekMediaModelsCatalog('drama')?.video_models ?? null) || undefined,
           aspect_ratio: job.options.aspect_ratio,
           resolution: job.options.resolution,
           duration_sec: job.options.duration_sec,

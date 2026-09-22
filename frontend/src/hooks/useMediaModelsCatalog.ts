@@ -1,29 +1,17 @@
-/** 拉取并缓存前台 TokenFree 图/视频模型目录。 */
+/** Hook lấy danh mục model ảnh/video phía user theo scope sản phẩm (kepu / drama / tools). */
 import { useEffect, useState } from 'react'
-import { api, type MediaModelOption, type MediaModelsCatalog } from '../api'
+import type { MediaModelOption, MediaModelScope, MediaModelsCatalog } from '../api'
 import { getActiveLocale } from '../i18n/detect'
 import { messages } from '../i18n/messages'
+import { loadMediaModelsCatalog, peekMediaModelsCatalog } from '../lib/mediaModelsCatalogStore'
 
-let cached: MediaModelsCatalog | null = null
-let inflight: Promise<MediaModelsCatalog> | null = null
-
-function loadCatalog(): Promise<MediaModelsCatalog> {
-  if (cached) return Promise.resolve(cached)
-  if (!inflight) {
-    inflight = api.mediaModels().then((cat) => {
-      cached = cat
-      return cat
-    })
-  }
-  return inflight
-}
-
-export function useMediaModelsCatalog() {
-  const [catalog, setCatalog] = useState<MediaModelsCatalog | null>(cached)
+/** Catalog của scope; null khi chưa về hoặc tải lỗi */
+export function useMediaModelsCatalog(scope: MediaModelScope) {
+  const [catalog, setCatalog] = useState<MediaModelsCatalog | null>(() => peekMediaModelsCatalog(scope))
 
   useEffect(() => {
     let cancelled = false
-    loadCatalog()
+    loadMediaModelsCatalog(scope)
       .then((cat) => {
         if (!cancelled) setCatalog(cat)
       })
@@ -33,22 +21,22 @@ export function useMediaModelsCatalog() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [scope])
 
   return catalog
 }
 
-/** 当前目录下的视频模型；目录未到时为空。 */
+/** Model video trong catalog hiện tại; catalog chưa về thì rỗng. */
 export function catalogVideoModels(catalog: MediaModelsCatalog | null): MediaModelOption[] {
   return catalog?.video_models ?? []
 }
 
-/** 当前目录下的图片模型；目录未到时为空。 */
+/** Model ảnh trong catalog hiện tại; catalog chưa về thì rỗng. */
 export function catalogImageModels(catalog: MediaModelsCatalog | null): MediaModelOption[] {
   return catalog?.image_models ?? []
 }
 
-/** 用目录 label 展示模型名，找不到则显示 id。 */
+/** Hiển thị tên model theo label trong catalog, không tìm thấy thì hiện id; id rỗng thì hiện fallback (bên gọi truyền chữ "Tự động"). */
 export function catalogModelLabel(
   modelId: string | undefined | null,
   models: Array<{ id: string; label: string }>,

@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, defaultsFromTemplate, resolveVoiceId } from '../../api'
-import type { MediaModelOption, MediaModelsCatalog, PipelineMode, Project, Template, VoicePreset } from '../../api'
+import type { MediaModelsCatalog, PipelineMode, Project, Template, VoicePreset } from '../../api'
 import { ApiError } from '../../lib/apiError'
 import AppShell from '../../components/layout/AppShell'
 import Stepper from '../../components/ui/Stepper'
 import ComingSoon from '../../components/ui/ComingSoon'
 import { IconChevronLeft, IconPlay } from '../../components/ui/Icons'
 import BillingErrorNotice from '../../components/billing/BillingErrorNotice'
+import MediaModelGrid from '../../components/studio/MediaModelGrid'
 import { handleBillingError } from '../../lib/billingError'
+import { reconcileCatalogModel } from '../../lib/mediaModelChoice'
 import { kepuStepIndex, kepuSteps } from '../../lib/status'
 import { localizedLabel, templateName } from '../../lib/templateI18n'
 import { useI18n } from '../../i18n'
@@ -73,12 +75,8 @@ export default function StyleConfigPage() {
     api.templates().then(setTemplates)
     api.voices().then(setVoices)
     api
-      .mediaModels()
-      .then((cat) => {
-        setMediaCatalog(cat)
-        setImageModel((prev) => prev || cat.defaults.image_model)
-        setVideoModel((prev) => prev || cat.defaults.video_model)
-      })
+      .mediaModels('kepu')
+      .then(setMediaCatalog)
       .catch(() => setMediaCatalog(null))
     api
       .getProject(projectId)
@@ -95,6 +93,13 @@ export default function StyleConfigPage() {
       .catch((err) => setError(err instanceof Error ? err.message : t('common.loadFailed')))
     // eslint-disable-next-line react-hooks/exhaustive-deps -- t 仅用于兜底文案，切换语言不应重新拉取并覆盖用户编辑
   }, [nav, projectId])
+
+  useEffect(() => {
+    // Model đã lưu bị admin gỡ → Tự động (''), tránh lưu dự án với id cũ
+    if (!mediaCatalog) return
+    setImageModel((prev) => reconcileCatalogModel(prev, mediaCatalog.image_models))
+    setVideoModel((prev) => reconcileCatalogModel(prev, mediaCatalog.video_models))
+  }, [mediaCatalog, project])
 
   useEffect(() => {
     return () => {
@@ -210,8 +215,8 @@ export default function StyleConfigPage() {
         voice_id: voiceId,
         pipeline_mode: pipelineMode,
         output_ratio: ratio,
-        image_model: imageModel,
-        video_model: videoModel,
+        image_model: reconcileCatalogModel(imageModel, mediaCatalog?.image_models ?? null),
+        video_model: reconcileCatalogModel(videoModel, mediaCatalog?.video_models ?? null),
       })
       const started = await api.generate(project.id)
       nav(`/studio/${started.id}`)
@@ -432,55 +437,31 @@ export default function StyleConfigPage() {
           </div>
 
           {mediaCatalog ? (
-            <div className="pf-style-block">
-              <h3>{t('studioStyle.imageModel')}</h3>
-              <p className="pf-muted" style={{ fontSize: '0.78rem', margin: '0 0 0.65rem' }}>
-                {t('studioStyle.imageModelHint')}
-              </p>
-              <div className="pf-model-grid">
-                {mediaCatalog.image_models.map((m: MediaModelOption) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    className={imageModel === m.id ? 'pf-model-opt selected' : 'pf-model-opt'}
-                    onClick={() => setImageModel(m.id)}
-                  >
-                    <div className="pf-model-opt-title">
-                      <span>{m.label}</span>
-                      {m.recommended ? <span className="pf-model-badge">{t('studioStyle.recommended')}</span> : null}
-                    </div>
-                    <div className="pf-model-opt-desc">{m.description}</div>
-                    <div className="pf-model-opt-provider">TokenFree</div>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <MediaModelGrid
+              title={t('studioStyle.imageModel')}
+              hint={t('studioStyle.imageModelHint')}
+              emptyText={t('studioStyle.noImageModels')}
+              recommendedLabel={t('studioStyle.recommended')}
+              autoLabel={t('studioStyle.modelAuto')}
+              autoDesc={t('studioStyle.modelAutoDesc')}
+              models={mediaCatalog.image_models}
+              value={imageModel}
+              onChange={setImageModel}
+            />
           ) : null}
 
           {mediaCatalog && pipelineMode === 'full' ? (
-            <div className="pf-style-block">
-              <h3>{t('studioStyle.videoModel')}</h3>
-              <p className="pf-muted" style={{ fontSize: '0.78rem', margin: '0 0 0.65rem' }}>
-                {t('studioStyle.videoModelHint')}
-              </p>
-              <div className="pf-model-grid">
-                {mediaCatalog.video_models.map((m: MediaModelOption) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    className={videoModel === m.id ? 'pf-model-opt selected' : 'pf-model-opt'}
-                    onClick={() => setVideoModel(m.id)}
-                  >
-                    <div className="pf-model-opt-title">
-                      <span>{m.label}</span>
-                      {m.recommended ? <span className="pf-model-badge">{t('studioStyle.recommended')}</span> : null}
-                    </div>
-                    <div className="pf-model-opt-desc">{m.description}</div>
-                    <div className="pf-model-opt-provider">TokenFree</div>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <MediaModelGrid
+              title={t('studioStyle.videoModel')}
+              hint={t('studioStyle.videoModelHint')}
+              emptyText={t('studioStyle.noVideoModels')}
+              recommendedLabel={t('studioStyle.recommended')}
+              autoLabel={t('studioStyle.modelAuto')}
+              autoDesc={t('studioStyle.modelAutoDesc')}
+              models={mediaCatalog.video_models}
+              value={videoModel}
+              onChange={setVideoModel}
+            />
           ) : null}
 
           <div className="pf-style-block">

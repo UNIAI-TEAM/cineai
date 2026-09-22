@@ -154,6 +154,7 @@ export const viDramaEpisode = {
     header: {
       videoStyle: 'Phong cách video',
       videoModel: 'Mô hình video',
+      modelAuto: 'Tự động',
       subtitleModel: 'Phụ đề do mô hình',
       subtitlePost: 'Phụ đề hậu kỳ',
       introOn: 'Giới thiệu nhân vật',
@@ -165,7 +166,7 @@ export const viDramaEpisode = {
       parallel: 'Tạo song song',
       linkTitle: 'Nối các cảnh bằng khung hình cuối',
       seedanceRules: 'Tham số và quy tắc Seedance',
-      noVideoModels: 'Hãy bật mô hình video trong trang quản trị, mục “Mô hình”',
+      noVideoModels: 'Chưa có mô hình nào được cấu hình — hãy liên hệ với chúng tôi. Bạn vẫn bấm tạo được, hệ thống sẽ tự chọn mô hình.',
       linkPanel: 'Nối cảnh',
       linkOption: 'Nối bằng khung hình cuối của cảnh trước',
       linkOptionHint:

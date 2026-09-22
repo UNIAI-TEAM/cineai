@@ -27,6 +27,7 @@ import {
   catalogVideoModels,
   useMediaModelsCatalog,
 } from '../../hooks/useMediaModelsCatalog'
+import { ModelAutoOption } from '../../components/drama/ModelAutoOption'
 
 import { DramaProjectOutputSettings } from './DramaProjectOutputSettings'
 import { useI18n } from '../../i18n/context'
@@ -78,7 +79,7 @@ export function EpisodeEditHeaderControls({
   const [open, setOpen] = useState<OpenPanel>(null)
   const [rulesOpen, setRulesOpen] = useState(false)
   const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null)
-  const catalog = useMediaModelsCatalog()
+  const catalog = useMediaModelsCatalog('drama')
   const videoModels = catalogVideoModels(catalog)
   useLayoutEffect(() => {
     if (!open || !rootRef.current) {
@@ -131,7 +132,7 @@ export function EpisodeEditHeaderControls({
     e.stopPropagation()
   }
   const styleLabel = getImageStyleLabel(styleId) || t('dramaEpisode.header.videoStyle')
-  const modelLabel = catalogModelLabel(modelId, videoModels, t('dramaEpisode.header.videoModel'))
+  const modelLabel = catalogModelLabel(modelId, videoModels, t('dramaEpisode.header.modelAuto'))
   const subtitleLabel = subtitleMode === 'model' ? t('dramaEpisode.header.subtitleModel') : t('dramaEpisode.header.subtitlePost')
   const subtitleUsesModel = subtitleModeUsesModelOutput(subtitleMode)
   const introLabel = characterIntroMode === 'model' ? t('dramaEpisode.header.introOn') : t('dramaEpisode.header.introOff')
@@ -278,6 +279,17 @@ export function EpisodeEditHeaderControls({
                   <div className="fc-gen-model-list">
                     {videoModels.length === 0 ? (
                       <p className="fc-gen-model-empty">{t('dramaEpisode.header.noVideoModels')}</p>
+                    ) : null}
+                    {videoModels.length > 0 ? (
+                      <ModelAutoOption
+                        selected={!modelId}
+                        label={t('dramaEpisode.header.modelAuto')}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onSelect={() => {
+                          onModelChange('')
+                          setOpen(null)
+                        }}
+                      />
                     ) : null}
                     {videoModels.map((opt) => (
                       <button

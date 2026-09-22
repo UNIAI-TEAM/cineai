@@ -53,6 +53,7 @@ import { DramaGenTaskDetail } from '../../components/drama/DramaGenTaskDetail'
 import { CircleAlert } from 'lucide-react'
 import { useDramaImageGenQueue } from '../../hooks/useDramaImageGenQueue'
 import { useMediaModelsCatalog } from '../../hooks/useMediaModelsCatalog'
+import { reconcileCatalogModel } from '../../lib/mediaModelChoice'
 import { enqueueDramaImageGen } from '../../lib/dramaImageGenQueue'
 import { formatDramaGenError } from '../../lib/dramaGenError'
 import { defaultOptionsForAssetKind } from '../../lib/dramaGenerationOptions'
@@ -156,7 +157,7 @@ function EpisodeEditInner() {
   const [editing, setEditing] = useState(false)
   const [videoStyleId, setVideoStyleId] = useState<ImageStyleId | ''>('')
   const [modelId, setModelId] = useState('')
-  const mediaCatalog = useMediaModelsCatalog()
+  const mediaCatalog = useMediaModelsCatalog('drama')
   const [aspectRatio, setAspectRatio] = useState<(typeof RATIO_OPTIONS)[number]>('9:16')
   // subtitleMode 本集字幕方式：模型自出 / 后期拼接（默认后期）
   const [subtitleMode, setSubtitleMode] = useState<DramaSubtitleMode>('post')
@@ -199,11 +200,9 @@ function EpisodeEditInner() {
   const episodeParamsRef = useRef<Record<string, unknown>>({})
 
   useEffect(() => {
-    // 目录到达后，把旧 Kie/方舟 id 换成后台默认视频模型
+    // Catalog về: model đã bị admin gỡ → Tự động (''); không ghim model mặc định
     if (!mediaCatalog) return
-    const ids = mediaCatalog.video_models.map((m) => m.id)
-    if (!ids.length) return
-    setModelId((prev) => (ids.includes(prev) ? prev : mediaCatalog.defaults.video_model || ids[0]))
+    setModelId((prev) => reconcileCatalogModel(prev, mediaCatalog.video_models))
   }, [mediaCatalog])
 
   const selected = fragments[selectedIndex] || null
@@ -942,7 +941,7 @@ function EpisodeEditInner() {
       if (!frag?.id) {
         throw new Error(t('dramaEpisode.page.fragmentMissingAfterSave'))
       }
-      await dramaApi.generateEpisode(eid, [frag.id], modelId)
+      await dramaApi.generateEpisode(eid, [frag.id], reconcileCatalogModel(modelId, mediaCatalog?.video_models ?? null))
       // 乐观写入排队态，避免旧 video 把状态盖成已完成
       setFragments((prev) =>
         prev.map((f) =>
@@ -1101,7 +1100,7 @@ function EpisodeEditInner() {
         setBusy(false)
         return
       }
-      const genResult = await dramaApi.generateEpisode(eid, ids, modelId)
+      const genResult = await dramaApi.generateEpisode(eid, ids, reconcileCatalogModel(modelId, mediaCatalog?.video_models ?? null))
       const queuedIds =
         Array.isArray(genResult.fragment_ids) && genResult.fragment_ids.length > 0
           ? genResult.fragment_ids

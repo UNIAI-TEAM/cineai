@@ -189,6 +189,9 @@ export type MediaModelOption = {
   recommended?: boolean
 }
 
+/** Scope sản phẩm của catalog model: video kiến thức / phim ngắn / công cụ */
+export type MediaModelScope = 'kepu' | 'drama' | 'tools'
+
 export type MediaModelsCatalog = {
   image_models: MediaModelOption[]
   video_models: MediaModelOption[]
@@ -450,8 +453,8 @@ export const api = {
       body: JSON.stringify(body),
     })
   },
-  mediaModels() {
-    return request<MediaModelsCatalog>('/api/media-models')
+  mediaModels(scope?: MediaModelScope) {
+    return request<MediaModelsCatalog>(scope ? `/api/media-models?scope=${scope}` : '/api/media-models')
   },
   async uploadCover(id: number, file: File) {
     const token = localStorage.getItem('token')

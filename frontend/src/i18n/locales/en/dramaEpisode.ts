@@ -155,6 +155,7 @@ export const enDramaEpisode = {
     header: {
       videoStyle: 'Video style',
       videoModel: 'Video model',
+      modelAuto: 'Auto',
       subtitleModel: 'Model subtitles',
       subtitlePost: 'Post subtitles',
       introOn: 'Character intros',
@@ -166,7 +167,7 @@ export const enDramaEpisode = {
       parallel: 'Parallel',
       linkTitle: 'Link shots by last frame',
       seedanceRules: 'Seedance parameters and rules',
-      noVideoModels: 'Enable a video model in Admin → Models first',
+      noVideoModels: 'No video models are set up yet. Contact the site admin. You can still generate; a model will be picked automatically.',
       linkPanel: 'Shot linking',
       linkOption: 'Continue from the previous shot’s last frame',
       linkOptionHint:

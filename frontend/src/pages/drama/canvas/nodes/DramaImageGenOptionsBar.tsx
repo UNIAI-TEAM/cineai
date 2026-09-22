@@ -20,6 +20,8 @@ import {
   catalogModelLabel,
   useMediaModelsCatalog,
 } from '../../../../hooks/useMediaModelsCatalog'
+import { ModelAutoOption } from '../../../../components/drama/ModelAutoOption'
+import { modelProviderLabel, reconcileCatalogModel } from '../../../../lib/mediaModelChoice'
 import { useI18n } from '../../../../i18n/context'
 import './dramaImageGenOptions.css'
 
@@ -43,17 +45,14 @@ export function DramaImageGenOptionsBar({
   const { t } = useI18n()
   const rootRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState<OpenPanel>(null)
-  const catalog = useMediaModelsCatalog()
+  const catalog = useMediaModelsCatalog('drama')
   const imageModels = catalogImageModels(catalog)
 
   useEffect(() => {
-    // 目录到达后，把旧 Kie/方舟 id 换成后台默认图片模型
+    // Catalog về: model đã bị admin gỡ → Tự động (''); không ghim model mặc định
     if (!catalog || disabled) return
-    const ids = imageModels.map((m) => m.id)
-    if (!ids.length) return
-    if (value.model_id && ids.includes(value.model_id)) return
-    const next = catalog.defaults.image_model || ids[0]
-    if (next && next !== value.model_id) onChange({ ...value, model_id: next })
+    const next = reconcileCatalogModel(value.model_id, imageModels)
+    if (next !== (value.model_id || '')) onChange({ ...value, model_id: next })
   }, [catalog, disabled])
 
   useEffect(() => {
@@ -74,7 +73,7 @@ export function DramaImageGenOptionsBar({
   }
 
   const styleLabel = getImageStyleLabel(value.image_style_id) || t('dramaCanvas.genOptions.style')
-  const modelLabel = catalogModelLabel(value.model_id, imageModels, t('dramaCanvas.options.imageModel'))
+  const modelLabel = catalogModelLabel(value.model_id, imageModels, t('dramaCanvas.genOptions.modelAuto'))
   const outputLabel = formatOutputSettingsLabel(value.aspect_ratio, value.resolution)
 
   return (
@@ -145,6 +144,17 @@ export function DramaImageGenOptionsBar({
             {imageModels.length === 0 ? (
               <p className="fc-gen-model-empty">{t('dramaCanvas.genOptions.noImageModels')}</p>
             ) : null}
+            {imageModels.length > 0 ? (
+              <ModelAutoOption
+                selected={!value.model_id}
+                label={t('dramaCanvas.genOptions.modelAuto')}
+                desc={t('dramaCanvas.genOptions.modelAutoDesc')}
+                onSelect={() => {
+                  onChange({ ...value, model_id: '' })
+                  setOpen(null)
+                }}
+              />
+            ) : null}
             {imageModels.map((m) => (
               <button
                 key={m.id}
@@ -156,7 +166,7 @@ export function DramaImageGenOptionsBar({
                 }}
               >
                 <strong>{m.label}</strong>
-                <span>{m.description || 'TokenFree'}</span>
+                <span>{modelProviderLabel(m)}</span>
               </button>
             ))}
           </div>

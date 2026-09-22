@@ -2,6 +2,8 @@
 import { dramaApi, type DramaAsset } from '../api/drama'
 import type { ImageGenerationOptions } from './dramaGenerationOptions'
 import { syncImageJobToUnified } from './dramaGenQueue'
+import { reconcileCatalogModel } from './mediaModelChoice'
+import { peekMediaModelsCatalog } from './mediaModelsCatalogStore'
 import { errorCodeFields, type ErrorCodeFields } from './apiError'
 import { getActiveLocale } from '../i18n/detect'
 import { messages } from '../i18n/messages'
@@ -317,7 +319,8 @@ async function submitJob(job: InternalJob) {
         name: job.assetName || undefined,
         asset_type_kind: job.assetType,
         image_style_id: job.options.image_style_id,
-        model_id: job.options.model_id,
+        // Model đã bị admin gỡ → bỏ trống (Tự động); catalog chưa tải thì gửi nguyên giá trị
+        model_id: reconcileCatalogModel(job.options.model_id, peekMediaModelsCatalog('drama')?.image_models ?? null) || undefined,
         aspect_ratio: job.options.aspect_ratio,
         resolution: job.options.resolution,
       })
