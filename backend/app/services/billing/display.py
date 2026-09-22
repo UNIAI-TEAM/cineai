@@ -38,6 +38,9 @@ def resolve_billing_basis(*, estimated: bool, raw_usage_json: str | None = None)
                 raw = parsed
         except json.JSONDecodeError:
             raw = None
+    if isinstance(raw, dict) and raw.get("llm_calls"):
+        # 由 _captured_llm_usage 汇总：usage.cost_fen 是本地 provider_rates × token 算出，非上游直接报价
+        return "upstream_usage"
     usage = usage_block(raw)
     if isinstance(usage, dict):
         if parse_upstream_cost_fen({"usage": usage}) is not None:

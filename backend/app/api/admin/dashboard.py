@@ -9,12 +9,9 @@ from app.schemas import (
     AdminDailyUsageOut,
     AdminStatsOut,
     AdminTopUserOut,
-    AdminUpstreamUsageOut,
-    AdminUpstreamUsageSyncOut,
     AdminUsageBucketOut,
 )
 from app.services.admin.stats import build_admin_dashboard_stats
-from app.services.admin.upstream_usage import build_upstream_usage_compare, sync_upstream_usage
 
 router = APIRouter()
 
@@ -77,29 +74,3 @@ async def admin_stats(
         daily_usage=[AdminDailyUsageOut(**x) for x in raw["daily_usage"]],
         top_users_by_charge=[AdminTopUserOut(**x) for x in raw["top_users_by_charge"]],
     )
-
-
-@router.get("/stats/upstream-usage", response_model=AdminUpstreamUsageOut)
-async def admin_upstream_usage(
-    days: int = Query(30, ge=1, le=90),
-    _admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db),
-) -> AdminUpstreamUsageOut:
-    """近 N 日上游官方用量与本地成本对照。"""
-    raw = await build_upstream_usage_compare(db, days=days)
-    return AdminUpstreamUsageOut(**raw)
-
-
-@router.post("/stats/upstream-usage/sync", response_model=AdminUpstreamUsageSyncOut)
-async def admin_upstream_usage_sync(
-    days: int = Query(30, ge=1, le=90),
-    force: bool = Query(False),
-    _admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db),
-) -> AdminUpstreamUsageSyncOut:
-    """手动刷新官方用量快照。"""
-    try:
-        raw = await sync_upstream_usage(db, days=days, force=force)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return AdminUpstreamUsageSyncOut(**raw)

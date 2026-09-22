@@ -10,15 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.models import UsageEvent
 from app.services.billing.context import drain_llm_usage, get_current_task_run_id
-from app.services.billing.pricing import billing_key_to_capability, charge_fen_for_tokens, charge_fen_for_usage
-from app.services.billing.provider_rates import provider_cost_fen
+from app.services.billing.pricing import billing_key_to_capability, charge_fen_for_usage
 from app.services.billing.rate_quotes import estimated_line_model
 
 
 def _captured_llm_usage(raw: dict | None, settings: Any) -> tuple[str, int, int, dict] | None:
     """Gộp các lần gọi LLM thật đã ghi trong scope → (model chính, prompt, completion, raw có cost_fen); không có → None.
 
-    Mỗi lần gọi tính theo provider_rates của model route thực chạy, không có giá → giá token dự phòng llm_chat.
+    Mỗi lần gọi tính theo provider_rates của model route thực chạy (có usage thật) hoặc theo ước tính
+    mỗi lần gọi `billing_est_llm_tokens` (upstream không trả usage) — một scope trộn hai loại vẫn cộng đủ.
+    `llm_calls` đánh dấu dòng này là usage thật gộp (không phải upstream báo thẳng chi phí) để
+    `resolve_billing_basis` không nhầm sang "实测(费用)".
     """
     calls = drain_llm_usage()
     if not calls:
@@ -27,8 +29,13 @@ def _captured_llm_usage(raw: dict | None, settings: Any) -> tuple[str, int, int,
     completion = sum(c["completion_tokens"] for c in calls)
     total = sum(c["total_tokens"] for c in calls)
     cost = sum(
-        provider_cost_fen(c["model"], c, settings=settings)
-        or charge_fen_for_tokens(c["total_tokens"], "llm_chat", settings=settings)[0]
+        charge_fen_for_usage(
+            c["total_tokens"] or settings.billing_est_llm_tokens,
+            "llm_chat",
+            raw_usage=c,
+            settings=settings,
+            model=c["model"],
+        )[0]
         for c in calls
     )
     model = max(calls, key=lambda c: c["total_tokens"])["model"]

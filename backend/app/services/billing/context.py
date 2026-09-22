@@ -32,15 +32,19 @@ def _tokens(usage: dict[str, Any], *keys: str) -> int:
 
 
 def note_llm_usage(model: str, usage: dict[str, Any] | None) -> None:
-    """Ghi usage thật của một lần gọi LLM vào scope tính tiền hiện hành (ngoài scope / không usage → bỏ qua)."""
+    """Ghi một lần gọi LLM vào scope tính tiền hiện hành (ngoài scope → bỏ qua).
+
+    Ghi cả khi upstream không trả usage (usage=None/rỗng, total_tokens=0) để `_captured_llm_usage`
+    tính đủ phí lần gọi đó bằng ước tính mỗi lần gọi, thay vì âm thầm bỏ sót.
+    """
     bucket = _llm_usage.get()
-    if bucket is None or not isinstance(usage, dict):
+    if bucket is None:
         return
-    prompt = _tokens(usage, "prompt_tokens", "input_tokens")
-    completion = _tokens(usage, "completion_tokens", "output_tokens")
-    total = _tokens(usage, "total_tokens") or prompt + completion
-    if total <= 0:
-        return
+    prompt = completion = total = 0
+    if isinstance(usage, dict):
+        prompt = _tokens(usage, "prompt_tokens", "input_tokens")
+        completion = _tokens(usage, "completion_tokens", "output_tokens")
+        total = _tokens(usage, "total_tokens") or prompt + completion
     bucket.append({"model": model or "", "prompt_tokens": prompt, "completion_tokens": completion,
                    "total_tokens": total})
 

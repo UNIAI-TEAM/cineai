@@ -1,6 +1,7 @@
 """H-1: usage thật của chat/completions (token + model route thực chạy) được ghi trong billing_scope và tính tiền."""
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import httpx
@@ -67,8 +68,9 @@ async def test_two_calls_summed(db_session: AsyncSession, fake_llm, priced_routi
 async def test_no_usage_falls_back_to_estimate(db_session: AsyncSession, fake_llm, priced_routing) -> None:
     fake_llm.append(None)
     ev = await _scoped_line(db_session, 1)
-    # không có usage → 80 000 token ước tính × model đắt nhất của slot văn bản
-    assert ev.model == "gpt-5.6-sol" and ev.estimated is True and ev.charge_fen == 493
+    # Không có usage nhưng đã biết model thực đã gọi (gpt-5.6-terra) → tính theo giá model đó với
+    # 80 000 token ước tính mỗi lần gọi (không còn đoán sang model đắt nhất của slot)
+    assert ev.model == "gpt-5.6-terra" and ev.estimated is False and ev.charge_fen == 280
 
 
 async def test_calls_outside_scope_record_nothing(fake_llm) -> None:
@@ -78,3 +80,39 @@ async def test_calls_outside_scope_record_nothing(fake_llm) -> None:
     assert drain_llm_usage() == []
     async with billing_scope(1):
         assert drain_llm_usage() == []   # scope mới không kế thừa lần gọi trước đó
+
+
+async def test_mixed_scope_with_and_without_usage_bills_both(db_session: AsyncSession, fake_llm, priced_routing) -> None:
+    """Một scope có cả lần gọi trả usage thật lẫn lần không trả usage: cộng đủ phí của cả hai."""
+    fake_llm.extend([{"prompt_tokens": 1000, "completion_tokens": 500}, None])
+    ev = await _scoped_line(db_session, 2)
+    # 6 fen (usage thật) + 280 fen (không usage, ước tính 80 000 token theo giá gpt-5.6-terra)
+    assert ev.model == "gpt-5.6-terra" and ev.estimated is False
+    assert ev.total_tokens == 1500  # chỉ cộng token thật đo được; lần không usage không có token báo cáo
+    assert ev.cost_fen == ev.charge_fen == 6 + 280
+
+
+async def test_gather_child_task_writes_into_parent_scope(
+    db_session: AsyncSession, fake_llm, priced_routing
+) -> None:
+    """asyncio.gather sao chép context nhưng list usage là cùng một object: task con vẫn ghi vào scope cha."""
+    fake_llm.extend([{"prompt_tokens": 1000, "completion_tokens": 500}] * 2)
+    user = await make_user(db_session)
+    task = await make_task(db_session, user, domain="drama", task_type="episode_script")
+    async with billing_scope(task.id):
+        await asyncio.gather(
+            llm_client.chat_completions("s", "u"),
+            llm_client.chat_completions("s", "u"),
+        )
+        ev = await record_llm_chat_line(db_session, user_id=user.id, domain="drama")
+    assert ev.total_tokens == 3000 and ev.cost_fen == ev.charge_fen == 12 and ev.estimated is False
+
+
+async def test_closed_scope_undrained_calls_do_not_leak(fake_llm) -> None:
+    """Scope đóng mà không drain (không ghi dòng llm_chat) thì lần gọi bên trong không rò sang scope kế tiếp."""
+    fake_llm.append({"prompt_tokens": 1000, "completion_tokens": 500})
+    async with billing_scope(1):
+        await llm_client.chat_completions("s", "u")
+        # cố tình không gọi record_llm_chat_line / drain_llm_usage trước khi scope đóng
+    async with billing_scope(2):
+        assert drain_llm_usage() == []

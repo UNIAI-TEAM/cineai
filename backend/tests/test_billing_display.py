@@ -34,6 +34,13 @@ def test_resolve_billing_basis_upstream_cost():
     assert billing_basis_label("upstream_cost") == "实测(费用)"
 
 
+def test_resolve_billing_basis_captured_llm_line_is_upstream_usage_not_cost():
+    """Dòng llm_chat gộp từ _captured_llm_usage (đánh dấu llm_calls) mang usage.cost_fen local × token thật,
+    không phải upstream báo thẳng chi phí → phải hiện 实测(token), không phải 实测(费用)."""
+    raw = '{"model": "gpt-5.6-terra", "llm_calls": 2, "usage": {"total_tokens": 1500, "cost_fen": 6}}'
+    assert resolve_billing_basis(estimated=False, raw_usage_json=raw) == "upstream_usage"
+
+
 def test_resolve_billing_basis_unknown_without_usage():
     assert resolve_billing_basis(estimated=False, raw_usage_json=None) == "unknown"
     assert billing_basis_label("unknown") == "实测(未分类)"
