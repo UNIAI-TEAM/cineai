@@ -22,13 +22,14 @@ from app.errors import AppError
 from app.schemas_routing import ResolvedModelRoute
 from app.services import storage
 from app.services.ark_mock import mock_image_caption
+from app.services import kepu_text
 from app.services.function_router import (
     ModelNotAllowed,
+    allowed_bindings,
     is_model_allowed,
     resolve_function_candidates,
     route_for_channel,
 )
-from app.services.kepu_text import StoryboardResult
 from app.services.providers.ark_adapter import (
     resolve_seedance_i2v_image_role,
     seedance_duration,
@@ -45,14 +46,6 @@ MOCK_TASK_PREFIX = "mock-task-"
 DEFAULT_MOTION_PROMPT = "画面轻微动态，保持主体外形稳定"
 # Lỗi tạo video đáng thử lại ở tầng gen_and_wait_video (đổi kiểu prompt)
 RETRYABLE_VIDEO_ERRORS = ("summary_caption", "BodyFormat", "InvalidParameter", "poll timeout")
-
-
-def _adapter_cost_fen(adapter: Any, model: str, raw_usage: dict[str, Any] | None) -> int | None:
-    """Hỏi adapter chi phí ước tính (fen); adapter không hỗ trợ thì trả None."""
-    fn = getattr(adapter, "cost_fen", None)
-    if fn is None:
-        return None
-    return fn(model, raw_usage)
 
 
 @dataclass
@@ -258,7 +251,7 @@ class MediaGateway:
             prompt_tokens=out.prompt_tokens,
             completion_tokens=out.completion_tokens,
             raw_usage=merged or None,
-            upstream_cost_fen=_adapter_cost_fen(get_adapter(route.protocol), route.upstream_model, merged or None),
+            upstream_cost_fen=get_adapter(route.protocol).cost_fen(route.upstream_model, merged or None),
             channel_id=route.channel_id,
             model=route.upstream_model,
         )
@@ -503,16 +496,21 @@ class MediaGateway:
         )
 
     def _poll_route(self, task_id: str, channel_id: str | None) -> ResolvedModelRoute | None:
-        """Route để truy vấn tác vụ: ưu tiên kênh đã ghi nhớ, không có thì mượn slot video khoa học."""
+        """Route để truy vấn tác vụ: ưu tiên kênh đã ghi nhớ, không có thì dùng binding đầu của slot video.
+
+        Tuyệt đối không dùng `resolve_function_candidates` ở đây: hàm đó xáo trộn theo weight nên
+        hai lần poll cùng một tác vụ có thể rơi vào hai provider khác nhau (provider sai trả 404 →
+        tác vụ bị hiểu nhầm là hỏng). Binding đầu tiên admin gán là lựa chọn cố định.
+        """
         cid = (channel_id or self._task_channels.get(task_id) or "").strip()
         if cid:
             return route_for_channel(cid, "", "video")
-        logger.warning("poll không có channel_id task=%s, dùng slot video", task_id)
-        try:
-            cands = resolve_function_candidates("kepu.video")
-        except ModelNotAllowed:  # pragma: no cover - không truyền model nên không xảy ra
+        logger.warning("poll không có channel_id task=%s, dùng provider đầu của slot video", task_id)
+        bindings = allowed_bindings("kepu.video")
+        if not bindings:
             return None
-        return cands[0] if cands else None
+        first = bindings[0]
+        return route_for_channel(first.channel_id, first.model, "video")
 
     async def fetch_task_once(self, task_id: str, *, channel_id: str | None = None) -> TaskResult:
         """Truy vấn tác vụ video một lần theo đúng kênh đã tạo, không chờ vòng lặp."""
@@ -530,17 +528,28 @@ class MediaGateway:
         result.provider_task_id = result.provider_task_id or task_id
         result.channel_id = result.channel_id or route.channel_id
         if result.raw_usage:
-            result.upstream_cost_fen = _adapter_cost_fen(adapter, route.upstream_model, result.raw_usage)
+            result.upstream_cost_fen = adapter.cost_fen(route.upstream_model, result.raw_usage)
         return result
 
     async def poll_task(self, task_id: str, *, channel_id: str | None = None) -> TaskResult:
         """Lặp truy vấn tác vụ đến khi xong/hỏng hoặc hết hạn chờ cấu hình."""
         if self.mock or task_id.startswith(MOCK_TASK_PREFIX):
             return self._mock_task_result(task_id)
+        # Chốt provider một lần trước vòng lặp: đổi kênh giữa chừng sẽ hỏi nhầm provider
+        cid = (channel_id or self._task_channels.get(task_id) or "").strip()
+        if not cid:
+            route = self._poll_route(task_id, None)
+            if route is None:
+                return TaskResult(
+                    status="failed",
+                    error="Không tìm thấy provider của tác vụ",
+                    provider_task_id=task_id,
+                )
+            cid = route.channel_id
         deadline = time.monotonic() + float(self.settings.ark_video_poll_timeout)
         interval = float(self.settings.ark_video_poll_interval)
         while time.monotonic() < deadline:
-            result = await self.fetch_task_once(task_id, channel_id=channel_id)
+            result = await self.fetch_task_once(task_id, channel_id=cid)
             if result.status in ("succeeded", "failed"):
                 return result
             await asyncio.sleep(interval)
@@ -695,16 +704,12 @@ class MediaGateway:
         """Sinh lời bình theo route của chức năng (điền ở Task 9)."""
         raise NotImplementedError("Task 9")
 
-    async def chat_storyboard(self, *args: Any, **kwargs: Any) -> StoryboardResult:
+    async def chat_storyboard(self, *args: Any, **kwargs: Any) -> kepu_text.StoryboardResult:
         """Tách phân cảnh khoa học: uỷ quyền cho kepu_text (giữ nguyên chữ ký cũ)."""
-        from app.services import kepu_text
-
         return await kepu_text.chat_storyboard(*args, mock=self.mock, **kwargs)
 
     async def expand_content(self, topic: str, mode: str = "theme") -> dict[str, str]:
         """Mở rộng chủ đề: uỷ quyền cho kepu_text."""
-        from app.services import kepu_text
-
         return await kepu_text.expand_content(topic, mode, mock=self.mock)
 
     # ---- Tham chiếu media & mock ------------------------------------------

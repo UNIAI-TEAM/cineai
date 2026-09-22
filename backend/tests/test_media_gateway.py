@@ -42,6 +42,7 @@ class _FakeAdapter:
         self.calls.append(("fetch", route.channel_id, task_id)); return self.fetch
     def is_transient_error(self, exc): return isinstance(exc, base.TransientUpstreamError)
     def url_needs_auth(self, url): return False
+    def cost_fen(self, model, raw): return None
 
 
 def _gateway(monkeypatch, adapters):
@@ -150,6 +151,114 @@ async def test_fetch_task_once_mock_id(monkeypatch, snapshot):
     g = _gateway(monkeypatch, {})
     r = await g.fetch_task_once("mock-task-abc12345")
     assert r.status == "succeeded" and r.url.startswith("/static/mock/video_")
+
+
+@pytest.fixture
+def two_video_channels():
+    """Slot video có 2 binding trên 2 provider → bộc lộ mọi lựa chọn provider ngẫu nhiên."""
+    prev = get_routing_snapshot()
+    b = FunctionBindings(slots={"video": [
+        ModelBinding(channel_id="ark-a", model="dreamina-seedance-2-5-260628"),
+        ModelBinding(channel_id="ark-b", model="dreamina-seedance-2-0-260128"),
+    ]})
+    _refresh_routing_snapshot(
+        [_ch("ark-a", "ark", ["dreamina-seedance-2-5-260628"]), _ch("ark-b", "ark", ["dreamina-seedance-2-0-260128"])], b)
+    yield
+    _refresh_routing_snapshot(prev.channels, prev.function_bindings)
+
+
+async def test_fetch_task_once_fallback_picks_same_channel_every_time(monkeypatch, two_video_channels):
+    """Không biết kênh: luôn hỏi binding đầu của slot, không xáo theo weight."""
+    ark = _FakeAdapter("ark", fetch=base.TaskResult(status="running"))
+    g = _gateway(monkeypatch, {"ark": ark})
+    for _ in range(8):
+        await g.fetch_task_once("cgt-x")
+    assert [c[1] for c in ark.calls] == ["ark-a"] * 8
+
+
+async def test_poll_task_keeps_one_channel_across_iterations(monkeypatch, two_video_channels):
+    """poll_task chốt provider một lần: mọi vòng lặp đều hỏi đúng kênh đó."""
+    seq = [base.TaskResult(status="running"), base.TaskResult(status="running"),
+           base.TaskResult(status="succeeded", url="/static/mock/v.mp4")]
+    ark = _FakeAdapter("ark")
+    async def _fetch(route, task_id):
+        ark.calls.append(("fetch", route.channel_id, task_id))
+        return seq.pop(0)
+    ark.fetch_video = _fetch
+    g = _gateway(monkeypatch, {"ark": ark})
+    result = await g.poll_task("cgt-y")
+    assert result.status == "succeeded"
+    assert [c[1] for c in ark.calls] == ["ark-a", "ark-a", "ark-a"]
+
+
+async def test_gen_video_seedance_body_gates_requested_model(monkeypatch, snapshot):
+    """model trong body chỉ là gợi ý: không được gán thì slot quyết định, được gán thì dùng đúng."""
+    ark = _FakeAdapter("ark", task_id="cgt-s1")
+    g = _gateway(monkeypatch, {"ark": ark})
+    task_id = await g.gen_video_seedance_body({"model": "not-listed", "duration": 8, "content": []},
+                                              function_id="drama.video")
+    assert task_id == "cgt-s1" and ark.calls[0][1] == "dreamina-seedance-2-5-260628"
+    assert g.channel_for_task("cgt-s1") == "byteplus"
+
+    ark.task_id = "cgt-s2"
+    await g.gen_video_seedance_body({"model": "dreamina-seedance-2-5-260628", "duration": 8, "content": []},
+                                    function_id="drama.video")
+    _kind, model, req = ark.calls[1]
+    assert model == "dreamina-seedance-2-5-260628"
+    assert req.allow_structure_fallback is False and req.body["duration"] == 8
+
+
+async def test_gen_and_wait_seedance_body_retries_once_without_audio(monkeypatch, snapshot):
+    """Lỗi tải reference_audio: bỏ audio gửi lại đúng một lần, không có lần thứ ba."""
+    audio_err = "upstream failure: audio_url resource download failed at task start"
+    body = {"content": [
+        {"type": "text", "text": "镜头画面：星空\n参考音频：素材一\n角色音色：旁白A"},
+        {"type": "audio_url", "role": "reference_audio", "audio_url": {"url": "https://x/a.mp3"}},
+    ]}
+    g = _gateway(monkeypatch, {})
+    submitted: list[dict] = []
+    waited: list[str] = []
+
+    async def _submit(payload, **kwargs):
+        submitted.append(payload)
+        return f"t{len(submitted)}"
+
+    async def _wait(task_id, **kwargs):
+        waited.append(task_id)
+        if len(waited) == 1:
+            raise RuntimeError(audio_err)
+        return "/static/x.mp4", None, base.TaskResult(status="succeeded", url="https://x/v.mp4")
+
+    monkeypatch.setattr(g, "gen_video_seedance_body", _submit)
+    monkeypatch.setattr(g, "wait_video_assets", _wait)
+    video_url, _last, result = await g.gen_and_wait_seedance_body(body, project_id=1, shot_no=2)
+    assert video_url == "/static/x.mp4" and result.status == "succeeded"
+    assert len(submitted) == 2 and waited == ["t1", "t2"]
+    assert not any(item.get("type") == "audio_url" for item in submitted[1]["content"])
+
+
+async def test_gen_and_wait_seedance_body_never_submits_a_third_time(monkeypatch, snapshot):
+    """Bỏ audio rồi vẫn lỗi: tối đa hai lần gửi, tuyệt đối không có lần thứ ba (tránh tính phí lặp)."""
+    audio_err = "upstream failure: audio_url resource download failed at task start"
+    body = {"content": [
+        {"type": "text", "text": "镜头画面：星空"},
+        {"type": "audio_url", "role": "reference_audio", "audio_url": {"url": "https://x/a.mp3"}},
+    ]}
+    g = _gateway(monkeypatch, {})
+    submitted: list[dict] = []
+
+    async def _submit(payload, **kwargs):
+        submitted.append(payload)
+        return f"t{len(submitted)}"
+
+    async def _wait(task_id, **kwargs):
+        raise RuntimeError(audio_err)
+
+    monkeypatch.setattr(g, "gen_video_seedance_body", _submit)
+    monkeypatch.setattr(g, "wait_video_assets", _wait)
+    with pytest.raises(RuntimeError, match="resource download failed"):
+        await g.gen_and_wait_seedance_body(body, project_id=1, shot_no=2)
+    assert len(submitted) == 2
 
 
 async def test_gen_and_wait_video_passes_model(monkeypatch, snapshot):
