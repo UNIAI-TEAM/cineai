@@ -1,5 +1,7 @@
 /** 画布节点媒体：识别可播放类型与下载文件名 */
 import { fetchMediaBlob, triggerBlobDownload } from './clientDownload'
+import { getActiveLocale } from '../i18n/detect'
+import { messages } from '../i18n/messages'
 
 const VIDEO_EXT = /\.(mp4|webm|mov)(\?|#|$)/i
 const AUDIO_EXT = /\.(mp3|wav|m4a|aac|ogg|flac)(\?|#|$)/i
@@ -16,12 +18,13 @@ export function isAudioUrl(url: string) {
 
 /** 从展示名生成安全文件名主干 */
 export function sanitizeMediaBasename(label: string) {
-  const cleaned = (label || '未命名')
+  const untitled = messages[getActiveLocale()].dramaEpisode.untitled
+  const cleaned = (label || untitled)
     .replace(/[<>:"/\\|?*\x00-\x1f]+/g, '_')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 60)
-  return cleaned || '未命名'
+  return cleaned || untitled
 }
 
 /** 从 URL 推断扩展名 */

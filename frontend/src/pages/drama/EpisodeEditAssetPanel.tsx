@@ -3,6 +3,7 @@ import { resolveDramaAssetPreviewUrl, type DramaAsset } from '../../api/drama'
 import { CharacterVoicePreviewButton } from '../../components/drama/CharacterVoicePreviewButton'
 import { readAssetVoiceBinding } from './CharacterVoiceBindModal'
 import { DRAMA_VOICE_BINDING_ENABLED } from '../../lib/dramaVoiceBinding'
+import { useI18n, type TFunction } from '../../i18n/context'
 import {
   ASSET_TABS,
   normalizeAssetTab,
@@ -36,10 +37,10 @@ type Props = {
 }
 
 // 当前分类新建按钮文案
-function createLabel(tab: AssetTab | null): string {
-  if (tab === 'scene') return '新建场景'
-  if (tab === 'prop') return '新建道具'
-  return '新建角色'
+function createLabel(tab: AssetTab | null, t: TFunction): string {
+  if (tab === 'scene') return t('dramaEpisode.assetPanel.createScene')
+  if (tab === 'prop') return t('dramaEpisode.assetPanel.createProp')
+  return t('dramaEpisode.assetPanel.createCharacter')
 }
 
 // 渲染分集编辑左侧资产栏
@@ -62,6 +63,7 @@ export function EpisodeEditAssetPanel({
   onCreateAsset,
   onImportAsset,
 }: Props) {
+  const { t } = useI18n()
   return (
     <aside className="drama-ep-assets">
       <div className="drama-ep-assets-top">
@@ -71,20 +73,20 @@ export function EpisodeEditAssetPanel({
             className={scope === 'episode' ? 'active' : ''}
             onClick={() => onScopeChange('episode')}
           >
-            本集
+            {t('dramaEpisode.assetPanel.scopeEpisode')}
           </button>
           <button
             type="button"
             className={scope === 'series' ? 'active' : ''}
             onClick={() => onScopeChange('series')}
           >
-            全集
+            {t('dramaEpisode.assetPanel.scopeSeries')}
           </button>
         </div>
         <button
           type="button"
           className="drama-ep-icon-btn solid"
-          aria-label="打开分镜故事板画布"
+          aria-label={t('dramaEpisode.assetPanel.openCanvas')}
           onClick={onOpenCanvas}
         >
           +
@@ -111,7 +113,7 @@ export function EpisodeEditAssetPanel({
               disabled={createBusy}
               onClick={onCreateAsset}
             >
-              {createBusy ? '创建中…' : createLabel(tab)}
+              {createBusy ? t('dramaEpisode.assetPanel.creating') : createLabel(tab, t)}
             </button>
           ) : null}
           {onImportAsset ? (
@@ -121,7 +123,7 @@ export function EpisodeEditAssetPanel({
               disabled={createBusy}
               onClick={onImportAsset}
             >
-              导入
+              {t('dramaEpisode.assetPanel.import')}
             </button>
           ) : null}
         </div>
@@ -130,8 +132,8 @@ export function EpisodeEditAssetPanel({
         {assets.length === 0 ? (
           <p className="drama-ep-empty">
             {scope === 'episode'
-              ? '本集暂无引用资产，可点上方「新建」加入，或切换「全集」查看项目资产'
-              : '暂无资产，可点上方「新建 / 导入」添加'}
+              ? t('dramaEpisode.assetPanel.emptyEpisode')
+              : t('dramaEpisode.assetPanel.emptyAll')}
           </p>
         ) : (
           assets.map((asset) => {
@@ -150,7 +152,7 @@ export function EpisodeEditAssetPanel({
                     imageBusy ? ' is-gen' : ''
                   }`}
                   onClick={() => onOpenAsset(asset)}
-                  title="点击设置：编辑提示词、重新生成或上传形象"
+                  title={t('dramaEpisode.assetPanel.cardTitle')}
                 >
                   <div className="drama-ep-asset-thumb">
                     {cover ? (
@@ -158,14 +160,14 @@ export function EpisodeEditAssetPanel({
                     ) : (
                       <span>{(asset.name || '?')[0]}</span>
                     )}
-                    {imageBusy ? <em className="drama-ep-asset-gen-badge">生成中</em> : null}
+                    {imageBusy ? <em className="drama-ep-asset-gen-badge">{t('dramaEpisode.assetPanel.generatingBadge')}</em> : null}
                   </div>
-                  <span className="drama-ep-asset-name">{asset.name || `资产 ${asset.id}`}</span>
-                  {isActive ? <span className="drama-ep-asset-linked">已关联</span> : null}
+                  <span className="drama-ep-asset-name">{asset.name || t('dramaEpisode.assetFallback', { id: asset.id })}</span>
+                  {isActive ? <span className="drama-ep-asset-linked">{t('dramaEpisode.assetPanel.linked')}</span> : null}
                   {DRAMA_VOICE_BINDING_ENABLED && voice ? (
-                    <span className="drama-ep-asset-voice">音色</span>
+                    <span className="drama-ep-asset-voice">{t('dramaEpisode.assetPanel.voice')}</span>
                   ) : null}
-                  <span className="drama-ep-asset-settings">设置</span>
+                  <span className="drama-ep-asset-settings">{t('dramaEpisode.assetPanel.settings')}</span>
                 </button>
                 <div className="drama-ep-asset-ops">
                   {isActive && onUnlinkAsset ? (
@@ -173,18 +175,18 @@ export function EpisodeEditAssetPanel({
                       type="button"
                       className="drama-ep-asset-op-btn"
                       onClick={() => onUnlinkAsset(asset.id)}
-                      title="仅取消当前分镜关联，不会删除资产"
+                      title={t('dramaEpisode.assetPanel.unlinkTitle')}
                     >
-                      取消关联
+                      {t('dramaEpisode.assetPanel.unlink')}
                     </button>
                   ) : (
                     <button
                       type="button"
                       className="drama-ep-asset-op-btn"
                       onClick={() => onMention(asset)}
-                      title="插入到当前分镜脚本"
+                      title={t('dramaEpisode.assetPanel.insertTitle')}
                     >
-                      插入
+                      {t('dramaEpisode.assetPanel.insert')}
                     </button>
                   )}
                   {isCharacter && onGenerateVoice ? (
@@ -203,7 +205,7 @@ export function EpisodeEditAssetPanel({
                         disabled={voiceGenerating}
                         onClick={() => onGenerateVoice(asset)}
                       >
-                        {voiceGenerating ? '生成中…' : '生成音色'}
+                        {voiceGenerating ? t('dramaEpisode.assetPanel.voiceGenerating') : t('dramaEpisode.assetPanel.generateVoice')}
                       </button>
                     )
                   ) : null}

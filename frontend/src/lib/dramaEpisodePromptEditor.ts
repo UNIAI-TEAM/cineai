@@ -1,4 +1,13 @@
 /** 分集脚本编辑器：inline 时长/资产标签渲染与序列化 */
+import { getActiveLocale } from '../i18n/detect'
+import { interpolate } from '../i18n/lookup'
+import { messages } from '../i18n/messages'
+
+// 时长标签悬浮提示（按界面语言）
+function durationChipTitle(seconds: number): string {
+  return interpolate(messages[getActiveLocale()].dramaEpisode.editor.durationChipTitle, { sec: seconds })
+}
+
 export type DramaMentionChipData = {
   assetId: number
   label: string
@@ -215,7 +224,7 @@ export function createMentionChipElement(chip: DramaMentionChipData) {
     thumbEl.appendChild(image)
   } else {
     thumbEl.className += ' is-fallback'
-    thumbEl.textContent = chip.label[0] || '资'
+    thumbEl.textContent = chip.label[0] || messages[getActiveLocale()].dramaEpisode.assetInitial
   }
   chipEl.appendChild(thumbEl)
 
@@ -233,7 +242,7 @@ export function createDurationChipElement(seconds: number) {
   chipEl.contentEditable = 'false'
   chipEl.dataset.mention = 'true'
   chipEl.dataset.durationSec = String(seconds)
-  chipEl.title = `时长 ${seconds}s，编辑时点击切换`
+  chipEl.title = durationChipTitle(seconds)
 
   const labelEl = document.createElement('span')
   labelEl.dataset.durationLabel = 'true'
@@ -247,7 +256,7 @@ export function createDurationChipElement(seconds: number) {
 // 更新已有时长标签秒数
 export function updateDurationChipElement(chipEl: HTMLElement, seconds: number) {
   chipEl.dataset.durationSec = String(seconds)
-  chipEl.title = `时长 ${seconds}s，编辑时点击切换`
+  chipEl.title = durationChipTitle(seconds)
   const labelEl = chipEl.querySelector<HTMLElement>('[data-duration-label]')
   if (labelEl) labelEl.textContent = `${seconds}s`
 }
@@ -491,7 +500,9 @@ export function resolveChipFromAsset(
 ): DramaMentionChipData {
   return {
     assetId: asset.id,
-    label: asset.name || `资产 ${asset.id}`,
+    label:
+      asset.name ||
+      interpolate(messages[getActiveLocale()].dramaEpisode.assetFallback, { id: asset.id }),
     previewUrl: previewUrl || null,
   }
 }

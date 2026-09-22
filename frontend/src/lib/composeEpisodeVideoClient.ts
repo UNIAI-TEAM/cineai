@@ -4,6 +4,9 @@ import type { DramaFragment } from '../api/drama'
 import { dramaApi, resolveDramaMediaUrl } from '../api/drama'
 import { fetchMediaBlob } from './clientDownload'
 import { sanitizeMediaBasename } from './canvasNodeMedia'
+import { getActiveLocale } from '../i18n/detect'
+import { messages } from '../i18n/messages'
+import { interpolate } from '../i18n/lookup'
 
 export type EpisodeComposeClip = {
   id: number
@@ -34,7 +37,9 @@ export function listEpisodeComposeClips(fragments: DramaFragment[]): EpisodeComp
 
 /** 全片下载文件名 */
 export function episodeComposeFilename(episodeName: string) {
-  return `${sanitizeMediaBasename(episodeName || '本集')}_全片.mp4`
+  const copy = messages[getActiveLocale()].dramaEpisode
+  const name = sanitizeMediaBasename(episodeName || copy.thisEpisode)
+  return `${interpolate(copy.fullFilmFile, { name })}.mp4`
 }
 
 /** 服务端统一重编码拼接并拉回 Blob */

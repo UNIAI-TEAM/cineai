@@ -13,6 +13,7 @@ import {
 } from '../../lib/composeEpisodeVideoClient'
 import { dialog } from '../../lib/dialog'
 import type { DramaSubtitleMode } from '../../lib/dramaSubtitleBoard'
+import { useI18n, type TFunction } from '../../i18n/context'
 
 type Props = {
   fragments: DramaFragment[]
@@ -32,12 +33,14 @@ type Props = {
 }
 
 /** 把合成进度转成按钮文案 */
-function composeProgressLabel(progress: EpisodeComposeProgress | null, busy: boolean) {
-  if (!busy) return '全片合成下载'
-  if (!progress) return '全片合成中…'
-  if (progress.phase === 'download') return `拉取分镜 ${progress.done}/${progress.total}`
-  if (progress.phase === 'server') return '服务端统一重编码拼接…'
-  return '正在拼接…'
+function composeProgressLabel(progress: EpisodeComposeProgress | null, busy: boolean, t: TFunction) {
+  if (!busy) return t('dramaEpisode.side.composeDownload')
+  if (!progress) return t('dramaEpisode.side.composing')
+  if (progress.phase === 'download') {
+    return t('dramaEpisode.side.fetchingClips', { done: progress.done, total: progress.total })
+  }
+  if (progress.phase === 'server') return t('dramaEpisode.side.serverEncoding')
+  return t('dramaEpisode.side.concatenating')
 }
 
 // 渲染分集右侧预览与画布入口
@@ -47,7 +50,7 @@ export function EpisodeEditSidePane({
   onPlayingFragmentChange,
   aspectRatio,
   episodeId,
-  episodeName = '本集',
+  episodeName,
   subtitleMode,
   onOpenStoryboard,
   previewVideoUrl = null,
@@ -56,6 +59,7 @@ export function EpisodeEditSidePane({
   onClearPreview,
   onActivatePreview,
 }: Props) {
+  const { t } = useI18n()
   const hasSelection = playingFragmentId !== null
   /*
    * composeBusy 本地拼接中
@@ -73,9 +77,9 @@ export function EpisodeEditSidePane({
     if (composeBusy || composeClips.length === 0) return
     if (missingCount > 0) {
       const ok = await dialog.confirm({
-        title: '部分分镜尚未生成',
-        message: `有 ${missingCount} 镜还没有视频，将只拼接已生成的 ${composeClips.length} 镜。是否继续？`,
-        confirmText: '继续合成',
+        title: t('dramaEpisode.side.missingTitle'),
+        message: t('dramaEpisode.side.missingMsg', { missing: missingCount, count: composeClips.length }),
+        confirmText: t('dramaEpisode.side.continueCompose'),
       })
       if (!ok) return
     }
@@ -86,9 +90,9 @@ export function EpisodeEditSidePane({
       const blob = await composeEpisodeVideoClient(composeClips, setComposeProgress, {
         episodeId,
       })
-      triggerBlobDownload(blob, episodeComposeFilename(episodeName))
+      triggerBlobDownload(blob, episodeComposeFilename(episodeName || t('dramaEpisode.thisEpisode')))
     } catch (err) {
-      setComposeError(err instanceof Error ? err.message : '全片合成失败')
+      setComposeError(err instanceof Error ? err.message : t('dramaEpisode.side.composeFailed'))
     } finally {
       setComposeBusy(false)
       setComposeProgress(null)
@@ -98,12 +102,12 @@ export function EpisodeEditSidePane({
   return (
     <aside className="drama-ep-preview">
       <div className="drama-ep-side-header">
-        <div className="drama-ep-side-tabs" role="tablist" aria-label="右侧面板">
+        <div className="drama-ep-side-tabs" role="tablist" aria-label={t('dramaEpisode.side.panelTabs')}>
           <button type="button" role="tab" aria-selected className="active">
-            预览
+            {t('dramaEpisode.side.preview')}
           </button>
           <button type="button" role="tab" onClick={onOpenStoryboard}>
-            画布
+            {t('dramaEpisode.side.canvas')}
           </button>
         </div>
         <button
@@ -112,8 +116,8 @@ export function EpisodeEditSidePane({
           disabled={composeBusy || composeClips.length === 0}
           title={
             composeClips.length === 0
-              ? '请先生成分镜视频'
-              : '在浏览器里把本集已生成镜头拼成一条成片并下载'
+              ? t('dramaEpisode.side.needVideosFirst')
+              : t('dramaEpisode.side.composeTitle')
           }
           onClick={() => void handleComposeDownload()}
         >
@@ -122,23 +126,26 @@ export function EpisodeEditSidePane({
           ) : (
             <Download size={14} strokeWidth={1.8} />
           )}
-          {composeProgressLabel(composeProgress, composeBusy)}
+          {composeProgressLabel(composeProgress, composeBusy, t)}
         </button>
       </div>
       {composeError ? <p className="drama-ep-compose-error drama-ep-compose-error--header">{composeError}</p> : null}
 
       {previewVideoUrl ? (
         <div className="drama-ep-preview-banner">
-          <span>预览历史版本{previewLabel ? ` · ${previewLabel}` : ''}</span>
+          <span>
+            {t('dramaEpisode.side.previewingVersion')}
+            {previewLabel ? ` · ${previewLabel}` : ''}
+          </span>
           <div className="drama-ep-preview-banner-actions">
             {onActivatePreview ? (
               <button type="button" className="drama-ep-preview-banner-btn" onClick={onActivatePreview}>
-                设为当前
+                {t('dramaEpisode.side.setCurrent')}
               </button>
             ) : null}
             {onClearPreview ? (
               <button type="button" className="drama-ep-preview-banner-btn is-ghost" onClick={onClearPreview}>
-                退出预览
+                {t('dramaEpisode.side.exitPreview')}
               </button>
             ) : null}
           </div>
@@ -146,7 +153,7 @@ export function EpisodeEditSidePane({
       ) : null}
 
       {!hasSelection || fragments.length === 0 ? (
-        <p className="drama-ep-empty">请选择底部分镜</p>
+        <p className="drama-ep-empty">{t('dramaEpisode.side.selectFragment')}</p>
       ) : (
         <>
           <div className="drama-ep-preview-inner">
@@ -160,7 +167,7 @@ export function EpisodeEditSidePane({
             />
             {!fragments.some((f) => f.video) && (
               <button type="button" className="drama-ep-open-canvas" onClick={onOpenStoryboard}>
-                打开分镜画布
+                {t('dramaEpisode.side.openCanvas')}
               </button>
             )}
           </div>

@@ -1,6 +1,9 @@
 /** 分镜字幕板：从分镜正文提取口播字幕，供预览与导出。 */
 
 import type { DramaFragment } from '../api/drama'
+import { getActiveLocale } from '../i18n/detect'
+import { interpolate } from '../i18n/lookup'
+import { messages } from '../i18n/messages'
 
 export type DramaSubtitleMode = 'model' | 'post'
 
@@ -89,16 +92,31 @@ export function buildDramaSubtitleBoard(fragments: DramaFragment[]): DramaSubtit
   return cues
 }
 
+// 说话人展示名：旁白 / 内心独白按界面语言显示，角色名原样返回。
+export function subtitleSpeakerLabel(speaker: string): string {
+  const texts = messages[getActiveLocale()].dramaEpisode.subtitle
+  if (speaker === '旁白') return texts.narrator
+  if (speaker === '内心独白') return texts.innerMonologue
+  return speaker
+}
+
+// 字幕板里的片段序号标签（01、02…）。
+export function subtitleFragmentLabel(fragmentIndex: number): string {
+  return interpolate(messages[getActiveLocale()].dramaEpisode.subtitle.fragment, {
+    n: String(fragmentIndex + 1).padStart(2, '0'),
+  })
+}
+
 // 导出字幕板纯文本（预览用）。
 export function exportDramaSubtitleBoardText(fragments: DramaFragment[]): string {
   const cues = buildDramaSubtitleBoard(fragments)
-  if (cues.length === 0) return '暂无可导出的字幕内容'
+  if (cues.length === 0) return messages[getActiveLocale()].dramaEpisode.subtitle.noExportContent
   return cues
     .map(
       (cue) =>
-        `${formatSubtitleClock(cue.startSec)}-${formatSubtitleClock(cue.endSec)} 片段 ${String(
-          cue.fragmentIndex + 1,
-        ).padStart(2, '0')} ${cue.speaker}：${cue.text}`,
+        `${formatSubtitleClock(cue.startSec)}-${formatSubtitleClock(cue.endSec)} ${subtitleFragmentLabel(
+          cue.fragmentIndex,
+        )} ${subtitleSpeakerLabel(cue.speaker)}: ${cue.text}`,
     )
     .join('\n')
 }

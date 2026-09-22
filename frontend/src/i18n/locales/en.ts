@@ -5,6 +5,7 @@ import { enBilling } from './en/billing'
 import { enSettingsPanels } from './en/settingsPanels'
 import { enShell } from './en/shell'
 import { enErrors } from './en/errors'
+import { enDramaEpisode } from './en/dramaEpisode'
 import { enDramaAssets } from './en/dramaAssets'
 import { enDramaProject } from './en/dramaProject'
 import { enDramaCanvas } from './en/dramaCanvas'
@@ -18,6 +19,7 @@ export const en = {
   ...enBilling,
   ...enSettingsPanels,
   ...enErrors,
+  ...enDramaEpisode,
   ...enDramaAssets,
   ...enDramaProject,
   ...enDramaCanvas,

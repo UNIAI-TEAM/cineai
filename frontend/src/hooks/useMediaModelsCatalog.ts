@@ -1,6 +1,8 @@
 /** 拉取并缓存前台 TokenFree 图/视频模型目录。 */
 import { useEffect, useState } from 'react'
 import { api, type MediaModelOption, type MediaModelsCatalog } from '../api'
+import { getActiveLocale } from '../i18n/detect'
+import { messages } from '../i18n/messages'
 
 let cached: MediaModelsCatalog | null = null
 let inflight: Promise<MediaModelsCatalog> | null = null
@@ -50,7 +52,7 @@ export function catalogImageModels(catalog: MediaModelsCatalog | null): MediaMod
 export function catalogModelLabel(
   modelId: string | undefined | null,
   models: Array<{ id: string; label: string }>,
-  fallback = '模型',
+  fallback = messages[getActiveLocale()].dramaEpisode.modelFallback,
 ): string {
   const id = (modelId || '').trim()
   if (!id) return fallback

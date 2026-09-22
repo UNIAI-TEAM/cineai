@@ -8,14 +8,32 @@ import {
   readProjectAspectRatio,
   readProjectResolution,
 } from '../../lib/dramaProjectOutputSettings'
+import { getActiveLocale } from '../../i18n/detect'
+import { interpolate } from '../../i18n/lookup'
+import { messages } from '../../i18n/messages'
+
+// 当前界面语言的分集编辑文案
+function episodeTexts() {
+  return messages[getActiveLocale()].dramaEpisode
+}
 
 export type AssetScope = 'episode' | 'series'
 export type AssetTab = 'character' | 'scene' | 'prop'
 
+// 资产分类页签：label 为 getter，按当前界面语言取文案
+function assetTabItem(key: AssetTab): { key: AssetTab; label: string } {
+  return {
+    key,
+    get label() {
+      return episodeTexts().assetTypes[key]
+    },
+  }
+}
+
 export const ASSET_TABS: Array<{ key: AssetTab; label: string }> = [
-  { key: 'character', label: '角色' },
-  { key: 'scene', label: '场景' },
-  { key: 'prop', label: '道具' },
+  assetTabItem('character'),
+  assetTabItem('scene'),
+  assetTabItem('prop'),
 ]
 
 export const RATIO_OPTIONS = DRAMA_RATIO_OPTIONS
@@ -71,7 +89,7 @@ export function buildFragmentRefStripItems(
     const voice = asset && readVoice ? readVoice(asset) : null
     return {
       assetId,
-      name: asset?.name || `资产 ${assetId}`,
+      name: asset?.name || interpolate(episodeTexts().assetFallback, { id: assetId }),
       type: asset?.type || '',
       previewUrl: preview,
       isCharacter,
@@ -179,9 +197,10 @@ export function readFragmentVideoVersions(frag: DramaFragment | null | undefined
 
 // 分镜队列徽标文案
 export function fragmentQueueBadgeLabel(status: string): string {
-  if (status === 'queued' || status === 'pending' || status === 'leased') return '排队'
-  if (status === 'running' || status === 'generating' || status === 'awaiting_poll') return '生成中'
-  if (status === 'failed') return '失败'
+  const badge = episodeTexts().queueBadge
+  if (status === 'queued' || status === 'pending' || status === 'leased') return badge.queued
+  if (status === 'running' || status === 'generating' || status === 'awaiting_poll') return badge.running
+  if (status === 'failed') return badge.failed
   return ''
 }
 
@@ -200,7 +219,7 @@ export function resolveFragmentDurationSec(
 export function formatFragLabel(index: number, durationSec: number | null | undefined) {
   const n = String(index + 1).padStart(2, '0')
   const sec = durationSec && durationSec > 0 ? durationSec : 8
-  return `片段 ${n} · ${sec}s`
+  return interpolate(episodeTexts().fragLabel, { n, sec })
 }
 
 // 按本集/全集与分类筛选资产
