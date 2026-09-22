@@ -4009,3 +4009,197 @@ textarea.admin-control {
   }
 }
 
+/* ===== Tab "Mô hình": cột phải gán chức năng AI ===== */
+.settings-bindings-panel {
+  background: #fff;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  padding: 14px;
+  box-shadow: var(--admin-shadow);
+  min-width: 0;
+}
+.settings-bindings-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.settings-bindings-progress {
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+.settings-bindings-progress em {
+  font-style: normal;
+  color: #c2410c;
+}
+.settings-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #eef2f6;
+  overflow: hidden;
+}
+.settings-progress-fill {
+  height: 100%;
+  background: var(--admin-accent);
+  transition: width 0.2s;
+}
+.settings-bindings-errors {
+  margin: 10px 0 0;
+  padding: 8px 12px 8px 28px;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 12px;
+  list-style: disc;
+}
+.settings-binding-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.settings-binding-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: #fafbfc;
+}
+.settings-binding-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--admin-border);
+  color: var(--admin-forest);
+}
+.settings-binding-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.settings-binding-desc {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+.settings-binding-badge {
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+}
+.settings-binding-badge.is-warn {
+  background: #fff7ed;
+  color: #c2410c;
+}
+.settings-binding-badge.is-muted {
+  background: #f4f4f5;
+  color: #71717a;
+}
+.settings-binding-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.settings-binding-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 4px 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--admin-border);
+  background: #fff;
+  font-size: 12px;
+}
+.settings-binding-chip .font-mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-binding-chip.is-broken {
+  border-style: dashed;
+  color: #a1a1aa;
+}
+.settings-binding-chip button {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 999px;
+  color: var(--admin-muted);
+}
+.settings-binding-chip button:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.settings-binding-chip-weight {
+  color: var(--admin-forest);
+  font-weight: 600;
+}
+.settings-binding-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.settings-overrides {
+  margin-top: 14px;
+  border-top: 1px solid var(--admin-border);
+  padding-top: 10px;
+}
+.settings-overrides-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--admin-text);
+}
+.settings-overrides-count {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+.settings-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+}
+.settings-picker-row.is-checked {
+  background: #fff;
+}
+.settings-picker-provider {
+  display: block;
+  font-size: 11px;
+  color: var(--admin-muted);
+}
+.settings-weight-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--admin-muted);
+  padding-right: 6px;
+}
+.settings-weight-input {
+  width: 72px;
+}
+@media (max-width: 560px) {
+  .settings-binding-row {
+    grid-template-columns: 1fr;
+  }
+}
+
