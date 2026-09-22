@@ -54,7 +54,8 @@ def test_migrate_legacy_config_scrubs_tokenfree_flat_values():
             "model_image": "seedream-5.0",
             "model_video": "seedance-2.5",
             "model_llm": "kimi-k2.6",
-        }
+        },
+        "provider_rates": [],
     }
     out, changed = ms._migrate_legacy_config(cfg)
     flat = out["flat"]

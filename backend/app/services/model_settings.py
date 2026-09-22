@@ -205,7 +205,7 @@ def _scrub_legacy_flat(flat: dict[str, Any]) -> tuple[dict[str, Any], bool]:
 
 
 def _migrate_legacy_config(config: dict[str, Any]) -> tuple[dict[str, Any], bool]:
-    """Bỏ logical_models/default_models thời TokenFree, dọn flat còn sót base_url/alias model chết; đảm bảo có function_bindings."""
+    """Bỏ logical_models/default_models thời TokenFree, dọn flat còn sót base_url/alias model chết; đảm bảo có function_bindings; seed provider_rates."""
     out = dict(config)
     changed = False
     for key in ("logical_models", "default_models"):
@@ -214,6 +214,12 @@ def _migrate_legacy_config(config: dict[str, Any]) -> tuple[dict[str, Any], bool
             changed = True
     if "function_bindings" not in out:
         out["function_bindings"] = bindings_to_dict(FunctionBindings())
+        changed = True
+    if "provider_rates" not in out:
+        # lazy import: gói billing kéo theo nhiều module, tránh vòng import lúc khởi động
+        from app.services.billing.provider_rates import default_provider_rates_payload
+
+        out["provider_rates"] = default_provider_rates_payload()
         changed = True
     flat = out.get("flat")
     if isinstance(flat, dict):
@@ -376,12 +382,16 @@ async def _compose_runtime_state(db: AsyncSession) -> tuple[list[SystemModelChan
 
 
 async def load_model_settings_cache(db: AsyncSession) -> None:
-    """Nạp snapshot lúc khởi động / sau khi lưu."""
-    channels, bindings, flat, _ = await _compose_runtime_state(db)
+    """Nạp snapshot routing, overlay flat và bảng provider_rates lúc khởi động / sau khi lưu."""
+    from app.services.billing.provider_rates import parse_provider_rates, set_provider_rates
+
+    channels, bindings, flat, app_row = await _compose_runtime_state(db)
+    rates_raw = (app_row.config_json or {}).get("provider_rates")
     await db.commit()
     _refresh_routing_snapshot(channels, bindings)
     _refresh_overlay({"flat": flat})
     reload_settings()
+    set_provider_rates(parse_provider_rates(rates_raw))
 
 
 _CAP_LABEL = {"text": "Văn bản", "image": "Ảnh", "video": "Video", "audio": "Giọng đọc"}

@@ -171,3 +171,18 @@ async def make_task(
     db.add(task)
     await db.flush()
     return task
+
+
+@pytest.fixture
+def isolated_routing_state():
+    """Khôi phục `model_settings._overlay`/`_routing_snapshot` (state toàn process) sau khi test ghi đè;
+    không autouse — file cần cách ly tự khai một fixture autouse cục bộ yêu cầu fixture này."""
+    from app.services import model_settings as ms
+
+    saved_overlay = dict(ms._overlay)
+    saved_snapshot = ms.get_routing_snapshot()
+    yield
+    ms._overlay.clear()
+    ms._overlay.update(saved_overlay)
+    ms._refresh_routing_snapshot(saved_snapshot.channels, saved_snapshot.function_bindings)
+    get_settings.cache_clear()
