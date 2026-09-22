@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas_routing import ResolvedModelRoute
+from app.services.providers.host_guard import ProviderHostChangedError, same_host
 from app.services.providers.registry import get_adapter
 
 
@@ -16,7 +17,10 @@ async def _resolve_channel_credentials(
     base_url: str,
     api_key_override: str | None,
 ) -> tuple[str, str, str]:
-    """Trả (protocol, base_url, api_key); bù dữ liệu còn thiếu từ kênh đã lưu nếu có channel_id."""
+    """Trả (protocol, base_url, api_key); bù dữ liệu còn thiếu từ kênh đã lưu nếu có channel_id.
+
+    Raise ProviderHostChangedError khi base_url đổi host mà không kèm key mới.
+    """
     proto = (protocol or "auto").strip().lower() or "auto"
     base = (base_url or "").strip().rstrip("/")
     key = (api_key_override or "").strip()
@@ -27,10 +31,14 @@ async def _resolve_channel_credentials(
         channels = await _load_channels(db, runtime=True)
         channel = next((item for item in channels if item.id == channel_id), None)
         if channel is not None:
+            stored_base = (channel.base_url or "").strip().rstrip("/")
             if not key:
+                # Chỉ dùng lại key đã lưu khi host không đổi, tránh gửi key tới máy chủ admin vừa nhập
+                if base and not same_host(base, stored_base):
+                    raise ProviderHostChangedError()
                 key = (channel.api_key or "").strip()
             if not base:
-                base = (channel.base_url or "").strip().rstrip("/")
+                base = stored_base
             if proto in {"", "auto"}:
                 proto = (channel.protocol or "auto").strip().lower() or "auto"
 

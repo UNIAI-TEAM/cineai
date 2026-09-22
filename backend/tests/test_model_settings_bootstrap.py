@@ -21,7 +21,7 @@ def test_bootstrap_from_env_without_keys_is_empty():
 
 
 def test_bootstrap_bindings_from_env_channels():
-    s = Settings(openai_api_key="sk", ark_api_key="ak", model_llm="gpt-5.6-sol", model_image="dola-seedream-5-0-pro-260628",
+    s = Settings(openai_api_key="sk", openai_base_url="https://api.openai.com/v1", ark_api_key="ak", model_llm="gpt-5.6-sol", model_image="dola-seedream-5-0-pro-260628",
                  model_video="dreamina-seedance-2-5-260628", model_audio="gpt-4o-mini-tts")
     b = ms._bootstrap_bindings_from_env(s, ms._bootstrap_channels_from_env(s))
     assert b.slots["text"][0].channel_id == "openai" and b.slots["image"][0].channel_id == "byteplus"
@@ -62,3 +62,10 @@ def test_migrate_legacy_config_scrubs_tokenfree_flat_values():
     assert "model_image" not in flat
     assert "model_video" not in flat
     assert flat["model_llm"] == "kimi-k2.6"
+
+
+def test_bootstrap_skips_provider_pointing_at_tokenfree():
+    """OPENAI_BASE_URL còn trỏ tokenfree.com thì không seed provider openai (tránh gửi key tới host chết)."""
+    s = Settings(openai_api_key="tf", openai_base_url="https://www.tokenfree.com/v1", ark_api_key="",
+                 ark_base_url="https://www.tokenfree.com/v1", volc_tts_api_key="", volc_tts_app_id="")
+    assert ms._bootstrap_channels_from_env(s) == []

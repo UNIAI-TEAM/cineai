@@ -124,3 +124,23 @@ async def test_fetch_tokenfree_account_from_dashboard_usage(monkeypatch: pytest.
     assert account["used_usd"] == 1.0
     assert account["quota"] == 500_000
     assert account["remain_fen"] == 700
+
+
+def test_resolve_tokenfree_api_key_never_falls_back_to_provider_keys(monkeypatch):
+    """I-9: không có kênh TokenFree thì trả rỗng, không mượn key OpenAI/BytePlus gửi sang tokenfree.com."""
+    from app.config import get_settings
+    from app.schemas_routing import FunctionBindings, SystemModelChannel
+    from app.services import model_settings as ms
+    from app.services.tokenfree_usage import resolve_tokenfree_api_key, tokenfree_usage_configured
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-openai")
+    monkeypatch.setattr(settings, "ark_api_key", "ak-byteplus")
+    prev = ms.get_routing_snapshot()
+    ms._refresh_routing_snapshot([SystemModelChannel(id="openai", name="OpenAI", base_url="https://api.openai.com/v1",
+                                                     api_key="sk-openai", protocol="openai", enabled=True)], FunctionBindings())
+    try:
+        assert resolve_tokenfree_api_key() == ""
+        assert tokenfree_usage_configured() is False
+    finally:
+        ms._refresh_routing_snapshot(prev.channels, prev.function_bindings)

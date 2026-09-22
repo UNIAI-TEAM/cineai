@@ -33,7 +33,7 @@ def tokenfree_site_origin(base_url: str | None = None) -> str:
 
 
 def resolve_tokenfree_api_key() -> str:
-    """优先 tokenfree.com 渠道 Key，其次运行时 overlay / 环境变量。"""
+    """Chỉ trả key của kênh TokenFree đã lưu (nay luôn rỗng); không mượn key OpenAI/BytePlus để gửi sang tokenfree.com."""
     try:
         from app.services.model_settings import get_routing_snapshot
 
@@ -46,10 +46,7 @@ def resolve_tokenfree_api_key() -> str:
             continue
         if channel.id == TOKENFREE_CHANNEL_ID or "tokenfree.com" in (channel.base_url or "").lower():
             return key
-    from app.config import get_settings as _get_settings
-
-    s = _get_settings()
-    return (s.openai_api_key or s.ark_api_key or "").strip()
+    return ""
 
 
 def usd_cny_rate(settings: Settings | None = None) -> float:

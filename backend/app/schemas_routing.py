@@ -31,7 +31,7 @@ class SystemModelChannel(BaseModel):
     id: str
     name: str
     base_url: str = ""
-    api_key: str = ""
+    api_key: str = Field(default="", repr=False)  # không in key ra log/repr
     has_api_key: bool = False
     api_format: ApiCallFormat = "openai"
     protocol: ChannelProtocol = "auto"
@@ -67,7 +67,7 @@ class ResolvedModelRoute(BaseModel):
     channel_id: str
     channel_name: str
     base_url: str
-    api_key: str
+    api_key: str = Field(repr=False)  # không in key ra log/repr
     protocol: ChannelProtocol
     api_format: ApiCallFormat
 

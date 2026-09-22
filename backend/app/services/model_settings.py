@@ -32,6 +32,7 @@ from app.schemas_settings import (
     model_config_field_names,
 )
 from app.services.function_bindings import bindings_to_dict, parse_function_bindings, validate_function_bindings
+from app.services.providers.host_guard import ProviderHostChangedError, same_host
 
 logger = logging.getLogger("app.model_settings")
 
@@ -135,7 +136,8 @@ def _bootstrap_channels_from_env(settings: Settings | None = None) -> list[Syste
         out.append(SystemModelChannel(id="volc_tts", name="BytePlus Seed Speech", base_url=(src.volc_tts_url or "").rstrip("/"),
                                       api_key=vkey, has_api_key=bool(vkey), protocol="volc_tts", api_format="openai",
                                       models=[src.volc_tts_resource_id or "seed-tts-2.0"], enabled=True, sort_order=2))
-    return out
+    # base_url còn trỏ tokenfree.com (env thời TokenFree) thì không seed: host đã chết, key là key TokenFree
+    return [c for c in out if "tokenfree.com" not in (c.base_url or "").lower()]
 
 
 # Gán slot mặc định từ MODEL_* của env: mỗi năng lực lấy model đầu tiên có provider bật
@@ -232,11 +234,11 @@ def _channel_row_to_runtime(row: SystemModelChannelRow) -> SystemModelChannel:
 
 
 async def _get_or_create_app_row(db: AsyncSession) -> AppSettings:
-    """Lấy dòng app_settings duy nhất (id="default"); tạo mới với flat = env hiện hành nếu chưa có."""
+    """Lấy dòng app_settings duy nhất (id="default"); tạo mới với flat = env hiện hành (khoá bí mật đã mã hoá) nếu chưa có."""
     row = (await db.execute(select(AppSettings).where(AppSettings.id == "default"))).scalar_one_or_none()
     if row:
         return row
-    row = AppSettings(id="default", config_json={"flat": _settings_to_dict()})
+    row = AppSettings(id="default", config_json={"flat": _encrypt_flat_config(_settings_to_dict())})
     db.add(row)
     await db.flush()
     return row
@@ -256,15 +258,32 @@ async def _load_channels(db: AsyncSession, *, runtime: bool) -> list[SystemModel
     return [_channel_row_to_admin(row) for row in rows]
 
 
+# Cờ trong app_settings.config_json: đã seed provider từ env (chỉ seed đúng một lần)
+PROVIDERS_SEEDED_KEY = "providers_seeded"
+
+
+async def _mark_providers_seeded(db: AsyncSession) -> None:
+    """Ghi cờ providers_seeded=True để các lần nạp sau không seed lại từ env."""
+    app_row = await _get_or_create_app_row(db)
+    config = dict(app_row.config_json or {})
+    if config.get(PROVIDERS_SEEDED_KEY) is not True:
+        config[PROVIDERS_SEEDED_KEY] = True
+        app_row.config_json = config
+    await db.flush()
+
+
 async def _ensure_bootstrapped_channels(db: AsyncSession) -> None:
-    """Xoá kênh tokenfree cũ; DB trống provider thì seed từ env (kèm bindings)."""
+    """Xoá kênh tokenfree cũ; chỉ seed từ env đúng một lần trên DB mới (chưa có cờ, chưa có provider, không vừa xoá kênh cũ)."""
     rows = list((await db.execute(select(SystemModelChannelRow))).scalars().all())
     legacy = [r for r in rows if r.id == "tokenfree" or "tokenfree.com" in (r.base_url or "")]
     for r in legacy:
         await db.delete(r)
     rows = [r for r in rows if r not in legacy]
-    if rows:
-        await db.flush()
+    app_row = await _get_or_create_app_row(db)
+    already = bool((app_row.config_json or {}).get(PROVIDERS_SEEDED_KEY))
+    # DB đã có provider hoặc vừa nâng cấp từ TokenFree: coi như đã seed (env cũ chứa key TokenFree)
+    if already or rows or legacy:
+        await _mark_providers_seeded(db)
         return
     channels = _bootstrap_channels_from_env()
     for channel in channels:
@@ -272,12 +291,14 @@ async def _ensure_bootstrapped_channels(db: AsyncSession) -> None:
                                      api_key_ciphertext=_encrypt_secret(channel.api_key) if channel.api_key else None,
                                      api_format=channel.api_format, protocol=channel.protocol, models=channel.models,
                                      enabled=channel.enabled, sort_order=channel.sort_order, advanced_config=None))
-    app_row = await _get_or_create_app_row(db)
     config = dict(app_row.config_json or {})
     if channels and not parse_function_bindings(config.get("function_bindings")).slots:
         config["function_bindings"] = bindings_to_dict(_bootstrap_bindings_from_env(get_settings(), channels))
     if "flat" not in config:
         config["flat"] = _encrypt_flat_config(_settings_to_dict())
+    if channels:
+        # env chưa có key nào thì chưa tính là đã seed: lần sau điền key vào env vẫn seed được
+        config[PROVIDERS_SEEDED_KEY] = True
     app_row.config_json = config
     await db.flush()
 
@@ -431,8 +452,13 @@ async def patch_admin_routing_settings(
                 raise ValueError(f"Provider {item.name}: protocol không hỗ trợ")
             row = existing.get(cid) or SystemModelChannelRow(id=cid)
             prev_key = _decrypt_secret(row.api_key_ciphertext or "") if row.api_key_ciphertext else ""
-            key = "" if item.clear_api_key else (str(item.api_key).strip() if item.api_key and str(item.api_key).strip() else prev_key)
-            row.name = item.name.strip(); row.base_url = (item.base_url or "").strip().rstrip("/")
+            new_key = str(item.api_key).strip() if item.api_key and str(item.api_key).strip() else ""
+            new_base = (item.base_url or "").strip().rstrip("/")
+            # Giữ key cũ khi đổi host sẽ gửi key tới máy chủ lạ: bắt nhập lại key
+            if prev_key and not new_key and not item.clear_api_key and not same_host(new_base, row.base_url or ""):
+                raise ProviderHostChangedError()
+            key = "" if item.clear_api_key else (new_key or prev_key)
+            row.name = item.name.strip(); row.base_url = new_base
             row.api_key_ciphertext = _encrypt_secret(key) if key else None
             row.protocol = item.protocol; row.api_format = "ark" if item.protocol == "ark" else "openai"
             row.models = list(dict.fromkeys(m.strip() for m in item.models if m and m.strip()))

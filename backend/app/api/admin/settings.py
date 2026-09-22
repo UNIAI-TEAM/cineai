@@ -22,6 +22,7 @@ from app.services.model_settings import (
     patch_admin_model_settings,
     patch_admin_routing_settings,
 )
+from app.services.providers.host_guard import ProviderHostChangedError
 from app.services.upstream_model_catalog import list_upstream_models
 
 router = APIRouter()
@@ -114,7 +115,7 @@ async def admin_list_upstream_models(
             api_key_override=body.api_key,
             capability=body.capability,
         )
-    except RuntimeError as exc:
+    except (RuntimeError, ProviderHostChangedError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"models": models}
 
@@ -154,6 +155,9 @@ async def admin_test_provider(
             base_url=body.base_url,
             api_key_override=body.api_key,
         )
+    except ProviderHostChangedError as exc:
+        # Đổi host mà không nhập lại key: từ chối hẳn, không dùng key đã lưu
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
         return {"ok": False, "message": str(exc)}
     return {"ok": True, "message": f"Kết nối thành công, {len(models)} model", "models_count": len(models)}

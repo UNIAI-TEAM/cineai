@@ -196,7 +196,27 @@ curl -s -X PATCH http://127.0.0.1:8000/api/admin/settings/routing \
 ```
 
 Gửi `providers` mà không có `api_key` (hoặc bỏ trường `api_key`) giữ nguyên key đã lưu; gửi
-`"clear_api_key": true` để xoá key. Response `AdminRoutingSettingsSaveOut.applied` cho biết những phần nào
+`"clear_api_key": true` để xoá key. Riêng khi `base_url` đổi sang host khác (so scheme + host + port) thì
+**bắt buộc nhập lại `api_key`**, nếu không sẽ nhận `HTTP 400` "Đổi địa chỉ máy chủ thì phải nhập lại API
+key" — key đã lưu không bao giờ được gửi tới host mới. Quy tắc này cũng áp dụng cho
+`POST /settings/providers/test` và `POST /settings/upstream/models` khi truyền `channel_id` kèm `base_url`
+khác host đã lưu.
+
+### Seed provider từ `.env` (chỉ một lần)
+
+Lúc nạp cấu hình (`model_settings._ensure_bootstrapped_channels`):
+
+- Kênh cũ `tokenfree` (hoặc bất kỳ provider nào có base URL chứa `tokenfree.com`) luôn bị xoá.
+- Provider chỉ được seed từ `.env` (`OPENAI_*`, `ARK_*`, `VOLC_TTS_*`) **đúng một lần** trên DB mới: sau khi
+  seed, `app_settings.config_json["providers_seeded"] = true` và các lần nạp sau không seed lại — kể cả khi
+  admin xoá hết provider (`providers: []`).
+- DB đã có provider (dù chưa có cờ) được coi là đã seed. DB nâng cấp từ bản TokenFree (vừa xoá kênh
+  `tokenfree`) **không seed** từ `.env` cũ vì `ARK_API_KEY`/`OPENAI_API_KEY` khi đó là key TokenFree —
+  admin phải tự thêm provider ở trang cài đặt.
+- Provider mà base URL suy ra từ env vẫn trỏ `tokenfree.com` thì bị bỏ qua. Key giữ chỗ
+  (`replace-me`, `changeme`, `your-*`, `sk-xxx*`, `<...>`) được coi như rỗng. `.env` không có key nào thì
+  chưa tính là đã seed (điền key rồi khởi động lại vẫn seed được).
+- Có cấu hình Volc TTS trong env thì slot `audio` được seed với binding Volc đứng đầu. Response `AdminRoutingSettingsSaveOut.applied` cho biết những phần nào
 đã được lưu (`providers`, `function_bindings`); lỗi validate (provider không tồn tại, model chưa bật ở
 provider, model sai capability…) trả `HTTP 400` với message tiếng Việt từ
 `function_bindings.validate_function_bindings()`.
@@ -224,12 +244,9 @@ dụng cho từng nhóm chức năng — dùng để hiển thị dropdown chọ
   tính đóng băng/quyết toán dùng hằng số cũ trong `services/billing/` cho tới khi Plan B thêm bảng giá
   thật theo provider.
 - **`tokenfree_pricing.py` / `tokenfree_usage.py` vẫn còn trong repo có chủ đích** (dùng cho màn admin
-  "So sánh dùng lượng upstream", Plan B sẽ xoá). Lưu ý an ninh đã biết:
-  `tokenfree_usage.resolve_tokenfree_api_key()` khi không tìm được provider tên `tokenfree`/base URL chứa
-  `tokenfree.com` sẽ **fallback sang dùng key OpenAI hoặc Ark hiện có** để gọi thử endpoint đối chiếu quota
-  — nghĩa là màn admin-only này có thể âm thầm dùng key OpenAI/Ark của bạn cho một mục đích khác với lúc
-  cấu hình. Không phải lỗi chặn release (chỉ admin truy cập được), nhưng cần Plan B xử lý khi xoá
-  TokenFree hoàn toàn.
+  "So sánh dùng lượng upstream", Plan B sẽ xoá). `tokenfree_usage.resolve_tokenfree_api_key()` chỉ trả
+  key của kênh TokenFree đã lưu (nay luôn rỗng, vì kênh này bị xoá lúc nạp) — **không còn** mượn key
+  OpenAI/Ark để gọi tokenfree.com.
 - **Mock khi chưa có key**: đặt `ARK_MOCK=true`, hoặc không cấu hình bất kỳ provider nào có `api_key` —
   `MediaGateway.mock` sẽ tự phát hiện (`get_routing_snapshot().channels` không có channel nào
   `enabled` + có key) và chuyển toàn bộ ảnh/video/TTS sang sinh dữ liệu giả cục bộ (`static/mock/...`),

@@ -80,3 +80,81 @@ async def test_patch_rejects_duplicate_provider_id_in_same_body(db_session):
     with pytest.raises(ValueError) as exc:
         await ms.patch_admin_routing_settings(db_session, body)
     assert "openai" in str(exc.value)
+
+
+# ---- I-1: seed provider từ env đúng một lần, không gửi key TokenFree sang BytePlus ----
+
+from app.config import Settings  # noqa: E402
+from app.models_settings import AppSettings  # noqa: E402
+
+
+def _tokenfree_era_settings() -> Settings:
+    """Env thời TokenFree: ARK_API_KEY là key TokenFree (không có ARK_BASE_URL), OPENAI_BASE_URL trỏ tokenfree.com."""
+    return Settings(ark_api_key="tf-key", openai_api_key="tf-key", openai_base_url="https://www.tokenfree.com/v1",
+                    volc_tts_api_key="", volc_tts_app_id="", volc_tts_access_key="",
+                    model_llm="kimi-k2.6", model_image="seedream-5.0", model_video="seedance-2.5")
+
+
+def _fresh_settings() -> Settings:
+    """Env sạch của bản mới: key OpenAI + BytePlus thật."""
+    return Settings(openai_api_key="sk-real", openai_base_url="https://api.openai.com/v1", ark_api_key="ak-real", volc_tts_api_key="", volc_tts_app_id="",
+                    volc_tts_access_key="", model_llm="gpt-5.6-sol", model_image="dola-seedream-5-0-pro-260628",
+                    model_video="dreamina-seedance-2-5-260628", model_audio="gpt-4o-mini-tts")
+
+
+async def _channel_ids(db_session) -> list[str]:
+    """Id các provider đang có trong DB."""
+    return list((await db_session.execute(select(SystemModelChannelRow.id))).scalars().all())
+
+
+async def test_upgrade_from_tokenfree_does_not_seed_env_keys(db_session, monkeypatch):
+    """DB cũ có kênh tokenfree + env thời TokenFree: xoá kênh cũ, không seed byteplus/openai bằng key TokenFree."""
+    fake = _tokenfree_era_settings()
+    monkeypatch.setattr(ms, "get_settings", lambda: fake)
+    db_session.add(AppSettings(id="default", config_json={"flat": {"openai_base_url": "https://www.tokenfree.com/v1"},
+                                                          "logical_models": [{"id": "x"}]}))
+    db_session.add(SystemModelChannelRow(id="tokenfree", name="TokenFree", base_url="https://www.tokenfree.com/v1",
+                                         protocol="auto", models=["kimi-k2.6"], enabled=True))
+    await db_session.flush()
+    await ms.load_model_settings_cache(db_session)
+    assert await _channel_ids(db_session) == []
+    await ms.load_model_settings_cache(db_session)          # lần nạp sau cũng không seed lại
+    assert await _channel_ids(db_session) == []
+    row = await db_session.get(AppSettings, "default")
+    assert row.config_json.get("providers_seeded") is True
+
+
+async def test_seed_skips_tokenfree_base_url_and_seeds_once(db_session, monkeypatch):
+    """DB trống: seed một lần; admin xoá hết provider thì lần nạp sau không seed lại từ env."""
+    fake = _fresh_settings()
+    monkeypatch.setattr(ms, "get_settings", lambda: fake)
+    await ms.load_model_settings_cache(db_session)
+    assert set(await _channel_ids(db_session)) == {"openai", "byteplus"}
+    await ms.patch_admin_routing_settings(db_session, AdminRoutingSettingsPatch(providers=[], function_bindings=FunctionBindings()))
+    await ms.load_model_settings_cache(db_session)
+    assert await _channel_ids(db_session) == []
+
+
+async def test_existing_provider_rows_count_as_seeded(db_session, monkeypatch):
+    """DB đã có provider (chưa có cờ) được coi là đã seed: xoá hết rồi nạp lại cũng không seed từ env."""
+    fake = _fresh_settings()
+    monkeypatch.setattr(ms, "get_settings", lambda: fake)
+    db_session.add(AppSettings(id="default", config_json={"flat": {}}))
+    db_session.add(SystemModelChannelRow(id="mine", name="Mine", base_url="https://api.openai.com/v1", protocol="openai",
+                                         models=["gpt-5.6-sol"], enabled=True))
+    await db_session.flush()
+    await ms.load_model_settings_cache(db_session)
+    await ms.patch_admin_routing_settings(db_session, AdminRoutingSettingsPatch(providers=[], function_bindings=FunctionBindings()))
+    await ms.load_model_settings_cache(db_session)
+    assert await _channel_ids(db_session) == []
+
+
+async def test_new_app_row_encrypts_env_secrets(db_session, monkeypatch):
+    """I-6: tạo mới app_settings từ env thì các khoá bí mật trong flat phải được mã hoá, không lưu plaintext."""
+    fake = _fresh_settings()
+    monkeypatch.setattr(ms, "get_settings", lambda: fake)
+    row = await ms._get_or_create_app_row(db_session)
+    flat = row.config_json["flat"]
+    assert flat["openai_api_key"].startswith(ms.ENCRYPTED_PREFIX)
+    assert flat["ark_api_key"].startswith(ms.ENCRYPTED_PREFIX)
+    assert ms._decrypt_flat_config(row.config_json)["ark_api_key"] == "ak-real"
