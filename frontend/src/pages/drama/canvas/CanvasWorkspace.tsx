@@ -9,6 +9,7 @@ import { CanvasTopBar } from './CanvasTopBar'
 import { getViewportCenterNodePosition } from './canvasNormalize'
 import { CANVAS_NODE_SIZE, type CanvasNodeKind } from './canvasTypes'
 import { FreeCanvasFlow } from './FreeCanvasFlow'
+import { useI18n } from '../../../i18n/context'
 import './canvas.css'
 
 type CanvasWorkspaceProps = {
@@ -22,6 +23,7 @@ function CanvasWorkspaceContent({
   projectId,
   variant = 'fullscreen',
 }: CanvasWorkspaceProps) {
+  const { t } = useI18n()
   const {
     showNodeSelector,
     errorMessage,
@@ -75,7 +77,7 @@ function CanvasWorkspaceContent({
       ) : null}
       {loading ? (
         <p className="fc-error-toast" style={{ background: '#fff', color: '#64748b' }}>
-          加载画布…
+          {t('dramaCanvas.page.loading')}
         </p>
       ) : null}
     </div>

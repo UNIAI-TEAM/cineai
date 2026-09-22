@@ -19,6 +19,8 @@ import { DramaImageGenOptionsBar } from './DramaImageGenOptionsBar'
 import { DramaSkillOptionsBar } from './DramaSkillOptionsBar'
 import { DramaVideoGenOptionsBar } from './DramaVideoGenOptionsBar'
 import { CanvasPromptEditor } from './CanvasPromptEditor'
+import { useI18n } from '../../../../i18n/context'
+import type { TFunction } from '../../../../i18n/context'
 
 type CanvasNodeGeneratePanelProps = {
   nodeId: string
@@ -34,32 +36,13 @@ type CanvasNodeGeneratePanelProps = {
 }
 
 /** 按节点类型返回面板文案 */
-function panelCopy(kind: CanvasNodeKind, hasMedia: boolean) {
-  if (kind === 'video') {
-    return {
-      title: hasMedia ? '编辑并重生视频' : 'AI 生成视频',
-      placeholder: '描述视频画面、镜头运动与氛围；键入 @ 引用角色/场景…',
-      hint: 'Enter 生成视频 · @ 引用 · Shift+Enter 换行',
-    }
-  }
-  if (kind === 'character') {
-    return {
-      title: hasMedia ? '编辑并重生角色' : 'AI 生角色',
-      placeholder: '描述角色外貌、服饰与气质…',
-      hint: 'Enter 生成 · Shift+Enter 换行',
-    }
-  }
-  if (kind === 'scene') {
-    return {
-      title: hasMedia ? '编辑并重生场景' : 'AI 生场景',
-      placeholder: '描述场景环境、光线与氛围…',
-      hint: 'Enter 生成 · Shift+Enter 换行',
-    }
-  }
+function panelCopy(kind: CanvasNodeKind, hasMedia: boolean, t: TFunction) {
+  const key = kind === 'video' || kind === 'character' || kind === 'scene' ? kind : 'image'
+  const base = `dramaCanvas.generate.${key}`
   return {
-    title: hasMedia ? '编辑并重生图片' : 'AI 生图',
-    placeholder: '描述画面内容；键入 @ 引用角色/场景…',
-    hint: 'Enter 生成 · @ 引用 · Shift+Enter 换行',
+    title: t(hasMedia ? `${base}.titleEdit` : `${base}.title`),
+    placeholder: t(`${base}.placeholder`),
+    hint: t(`${base}.hint`),
   }
 }
 
@@ -93,6 +76,7 @@ export function CanvasNodeGeneratePanel({
     updateNodeVideoOptions,
     mentionableNodes,
   } = useCanvasStore()
+  const { t } = useI18n()
   const [prompt, setPrompt] = useState(() => sanitizePrompt(defaultPrompt, kind, label))
   /*
    * busy 正在提交生成
@@ -118,7 +102,7 @@ export function CanvasNodeGeneratePanel({
       image_style_id: saved.image_style_id || projectImageStyleId || undefined,
     }
   })
-  const copy = panelCopy(kind, hasMedia)
+  const copy = panelCopy(kind, hasMedia, t)
   const allowMention = kind === 'video' || kind === 'image'
   const isVideo = kind === 'video'
 
@@ -186,7 +170,7 @@ export function CanvasNodeGeneratePanel({
         await generateNodeImage(nodeId, prompt, imageOptions)
       }
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : '生成失败')
+      setErrorMessage(err instanceof Error ? err.message : t('dramaCanvas.generate.failed'))
     } finally {
       setBusy(false)
     }
@@ -213,7 +197,7 @@ export function CanvasNodeGeneratePanel({
         updateNodePrompt(nodeId, next)
       }
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Skill 优化失败')
+      setErrorMessage(err instanceof Error ? err.message : t('dramaCanvas.generate.skillFailed'))
     } finally {
       setOptimizing(false)
     }
@@ -235,13 +219,13 @@ export function CanvasNodeGeneratePanel({
       <div className="fc-generate-head">
         <Sparkles size={14} strokeWidth={1.8} />
         <span>{copy.title}</span>
-        {hasMedia ? <em className="fc-generate-tag">可再次生成</em> : null}
+        {hasMedia ? <em className="fc-generate-tag">{t('dramaCanvas.generate.regenTag')}</em> : null}
         {isVideo ? (
           <button
             type="button"
             className="fc-generate-help"
-            title="Seedance 传值与使用规则"
-            aria-label="Seedance 传值与使用规则"
+            title={t('dramaCanvas.generate.seedanceRules')}
+            aria-label={t('dramaCanvas.generate.seedanceRules')}
             disabled={isBusy}
             onClick={() => setRulesOpen(true)}
           >
@@ -290,13 +274,17 @@ export function CanvasNodeGeneratePanel({
             type="button"
             className="fc-generate-optimize"
             disabled={!canOptimize}
-            title={selectedIds.length ? '按所选 Skill 改写提示词' : '请先选择 Skill'}
+            title={
+              selectedIds.length
+                ? t('dramaCanvas.generate.optimizeTitle')
+                : t('dramaCanvas.generate.pickSkillFirst')
+            }
             onClick={() => void optimizePrompt()}
           >
             {optimizing ? <Loader2 size={14} className="fc-spin" /> : <Wand2 size={14} strokeWidth={1.8} />}
-            Skill 优化
+            {t('dramaCanvas.generate.optimize')}
           </button>
-          <button type="submit" className="fc-generate-submit" disabled={!canSubmit} aria-label="生成">
+          <button type="submit" className="fc-generate-submit" disabled={!canSubmit} aria-label={t('dramaCanvas.generate.submit')}>
             {isBusy && !optimizing ? (
               <Loader2 size={16} className="fc-spin" />
             ) : (

@@ -9,12 +9,14 @@ import {
   CANVAS_GENERATABLE_KINDS,
   CANVAS_NODE_OPTION_BY_KIND,
   CANVAS_UPLOADABLE_KINDS,
+  canvasNodeDisplayLabel,
   type CanvasAssetNodeData,
 } from './canvasTypes'
 import { CanvasNodeGeneratePanel } from './nodes/CanvasNodeGeneratePanel'
 import { CanvasNodePreviewModal } from './CanvasNodePreviewModal'
 import { CanvasNodeUploadBar } from './nodes/CanvasNodeUploadBar'
 import { DRAMA_VOICE_BINDING_ENABLED } from '../../../lib/dramaVoiceBinding'
+import { useI18n } from '../../../i18n/context'
 
 /** 画布视频缩略：仅展示封面，不拦截单击（单击要选中并显示提示词面板） */
 function CanvasAssetVideoPreview({ src }: { src: string }) {
@@ -41,6 +43,7 @@ function PlaceholderIcon({ kind }: { kind: CanvasAssetNodeData['kind'] }) {
 
 /** 渲染单个画布资产节点 */
 function CanvasAssetNodeComponent({ id, data, selected }: NodeProps<Node<CanvasAssetNodeData>>) {
+  const { t } = useI18n()
   const { updateNodeTextContent, renameNode } = useCanvasStore()
   const option = CANVAS_NODE_OPTION_BY_KIND[data.kind]
   const Icon = option.icon
@@ -54,13 +57,13 @@ function CanvasAssetNodeComponent({ id, data, selected }: NodeProps<Node<CanvasA
     data.kind === 'character'
       ? typeof data.characterName === 'string' && data.characterName
         ? data.characterName
-        : data.label || option.label
-      : data.label || option.label
+        : canvasNodeDisplayLabel(data.label, data.kind, t)
+      : canvasNodeDisplayLabel(data.label, data.kind, t)
   const footerLabel =
     data.kind === 'character'
       ? DRAMA_VOICE_BINDING_ENABLED && voiceLabel
-        ? `基础形象 · ${voiceLabel}`
-        : '基础形象'
+        ? t('dramaCanvas.node.baseLookWithVoice', { voice: voiceLabel })
+        : t('dramaCanvas.node.baseLook')
       : data.kind === 'scene'
         ? displayName
         : null
@@ -151,13 +154,13 @@ function CanvasAssetNodeComponent({ id, data, selected }: NodeProps<Node<CanvasA
             onBlur={commitRename}
             onKeyDown={handleRenameKeyDown}
             onMouseDown={(e) => e.stopPropagation()}
-            aria-label="节点名称"
+            aria-label={t('dramaCanvas.node.nameLabel')}
           />
         ) : (
           <button
             type="button"
             className="fc-node-title nodrag nopan"
-            title="双击重命名"
+            title={t('dramaCanvas.node.renameHint')}
             onDoubleClick={startRename}
           >
             {displayName}
@@ -167,7 +170,7 @@ function CanvasAssetNodeComponent({ id, data, selected }: NodeProps<Node<CanvasA
 
       <div
         className={`fc-asset-card${canPreview ? ' is-previewable' : ''}`}
-        title={canPreview ? '双击放大预览' : undefined}
+        title={canPreview ? t('dramaCanvas.node.previewHint') : undefined}
         onDoubleClick={handleCardDoubleClick}
       >
         <div className={`fc-asset-body is-${data.kind}`}>
@@ -177,16 +180,16 @@ function CanvasAssetNodeComponent({ id, data, selected }: NodeProps<Node<CanvasA
                 className="fc-text-editor nodrag nowheel"
                 value={data.textContent || ''}
                 onChange={handleTextChange}
-                placeholder="输入文本…"
+                placeholder={t('dramaCanvas.node.textPlaceholder')}
                 rows={4}
               />
             ) : (
-              <span>{data.textContent || data.label || '文本'}</span>
+              <span>{data.textContent || canvasNodeDisplayLabel(data.label, data.kind, t)}</span>
             )
           ) : data.generating ? (
             <div className="fc-generating">
               <Loader2 size={28} className="fc-spin" />
-              <span>生成中…</span>
+              <span>{t('dramaCanvas.node.generating')}</span>
             </div>
           ) : mediaSrc && data.kind === 'video' && isPlayableVideoUrl(mediaSrc) ? (
             <CanvasAssetVideoPreview src={mediaSrc} />
@@ -212,8 +215,8 @@ function CanvasAssetNodeComponent({ id, data, selected }: NodeProps<Node<CanvasA
             <button
               type="button"
               className="fc-asset-expand nodrag nopan nowheel"
-              title="放大预览"
-              aria-label={`放大预览 ${displayName}`}
+              title={t('dramaCanvas.node.expand')}
+              aria-label={t('dramaCanvas.node.expandNamed', { name: displayName })}
               onClick={handleExpandClick}
               onPointerDown={(event) => event.stopPropagation()}
             >

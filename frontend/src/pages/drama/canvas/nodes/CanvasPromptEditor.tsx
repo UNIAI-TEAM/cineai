@@ -13,6 +13,7 @@ import {
   filterCanvasMentionItems,
   type CanvasMentionItem,
 } from './CanvasMentionPopover'
+import { useI18n } from '../../../../i18n/context'
 
 type CanvasPromptEditorProps = {
   value: string
@@ -51,6 +52,7 @@ export function CanvasPromptEditor({
   onChange,
   onSubmit,
 }: CanvasPromptEditorProps) {
+  const { t } = useI18n()
   const editorRef = useRef<HTMLDivElement>(null)
   const lastEmittedRef = useRef(value)
   const [mention, setMention] = useState<MentionUi>(EMPTY_MENTION)
@@ -165,7 +167,7 @@ export function CanvasPromptEditor({
     [closeMention, onChange, paint, resolveChip],
   )
 
-  const filtered = filterCanvasMentionItems(mentionItems, mention.query)
+  const filtered = filterCanvasMentionItems(mentionItems, mention.query, t)
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (
@@ -230,7 +232,7 @@ export function CanvasPromptEditor({
         className={`fc-generate-input fc-generate-editor nodrag nopan nowheel${empty ? ' is-empty' : ''}`}
         role="textbox"
         aria-multiline="true"
-        aria-label="生成提示词"
+        aria-label={t('dramaCanvas.generate.editorLabel')}
         contentEditable={!disabled}
         suppressContentEditableWarning
         data-placeholder={placeholder}

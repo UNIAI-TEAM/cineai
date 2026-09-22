@@ -3,9 +3,11 @@ import { useCallback, useState } from 'react'
 import { LocateFixed, Magnet, Map, Minus, Plus, Redo2, Scan, Undo2 } from 'lucide-react'
 import { useOnViewportChange, useReactFlow } from '@xyflow/react'
 import { useCanvasStore } from './CanvasStore'
+import { useI18n } from '../../../i18n/context'
 
 /** 渲染画布左下角控制条 */
 export function CanvasBottomControls() {
+  const { t } = useI18n()
   const {
     snapToGrid,
     showMinimap,
@@ -36,8 +38,8 @@ export function CanvasBottomControls() {
         <button
           type="button"
           className="fc-icon-btn is-sm"
-          aria-label="撤销"
-          title="撤销"
+          aria-label={t('dramaCanvas.bottom.undo')}
+          title={t('dramaCanvas.bottom.undo')}
           disabled={!canUndo}
           onClick={undo}
         >
@@ -46,8 +48,8 @@ export function CanvasBottomControls() {
         <button
           type="button"
           className="fc-icon-btn is-sm"
-          aria-label="重做"
-          title="重做"
+          aria-label={t('dramaCanvas.bottom.redo')}
+          title={t('dramaCanvas.bottom.redo')}
           disabled={!canRedo}
           onClick={redo}
         >
@@ -59,8 +61,8 @@ export function CanvasBottomControls() {
         <button
           type="button"
           className="fc-icon-btn is-sm"
-          aria-label="定位到内容"
-          title="定位到内容"
+          aria-label={t('dramaCanvas.bottom.fitContent')}
+          title={t('dramaCanvas.bottom.fitContent')}
           onClick={() => void fitView({ duration: 200 })}
         >
           <LocateFixed size={16} strokeWidth={1.8} />
@@ -68,8 +70,8 @@ export function CanvasBottomControls() {
         <button
           type="button"
           className="fc-icon-btn is-sm"
-          aria-label="适应画布"
-          title="适应画布"
+          aria-label={t('dramaCanvas.bottom.fitView')}
+          title={t('dramaCanvas.bottom.fitView')}
           onClick={() => void fitView({ duration: 200, padding: 0.2 })}
         >
           <Scan size={16} strokeWidth={1.8} />
@@ -80,8 +82,8 @@ export function CanvasBottomControls() {
         <button
           type="button"
           className={`fc-icon-btn is-sm${snapToGrid ? ' is-active' : ''}`}
-          aria-label={snapToGrid ? '关闭网格吸附' : '开启网格吸附'}
-          title={snapToGrid ? '关闭网格吸附' : '开启网格吸附'}
+          aria-label={snapToGrid ? t('dramaCanvas.bottom.snapOff') : t('dramaCanvas.bottom.snapOn')}
+          title={snapToGrid ? t('dramaCanvas.bottom.snapOff') : t('dramaCanvas.bottom.snapOn')}
           aria-pressed={snapToGrid}
           onClick={toggleSnapToGrid}
         >
@@ -90,8 +92,8 @@ export function CanvasBottomControls() {
         <button
           type="button"
           className={`fc-icon-btn is-sm${showMinimap ? ' is-active' : ''}`}
-          aria-label={showMinimap ? '关闭小地图' : '开启小地图'}
-          title={showMinimap ? '关闭小地图' : '开启小地图'}
+          aria-label={showMinimap ? t('dramaCanvas.bottom.minimapOff') : t('dramaCanvas.bottom.minimapOn')}
+          title={showMinimap ? t('dramaCanvas.bottom.minimapOff') : t('dramaCanvas.bottom.minimapOn')}
           aria-pressed={showMinimap}
           onClick={toggleMinimap}
         >
@@ -103,8 +105,8 @@ export function CanvasBottomControls() {
         <button
           type="button"
           className="fc-icon-btn is-sm"
-          aria-label="缩小"
-          title="缩小"
+          aria-label={t('dramaCanvas.bottom.zoomOut')}
+          title={t('dramaCanvas.bottom.zoomOut')}
           onClick={() => zoomOut({ duration: 150 })}
         >
           <Minus size={16} strokeWidth={1.8} />
@@ -112,8 +114,8 @@ export function CanvasBottomControls() {
         <button
           type="button"
           className="fc-zoom-label"
-          aria-label="重置缩放"
-          title="重置缩放"
+          aria-label={t('dramaCanvas.bottom.zoomReset')}
+          title={t('dramaCanvas.bottom.zoomReset')}
           onClick={handleResetZoom}
         >
           {zoomPercent}%
@@ -121,8 +123,8 @@ export function CanvasBottomControls() {
         <button
           type="button"
           className="fc-icon-btn is-sm"
-          aria-label="放大"
-          title="放大"
+          aria-label={t('dramaCanvas.bottom.zoomIn')}
+          title={t('dramaCanvas.bottom.zoomIn')}
           onClick={() => zoomIn({ duration: 150 })}
         >
           <Plus size={16} strokeWidth={1.8} />

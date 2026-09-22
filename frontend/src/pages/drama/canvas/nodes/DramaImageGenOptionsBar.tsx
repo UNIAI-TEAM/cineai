@@ -20,6 +20,7 @@ import {
   catalogModelLabel,
   useMediaModelsCatalog,
 } from '../../../../hooks/useMediaModelsCatalog'
+import { useI18n } from '../../../../i18n/context'
 import './dramaImageGenOptions.css'
 
 type DramaImageGenOptionsBarProps = {
@@ -39,6 +40,7 @@ export function DramaImageGenOptionsBar({
   disabled = false,
   onStylePersist,
 }: DramaImageGenOptionsBarProps) {
+  const { t } = useI18n()
   const rootRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState<OpenPanel>(null)
   const catalog = useMediaModelsCatalog()
@@ -71,8 +73,8 @@ export function DramaImageGenOptionsBar({
     e.stopPropagation()
   }
 
-  const styleLabel = getImageStyleLabel(value.image_style_id) || '风格'
-  const modelLabel = catalogModelLabel(value.model_id, imageModels, '图片模型')
+  const styleLabel = getImageStyleLabel(value.image_style_id) || t('dramaCanvas.genOptions.style')
+  const modelLabel = catalogModelLabel(value.model_id, imageModels, t('dramaCanvas.options.imageModel'))
   const outputLabel = formatOutputSettingsLabel(value.aspect_ratio, value.resolution)
 
   return (
@@ -111,8 +113,8 @@ export function DramaImageGenOptionsBar({
       </div>
 
       {open === 'style' ? (
-        <div className="fc-gen-opt-panel fc-gen-style-panel" role="dialog" aria-label="图片风格">
-          <div className="fc-gen-opt-panel-title">图片风格</div>
+        <div className="fc-gen-opt-panel fc-gen-style-panel" role="dialog" aria-label={t('dramaCanvas.genOptions.imageStyle')}>
+          <div className="fc-gen-opt-panel-title">{t('dramaCanvas.genOptions.imageStyle')}</div>
           <div className="fc-gen-style-grid">
             {IMAGE_STYLE_OPTIONS.map((opt) => {
               const selected = value.image_style_id === opt.id
@@ -137,11 +139,11 @@ export function DramaImageGenOptionsBar({
       ) : null}
 
       {open === 'model' ? (
-        <div className="fc-gen-opt-panel" role="dialog" aria-label="生图模型">
-          <div className="fc-gen-opt-panel-title">模型</div>
+        <div className="fc-gen-opt-panel" role="dialog" aria-label={t('dramaCanvas.genOptions.imageModelAria')}>
+          <div className="fc-gen-opt-panel-title">{t('dramaCanvas.genOptions.model')}</div>
           <div className="fc-gen-model-list">
             {imageModels.length === 0 ? (
-              <p className="fc-gen-model-empty">请先在管理后台「模型」勾选图片模型</p>
+              <p className="fc-gen-model-empty">{t('dramaCanvas.genOptions.noImageModels')}</p>
             ) : null}
             {imageModels.map((m) => (
               <button
@@ -162,8 +164,8 @@ export function DramaImageGenOptionsBar({
       ) : null}
 
       {open === 'output' ? (
-        <div className="fc-gen-opt-panel" role="dialog" aria-label="输出设置">
-          <div className="fc-gen-opt-panel-title">比例</div>
+        <div className="fc-gen-opt-panel" role="dialog" aria-label={t('dramaCanvas.genOptions.outputAria')}>
+          <div className="fc-gen-opt-panel-title">{t('dramaCanvas.genOptions.ratio')}</div>
           <div className="fc-gen-chip-row">
             {GENERATION_ASPECT_RATIO_OPTIONS.map((opt) => (
               <button
@@ -179,7 +181,7 @@ export function DramaImageGenOptionsBar({
             ))}
           </div>
           <div className="fc-gen-opt-panel-title" style={{ marginTop: 10 }}>
-            清晰度
+            {t('dramaCanvas.genOptions.resolution')}
           </div>
           <div className="fc-gen-chip-row">
             {GENERATION_RESOLUTION_OPTIONS.map((res) => (

@@ -1,4 +1,12 @@
 /** 漫剧生图：模型 / 比例 / 清晰度选项（模型列表来自后台 TokenFree 目录） */
+import { getActiveLocale } from '../i18n/detect'
+import { messages } from '../i18n/messages'
+
+
+// 当前界面语言的画布选项文案
+function optionText(key: 'auto' | 'imageModel'): string {
+  return messages[getActiveLocale()].dramaCanvas.options[key]
+}
 
 export type ImageGenerationModelId = string
 
@@ -28,7 +36,13 @@ export const GENERATION_ASPECT_RATIO_OPTIONS: Array<{
   id: GenerationAspectRatioId
   label: string
 }> = [
-  { id: 'auto', label: '自动' },
+  {
+    id: 'auto',
+    // 展示名随界面语言变化；id 才是提交给后端的值
+    get label() {
+      return optionText('auto')
+    },
+  },
   { id: '16:9', label: '16:9' },
   { id: '21:9', label: '21:9' },
   { id: '9:16', label: '9:16' },
@@ -65,14 +79,14 @@ export function formatOutputSettingsLabel(
   aspectRatio: GenerationAspectRatioId,
   resolution: GenerationResolution,
 ): string {
-  if (aspectRatio === 'auto') return `自动 · ${resolution}`
+  if (aspectRatio === 'auto') return `${optionText('auto')} · ${resolution}`
   return `${aspectRatio} · ${resolution}`
 }
 
 /** 解析模型展示名（无目录时回退 id） */
 export function getImageModelLabel(modelId: string | undefined | null): string {
   const id = (modelId || '').trim()
-  return id || '图片模型'
+  return id || optionText('imageModel')
 }
 
 /** 任意非空字符串均可作为生图模型 id */

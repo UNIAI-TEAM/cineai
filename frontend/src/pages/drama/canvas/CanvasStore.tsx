@@ -37,9 +37,13 @@ import {
   type CanvasHistoryState,
 } from './canvasHistory'
 import { mergeAssetsWithCanvasLayout, buildNodeDataFromAsset } from './assetsToCanvasNodes'
+import { getActiveLocale } from '../../../i18n/detect'
+import { messages } from '../../../i18n/messages'
+import { useI18n } from '../../../i18n/context'
 import {
   CANVAS_NODE_DEFAULT_LABEL,
   canvasKindToAssetType,
+  canvasNodeDisplayLabel,
   type CanvasAssetNodeData,
   type CanvasNodeKind,
 } from './canvasTypes'
@@ -107,6 +111,11 @@ type CanvasStoreValue = {
   freeCanvasMode: boolean
 }
 
+/** 按当前界面语言取画布报错文案（回调内使用，避免把 t 加进依赖触发重载） */
+function canvasErrorText(key: keyof (typeof messages)['zh']['dramaCanvas']['errors']): string {
+  return messages[getActiveLocale()].dramaCanvas.errors[key]
+}
+
 type CanvasStoreProviderProps = {
   projectId: number
   children: ReactNode
@@ -114,6 +123,7 @@ type CanvasStoreProviderProps = {
 
 /** 提供画布受控状态与历史操作 */
 export function CanvasStoreProvider({ projectId, children }: CanvasStoreProviderProps) {
+  const { t } = useI18n()
   const [nodes, setNodes] = useState<Node<CanvasAssetNodeData>[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const [history, setHistory] = useState<CanvasHistoryState>(createEmptyCanvasHistory)
@@ -202,7 +212,7 @@ export function CanvasStoreProvider({ projectId, children }: CanvasStoreProvider
       })
       .catch((err) => {
         if (cancelled) return
-        setErrorMessage(err instanceof Error ? err.message : '加载画布失败')
+        setErrorMessage(err instanceof Error ? err.message : canvasErrorText('loadFailed'))
         readyRef.current = true
       })
       .finally(() => {
@@ -348,7 +358,7 @@ export function CanvasStoreProvider({ projectId, children }: CanvasStoreProvider
         })
         assetId = asset.id
       } catch (err) {
-        setErrorMessage(err instanceof Error ? err.message : '创建资产失败')
+        setErrorMessage(err instanceof Error ? err.message : canvasErrorText('createAssetFailed'))
         return
       }
 
@@ -393,7 +403,7 @@ export function CanvasStoreProvider({ projectId, children }: CanvasStoreProvider
   const ensureNodeAsset = useCallback(
     async (nodeId: string) => {
       const node = nodesRef.current.find((n) => n.id === nodeId)
-      if (!node) throw new Error('节点不存在')
+      if (!node) throw new Error(canvasErrorText('nodeMissing'))
       if (typeof node.data.assetId === 'number' && node.data.assetId > 0) {
         return node.data.assetId
       }
@@ -440,11 +450,11 @@ export function CanvasStoreProvider({ projectId, children }: CanvasStoreProvider
   const applyLibraryMediaToNode = useCallback(
     async (nodeId: string, source: DramaAsset) => {
       if (!source.url && !source.cover) {
-        throw new Error('所选资产没有可用图片')
+        throw new Error(canvasErrorText('libraryNoImage'))
       }
       pushSnapshot()
       const node = nodesRef.current.find((n) => n.id === nodeId)
-      if (!node) throw new Error('节点不存在')
+      if (!node) throw new Error(canvasErrorText('nodeMissing'))
       const assetId = await ensureNodeAsset(nodeId)
       const promptHint = readEditableVisualPrompt(source)
       const nextName = (source.name || '').trim() || node.data.label
@@ -534,11 +544,11 @@ export function CanvasStoreProvider({ projectId, children }: CanvasStoreProvider
   const generateNodeImage = useCallback(
     async (nodeId: string, prompt: string, options?: Partial<ImageGenerationOptions>) => {
       const trimmed = prompt.trim()
-      if (!trimmed) throw new Error('请输入提示词')
+      if (!trimmed) throw new Error(canvasErrorText('promptRequired'))
       pushSnapshot()
       const node = nodesRef.current.find((n) => n.id === nodeId)
-      if (!node) throw new Error('节点不存在')
-      if (node.data.kind === 'video') throw new Error('视频节点请使用视频生成')
+      if (!node) throw new Error(canvasErrorText('nodeMissing'))
+      if (node.data.kind === 'video') throw new Error(canvasErrorText('videoNodeUseVideo'))
 
       setNodes((current) =>
         current.map((n) =>
@@ -555,6 +565,7 @@ export function CanvasStoreProvider({ projectId, children }: CanvasStoreProvider
           const refId = Number(idStr)
           const ref = nodesRef.current.find((n) => n.data.assetId === refId)
           if (!ref) return token
+          // 类型名与「」拼进生图提示词，保持中文，不做界面翻译
           const kindLabel =
             ref.data.kind === 'character'
               ? '角色'
@@ -603,7 +614,7 @@ export function CanvasStoreProvider({ projectId, children }: CanvasStoreProvider
           },
         })
         const mediaUrl = latest.url || latest.cover || ''
-        if (!mediaUrl) throw new Error('生图超时，请重试')
+        if (!mediaUrl) throw new Error(canvasErrorText('imageTimeout'))
         setNodes((current) =>
           current.map((n) =>
             n.id === nodeId
@@ -652,10 +663,10 @@ export function CanvasStoreProvider({ projectId, children }: CanvasStoreProvider
   const generateNodeVideo = useCallback(
     async (nodeId: string, prompt: string, options?: Partial<VideoGenerationOptions>) => {
       const trimmed = prompt.trim()
-      if (!trimmed) throw new Error('请输入提示词')
+      if (!trimmed) throw new Error(canvasErrorText('promptRequired'))
       pushSnapshot()
       const node = nodesRef.current.find((n) => n.id === nodeId)
-      if (!node) throw new Error('节点不存在')
+      if (!node) throw new Error(canvasErrorText('nodeMissing'))
 
       setNodes((current) =>
         current.map((n) =>
@@ -690,7 +701,7 @@ export function CanvasStoreProvider({ projectId, children }: CanvasStoreProvider
           referenceAssetIds: collectIncomingAssetIds(nodeId),
         })
         const mediaUrl = resolveDramaMediaUrl(latest.url || latest.cover || '')
-        if (!mediaUrl) throw new Error('生视频超时，请重试')
+        if (!mediaUrl) throw new Error(canvasErrorText('videoTimeout'))
         setNodes((current) =>
           current.map((n) =>
             n.id === nodeId
@@ -865,10 +876,10 @@ export function CanvasStoreProvider({ projectId, children }: CanvasStoreProvider
           nodeId: n.id,
           assetId: n.data.assetId as number,
           kind: n.data.kind,
-          label: n.data.label || CANVAS_NODE_DEFAULT_LABEL[n.data.kind],
+          label: canvasNodeDisplayLabel(n.data.label, n.data.kind, t),
           mediaUrl: n.data.mediaUrl,
         })),
-    [nodes],
+    [nodes, t],
   )
 
   const value = useMemo<CanvasStoreValue>(

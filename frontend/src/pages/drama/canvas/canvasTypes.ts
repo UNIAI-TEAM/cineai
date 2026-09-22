@@ -1,5 +1,6 @@
 /** 画布节点类型与选择器选项定义 */
 import type { LucideIcon } from 'lucide-react'
+import type { TFunction } from '../../../i18n/context'
 import {
   AudioLines,
   Image as ImageIcon,
@@ -13,7 +14,6 @@ export type CanvasNodeKind = 'character' | 'scene' | 'video' | 'image' | 'text' 
 
 export type CanvasNodeOption = {
   id: CanvasNodeKind
-  label: string
   icon: LucideIcon
 }
 
@@ -55,29 +55,29 @@ export function canvasKindToAssetType(kind: CanvasNodeKind): string {
 
 /** 空画布居中快速新建选项（顺序与设计稿一致） */
 export const CANVAS_NODE_OPTIONS: CanvasNodeOption[] = [
-  { id: 'character', label: '角色', icon: UserRound },
-  { id: 'scene', label: '场景', icon: Landmark },
-  { id: 'video', label: '视频', icon: PlaySquare },
-  { id: 'image', label: '图片', icon: ImageIcon },
-  { id: 'text', label: '文本', icon: Text },
-  { id: 'audio', label: '音频', icon: AudioLines },
+  { id: 'character', icon: UserRound },
+  { id: 'scene', icon: Landmark },
+  { id: 'video', icon: PlaySquare },
+  { id: 'image', icon: ImageIcon },
+  { id: 'text', icon: Text },
+  { id: 'audio', icon: AudioLines },
 ]
 
 /** 左侧添加面板选项 */
 export const ADD_NODE_OPTIONS: CanvasNodeOption[] = [
-  { id: 'character', label: '角色', icon: UserRound },
-  { id: 'scene', label: '场景', icon: Landmark },
-  { id: 'text', label: '文本', icon: Text },
-  { id: 'image', label: '图片', icon: ImageIcon },
-  { id: 'video', label: '视频', icon: PlaySquare },
-  { id: 'audio', label: '音频', icon: AudioLines },
+  { id: 'character', icon: UserRound },
+  { id: 'scene', icon: Landmark },
+  { id: 'text', icon: Text },
+  { id: 'image', icon: ImageIcon },
+  { id: 'video', icon: PlaySquare },
+  { id: 'audio', icon: AudioLines },
 ]
 
 export const CANVAS_NODE_OPTION_BY_KIND = Object.fromEntries(
   CANVAS_NODE_OPTIONS.map((option) => [option.id, option]),
 ) as Record<CanvasNodeKind, CanvasNodeOption>
 
-/** 各类型默认展示名 */
+/** 各类型默认名称：写入后端资产名与画布数据，保持中文原值；展示时经 canvasNodeDisplayLabel 翻译 */
 export const CANVAS_NODE_DEFAULT_LABEL: Record<CanvasNodeKind, string> = {
   character: '新角色',
   scene: '新场景',
@@ -85,6 +85,28 @@ export const CANVAS_NODE_DEFAULT_LABEL: Record<CanvasNodeKind, string> = {
   image: '新图片',
   text: '文本',
   audio: '新音频',
+}
+
+/** 节点类型的界面文案 */
+export function canvasKindLabel(kind: CanvasNodeKind, t: TFunction): string {
+  return t(`dramaCanvas.kind.${kind}`)
+}
+
+/**
+ * 节点名称展示：空名或仍是中文默认名（已存数据）时按当前语言显示默认名，
+ * 用户自定义名称原样返回。
+ */
+export function canvasNodeDisplayLabel(
+  label: string | null | undefined,
+  kind: CanvasNodeKind,
+  t: TFunction,
+): string {
+  const raw = (label || '').trim()
+  if (!raw) return t(`dramaCanvas.defaultLabel.${kind}`)
+  const defaultKind = (Object.keys(CANVAS_NODE_DEFAULT_LABEL) as CanvasNodeKind[]).find(
+    (k) => CANVAS_NODE_DEFAULT_LABEL[k] === raw,
+  )
+  return defaultKind ? t(`dramaCanvas.defaultLabel.${defaultKind}`) : raw
 }
 
 /** 节点卡片尺寸（宽 × 高，用于落点居中） */

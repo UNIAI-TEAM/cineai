@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { Edge, Node } from '@xyflow/react'
 import { dramaApi } from '../../../api/drama'
+import { useI18n } from '../../../i18n/context'
 import { CANVAS_AUTO_SAVE_MS, type CanvasAssetNodeData } from './canvasTypes'
 
 type UseCanvasAutoSaveArgs = {
@@ -24,6 +25,7 @@ export function useCanvasAutoSave({
   onSaved,
   onError,
 }: UseCanvasAutoSaveArgs) {
+  const { t } = useI18n()
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savingRef = useRef(false)
   const latestRef = useRef({ nodes, edges, projectId })
@@ -60,12 +62,12 @@ export function useCanvasAutoSave({
         })
         onSaved()
       } catch (err) {
-        onError(err instanceof Error ? err.message : '自动保存失败')
+        onError(err instanceof Error ? err.message : t('dramaCanvas.errors.autoSaveFailed'))
       } finally {
         savingRef.current = false
       }
     },
-    [onError, onSaved],
+    [onError, onSaved, t],
   )
 
   useEffect(() => {

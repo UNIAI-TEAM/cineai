@@ -9,6 +9,7 @@ import {
   collectFragmentAssetIds,
   formatFragLabel,
   normalizeAssetTab,
+  type AssetTab,
 } from '../dramaEpisodeEditUtils'
 
 export type EpisodeFragmentNodeData = {
@@ -25,13 +26,18 @@ export type EpisodeFragmentNodeData = {
 
 export type EpisodeAssetLinkRef = {
   fragmentId: number
+  /** 分镜标签；为空时渲染层按语言显示「镜 {id}」 */
   label: string
 }
 
 export type EpisodeAssetNodeData = {
   assetId: number
   linkedFragments: EpisodeAssetLinkRef[]
+  /** 资产名；为空时渲染层按语言显示「资产 {id}」 */
   name: string
+  /** 归一化分类（角色/场景/道具），渲染层翻译 */
+  typeTab: AssetTab | null
+  /** 无法归一化时的原始类型；为空时显示「资产」 */
   typeLabel: string
   previewUrl: string
   [key: string]: unknown
@@ -159,10 +165,11 @@ export function buildEpisodeFragmentFlow(
         assetId,
         linkedFragments: fragmentIds.map((fragmentId) => ({
           fragmentId,
-          label: fragLabels.get(fragmentId) || `镜 ${fragmentId}`,
+          label: fragLabels.get(fragmentId) || '',
         })),
-        name: asset?.name || `资产 ${assetId}`,
-        typeLabel: tab || asset?.type || '资产',
+        name: asset?.name || '',
+        typeTab: tab,
+        typeLabel: asset?.type || '',
         previewUrl: resolveDramaMediaUrl(asset?.cover || asset?.url) || '',
       },
       draggable: true,

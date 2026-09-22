@@ -2,6 +2,7 @@
 import { useParams } from 'react-router-dom'
 import RequireAuth from '../RequireAuth'
 import { CanvasWorkspace } from './CanvasWorkspace'
+import { useI18n } from '../../../i18n/context'
 
 /** 鉴权后渲染全屏自由画布 */
 export default function CanvasPage() {
@@ -14,13 +15,14 @@ export default function CanvasPage() {
 
 /** 从路由读取 projectId 并挂载工作区 */
 function CanvasPageInner() {
+  const { t } = useI18n()
   const { projectId } = useParams()
   const id = Number(projectId)
 
   if (!Number.isFinite(id) || id <= 0) {
     return (
       <div className="free-canvas-page" style={{ display: 'grid', placeItems: 'center' }}>
-        <p style={{ color: '#64748b' }}>无效的项目 ID</p>
+        <p style={{ color: '#64748b' }}>{t('dramaCanvas.page.invalidProjectId')}</p>
       </div>
     )
   }
