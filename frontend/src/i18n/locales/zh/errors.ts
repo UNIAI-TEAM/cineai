@@ -18,6 +18,8 @@ export const zhErrors = {
     'auth.username_too_long': '用户名不能超过 {max} 个字符',
     'auth.email_invalid': '邮箱格式不正确',
     'auth.phone_invalid': '手机号格式不正确',
+    'model.slot_not_configured': '该功能尚未配置模型，请联系管理员',
+    'model.not_available': '所选模型当前不可用，请重新选择',
     'billing.insufficient_balance': '余额不足：需要 {need}，当前 {available}，请先充值',
     'billing.insufficient_balance_pending': '余额不足：本次需要 {need}（含排队中 {pending}），当前 {available}，请先充值',
     'billing.insufficient_balance_batch': '余额不足：批量生成 {qty} 项需 {need}（含排队中 {pending}），当前 {available}，请先充值',

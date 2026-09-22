@@ -18,6 +18,8 @@ export const enErrors = {
     'auth.username_too_long': 'Username can be at most {max} characters',
     'auth.email_invalid': 'Invalid email format',
     'auth.phone_invalid': 'Invalid phone number format',
+    'model.slot_not_configured': 'No model has been configured for this feature yet. Please contact an administrator',
+    'model.not_available': 'The selected model is currently unavailable. Please choose another one',
     'billing.insufficient_balance': 'Insufficient balance: {need} needed, {available} available. Please top up',
     'billing.insufficient_balance_pending': 'Insufficient balance: {need} needed (including {pending} queued), {available} available. Please top up',
     'billing.insufficient_balance_batch': 'Insufficient balance: {qty} items need {need} (including {pending} queued), {available} available. Please top up',

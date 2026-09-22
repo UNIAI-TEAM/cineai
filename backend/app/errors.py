@@ -32,6 +32,9 @@ ERRORS: dict[str, tuple[int, str]] = {
     "auth.username_too_long": (400, "用户名不能超过 {max} 个字符"),
     "auth.email_invalid": (400, "邮箱格式不正确"),
     "auth.phone_invalid": (400, "手机号格式不正确"),
+    # 模型路由（按功能绑定 provider/model）
+    "model.slot_not_configured": (503, "该功能尚未配置模型，请联系管理员"),
+    "model.not_available": (400, "所选模型当前不可用，请重新选择"),
     # 计费
     "billing.insufficient_balance": (402, "余额不足：需要 {need}，当前 {available}，请先充值"),
     "billing.insufficient_balance_pending": (

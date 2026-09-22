@@ -18,6 +18,8 @@ export const viErrors = {
     'auth.username_too_long': 'Tên người dùng tối đa {max} ký tự',
     'auth.email_invalid': 'Email không đúng định dạng',
     'auth.phone_invalid': 'Số điện thoại không đúng định dạng',
+    'model.slot_not_configured': 'Chức năng này chưa được cấu hình mô hình, vui lòng liên hệ quản trị viên',
+    'model.not_available': 'Mô hình đã chọn hiện không khả dụng, vui lòng chọn lại',
     'billing.insufficient_balance': 'Số dư không đủ: cần {need}, hiện có {available}. Vui lòng nạp thêm tiền',
     'billing.insufficient_balance_pending': 'Số dư không đủ: lần này cần {need} (tính cả {pending} đang chờ), hiện có {available}. Vui lòng nạp thêm tiền',
     'billing.insufficient_balance_batch': 'Số dư không đủ: tạo {qty} mục cần {need} (tính cả {pending} đang chờ), hiện có {available}. Vui lòng nạp thêm tiền',
