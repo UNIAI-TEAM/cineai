@@ -158,8 +158,33 @@ def _bootstrap_bindings_from_env(settings: Settings, channels: list[SystemModelC
     return FunctionBindings(slots=slots)
 
 
+# model id "友好别名" thời TokenFree (seedream-5.0/4.5, seedance-2.5/2) không còn ánh xạ được — phải bỏ, không giữ lại làm model thật
+_DEAD_ALIAS_MODEL_IDS = {"seedream-5.0", "seedream-4.5", "seedance-2.5", "seedance-2"}
+# 2 trường base_url từng bị khoá cứng vào TokenFree trong flat
+_LEGACY_TOKENFREE_URL_FIELDS = ("openai_base_url", "ark_base_url")
+# các trường model_* có thể còn giữ alias id chết ở trên
+_LEGACY_ALIAS_MODEL_FIELDS = ("model_llm", "model_image", "model_image_45", "model_video", "model_video_2", "model_audio")
+
+
+def _scrub_legacy_flat(flat: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """Bỏ base_url tokenfree.com và alias model chết còn sót trong flat (không phải secret nên so sánh thẳng)."""
+    out = dict(flat)
+    changed = False
+    for field in _LEGACY_TOKENFREE_URL_FIELDS:
+        value = out.get(field)
+        if isinstance(value, str) and "tokenfree.com" in value.lower():
+            out.pop(field, None)
+            changed = True
+    for field in _LEGACY_ALIAS_MODEL_FIELDS:
+        value = out.get(field)
+        if isinstance(value, str) and value.strip().lower() in _DEAD_ALIAS_MODEL_IDS:
+            out.pop(field, None)
+            changed = True
+    return out, changed
+
+
 def _migrate_legacy_config(config: dict[str, Any]) -> tuple[dict[str, Any], bool]:
-    """Bỏ logical_models/default_models thời TokenFree; đảm bảo có function_bindings."""
+    """Bỏ logical_models/default_models thời TokenFree, dọn flat còn sót base_url/alias model chết; đảm bảo có function_bindings."""
     out = dict(config)
     changed = False
     for key in ("logical_models", "default_models"):
@@ -169,6 +194,12 @@ def _migrate_legacy_config(config: dict[str, Any]) -> tuple[dict[str, Any], bool
     if "function_bindings" not in out:
         out["function_bindings"] = bindings_to_dict(FunctionBindings())
         changed = True
+    flat = out.get("flat")
+    if isinstance(flat, dict):
+        scrubbed, flat_changed = _scrub_legacy_flat(flat)
+        if flat_changed:
+            out["flat"] = scrubbed
+            changed = True
     return out, changed
 
 
@@ -394,6 +425,8 @@ async def patch_admin_routing_settings(
             cid = (item.id or "").strip()
             if not cid or not (item.name or "").strip():
                 raise ValueError("Provider cần có id và tên")
+            if cid in keep:
+                raise ValueError(f"Provider '{cid}' bị trùng id")
             if (item.protocol or "auto") not in ("openai", "ark", "volc_tts"):
                 raise ValueError(f"Provider {item.name}: protocol không hỗ trợ")
             row = existing.get(cid) or SystemModelChannelRow(id=cid)

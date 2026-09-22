@@ -39,6 +39,16 @@ async def _resolve_channel_credentials(
     return proto, base, key
 
 
+def _volc_tts_key_acceptable(key: str) -> bool:
+    """volc_tts không bắt buộc `key` nếu đã cấu hình cặp app_id/access_key kiểu cũ."""
+    if key:
+        return True
+    from app.config import get_settings
+
+    settings = get_settings()
+    return bool(settings.volc_tts_app_id and settings.volc_tts_access_key)
+
+
 async def list_upstream_models(
     db: AsyncSession | None = None,
     *,
@@ -61,6 +71,12 @@ async def list_upstream_models(
             raise RuntimeError("Cần Base URL")
         if not key:
             raise RuntimeError("Cần API key")
+    elif proto == "ark":
+        if not key:
+            raise RuntimeError("Cần API key")
+    elif proto == "volc_tts":
+        if not _volc_tts_key_acceptable(key):
+            raise RuntimeError("Cần API key")
     route = ResolvedModelRoute(
         capability="text",
         logical_model_id="catalog",
@@ -72,4 +88,9 @@ async def list_upstream_models(
         protocol=proto,
         api_format="ark" if proto == "ark" else "openai",
     )
-    return await get_adapter(proto).list_models(route, capability)
+    try:
+        return await get_adapter(proto).list_models(route, capability)
+    except RuntimeError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"Không kết nối được provider: {type(exc).__name__}: {str(exc)[:200]}") from exc

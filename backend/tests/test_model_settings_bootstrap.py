@@ -41,3 +41,24 @@ def test_migrate_legacy_config_drops_logical_models():
     cfg = {"flat": {}, "logical_models": [{"id": "x"}], "default_models": {"imageModel": "seedream-5.0"}}
     out, changed = ms._migrate_legacy_config(cfg)
     assert changed and "logical_models" not in out and "default_models" not in out and out["function_bindings"] == {"slots": {}, "overrides": {}}
+
+
+def test_migrate_legacy_config_scrubs_tokenfree_flat_values():
+    """flat còn sót base_url tokenfree.com / alias model chết từ bản TokenFree cũ phải bị dọn."""
+    cfg = {
+        "flat": {
+            "ark_base_url": "https://www.tokenfree.com/v1",
+            "openai_base_url": "https://www.tokenfree.com/v1",
+            "model_image": "seedream-5.0",
+            "model_video": "seedance-2.5",
+            "model_llm": "kimi-k2.6",
+        }
+    }
+    out, changed = ms._migrate_legacy_config(cfg)
+    flat = out["flat"]
+    assert changed
+    assert "ark_base_url" not in flat
+    assert "openai_base_url" not in flat
+    assert "model_image" not in flat
+    assert "model_video" not in flat
+    assert flat["model_llm"] == "kimi-k2.6"

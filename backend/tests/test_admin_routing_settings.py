@@ -70,3 +70,13 @@ async def test_legacy_tokenfree_row_is_deleted_on_load(db_session):
     await ms.load_model_settings_cache(db_session)
     rows = (await db_session.execute(select(SystemModelChannelRow.id))).scalars().all()
     assert "tokenfree" not in rows
+
+
+async def test_patch_rejects_duplicate_provider_id_in_same_body(db_session):
+    body = AdminRoutingSettingsPatch(providers=[
+        SystemModelChannelIn(id="openai", name="OpenAI", base_url="https://api.openai.com/v1", api_key="sk-1", protocol="openai", models=["gpt-5.6-sol"]),
+        SystemModelChannelIn(id="openai", name="OpenAI Dup", base_url="https://api.openai.com/v1", api_key="sk-2", protocol="openai", models=["gpt-5.6-sol"]),
+    ])
+    with pytest.raises(ValueError) as exc:
+        await ms.patch_admin_routing_settings(db_session, body)
+    assert "openai" in str(exc.value)

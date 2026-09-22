@@ -19,7 +19,7 @@ def _row(*, model_id: str, label: str, recommended: bool, provider: str = "", de
         "id": model_id,
         "label": (label or model_id).strip() or model_id,
         "description": description,
-        "provider": provider or "tokenfree",
+        "provider": provider,
         "recommended": recommended,
     }
 
