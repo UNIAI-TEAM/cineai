@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.deps import get_current_user
+from app.errors import AppError
 from app.models import User
 from app.schemas_api import ApiKeyCreateRequest, ApiKeyCreatedOut, ApiKeyOut
 from app.services import api_keys
@@ -40,6 +41,6 @@ async def revoke_key(
 ) -> dict:
     ok = await api_keys.revoke_api_key(db, user.id, key_id)
     if not ok:
-        raise HTTPException(status_code=404, detail="Key 不存在或已撤销")
+        raise AppError("api_key.not_found")
     await db.commit()
     return {"ok": True}

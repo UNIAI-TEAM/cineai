@@ -6,12 +6,14 @@ import re
 
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
+from app.errors import AppError
+
 _EMAIL = TypeAdapter(EmailStr)
 _PHONE_KEEP = re.compile(r"[^\d+]")
 
 
-class ProfileError(ValueError):
-    """用户可见的资料校验错误。"""
+class ProfileError(AppError):
+    """资料校验错误（带错误码）。"""
 
 
 def normalize_phone(raw: str | None) -> str:
@@ -32,23 +34,23 @@ def prepare_profile_update(*, nickname: str, email: str, phone: str | None) -> d
     """校验并规范化用户名、邮箱、手机号（手机号只记录，不验证码）。"""
     name = (nickname or "").strip()
     if not name:
-        raise ProfileError("用户名不能为空")
+        raise ProfileError("auth.username_required")
     if len(name) > 64:
-        raise ProfileError("用户名不能超过 64 个字符")
+        raise ProfileError("auth.username_too_long", max=64)
 
     raw_email = (email or "").strip()
     try:
         parsed_email = str(_EMAIL.validate_python(raw_email)).lower()
     except ValidationError as exc:
-        raise ProfileError("邮箱格式不正确") from exc
+        raise ProfileError("auth.email_invalid") from exc
 
     raw_phone = (phone or "").strip()
     if raw_phone and re.search(r"[A-Za-z]", raw_phone):
-        raise ProfileError("手机号格式不正确")
+        raise ProfileError("auth.phone_invalid")
     normalized_phone = normalize_phone(raw_phone)
     if normalized_phone and (
         not normalized_phone.isdigit() or not (8 <= len(normalized_phone) <= 15)
     ):
-        raise ProfileError("手机号格式不正确")
+        raise ProfileError("auth.phone_invalid")
 
     return {"nickname": name, "email": parsed_email, "phone": normalized_phone}

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, UploadFile
 from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user
+from app.errors import AppError
 from app.models import User, WalletLedger
 from app.schemas import (
     ChangePasswordRequest,
@@ -30,7 +31,7 @@ from app.services.password_reset import (
     apply_password_reset,
     request_password_reset,
 )
-from app.services.profile import ProfileError, prepare_profile_update
+from app.services.profile import prepare_profile_update
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
@@ -40,7 +41,7 @@ settings = get_settings()
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
     existing = await get_user_by_email(db, body.email)
     if existing:
-        raise HTTPException(status_code=400, detail="邮箱已注册")
+        raise AppError("auth.email_registered")
     grant = int(settings.billing_signup_grant_fen or 0)
     user = User(
         email=body.email.lower(),
@@ -73,7 +74,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) ->
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
     user = await get_user_by_email(db, body.email.lower())
     if not user or not verify_password(body.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="邮箱或密码错误")
+        raise AppError("auth.invalid_credentials")
     return TokenResponse(access_token=create_access_token(str(user.id)))
 
 
@@ -90,9 +91,9 @@ async def change_password(
 ) -> dict[str, bool]:
     """校验当前密码后写入新密码。"""
     if not verify_password(body.current_password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="当前密码不正确")
+        raise AppError("auth.wrong_current_password")
     if body.current_password == body.new_password:
-        raise HTTPException(status_code=400, detail="新密码不能与当前密码相同")
+        raise AppError("auth.same_password")
     user.hashed_password = hash_password(body.new_password)
     await db.commit()
     return {"ok": True}
@@ -107,7 +108,7 @@ async def forgot_password(
     try:
         return await request_password_reset(db, str(body.email))
     except RedisUnavailableError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise AppError("auth.service_unavailable") from exc
 
 
 @router.post("/reset-password")
@@ -119,9 +120,9 @@ async def reset_password(
     try:
         await apply_password_reset(db, token=body.token, new_password=body.new_password)
     except RedisUnavailableError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise AppError("auth.service_unavailable") from exc
     except InvalidTokenError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise AppError("auth.reset_token_invalid") from exc
     return {"ok": True}
 
 
@@ -132,19 +133,16 @@ async def update_me(
     user: User = Depends(get_current_user),
 ) -> User:
     """更新当前用户的用户名、登录邮箱与联系手机号（仅记录，无验证码）。"""
-    try:
-        fields = prepare_profile_update(
-            nickname=body.nickname,
-            email=body.email,
-            phone=body.phone,
-        )
-    except ProfileError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    fields = prepare_profile_update(
+        nickname=body.nickname,
+        email=body.email,
+        phone=body.phone,
+    )
 
     if fields["email"] != user.email:
         taken = await get_user_by_email(db, fields["email"])
         if taken and taken.id != user.id:
-            raise HTTPException(status_code=400, detail="该邮箱已被使用")
+            raise AppError("auth.email_taken")
 
     user.nickname = fields["nickname"]
     user.email = fields["email"]
@@ -175,13 +173,13 @@ async def upload_avatar(
         if suffix in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
             ext = ".jpg" if suffix == ".jpeg" else suffix
         else:
-            raise HTTPException(status_code=400, detail="仅支持 JPG / PNG / WebP / GIF")
+            raise AppError("common.unsupported_image_type")
 
     raw = await file.read()
     if not raw:
-        raise HTTPException(status_code=400, detail="空文件")
+        raise AppError("common.empty_file")
     if len(raw) > 5 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="头像不能超过 5MB")
+        raise AppError("common.file_too_large", max_mb=5)
 
     dest = storage.user_dir(user.id) / f"avatar{ext}"
     dest.write_bytes(raw)

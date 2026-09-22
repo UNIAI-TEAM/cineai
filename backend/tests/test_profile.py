@@ -37,3 +37,14 @@ def test_prepare_profile_update_rejects_bad_phone():
 def test_prepare_profile_update_rejects_blank_nickname():
     with pytest.raises(ProfileError, match="用户名"):
         prepare_profile_update(nickname="  ", email="a@b.com", phone="")
+
+
+def test_profile_errors_carry_codes():
+    with pytest.raises(ProfileError) as bad_phone:
+        prepare_profile_update(nickname="创作者", email="a@b.com", phone="abc")
+    assert bad_phone.value.code == "auth.phone_invalid"
+
+    with pytest.raises(ProfileError) as too_long:
+        prepare_profile_update(nickname="x" * 65, email="a@b.com", phone="")
+    assert too_long.value.code == "auth.username_too_long"
+    assert too_long.value.params == {"max": 64}
