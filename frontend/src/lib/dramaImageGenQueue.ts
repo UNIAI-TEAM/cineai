@@ -2,6 +2,8 @@
 import { dramaApi, type DramaAsset } from '../api/drama'
 import type { ImageGenerationOptions } from './dramaGenerationOptions'
 import { syncImageJobToUnified } from './dramaGenQueue'
+import { getActiveLocale } from '../i18n/detect'
+import { messages } from '../i18n/messages'
 
 export type DramaImageGenStatus = 'queued' | 'running' | 'done' | 'failed'
 
@@ -33,6 +35,8 @@ type EnqueueInput = {
 }
 
 type InternalJob = DramaImageGenJob & {
+  /** 用户可见名称（可为空，空时统一队列按当前语言显示「资产 {id}」） */
+  displayName: string
   resumeOnly: boolean
   taskId?: number
   baselineUrl: string
@@ -128,7 +132,7 @@ function emit() {
       syncImageJobToUnified({
         assetId: job.assetId,
         projectId: job.projectId,
-        assetName: job.assetName,
+        assetName: job.displayName,
         assetType: job.assetType,
         status: job.status,
         taskId: job.taskId,
@@ -200,7 +204,7 @@ async function waitForAssetImage(
   while (Date.now() - started < POLL_TIMEOUT_MS) {
     const list = await dramaApi.listAssets(projectId)
     const latest = list.find((a) => a.id === assetId)
-    if (!latest) throw new Error('资产不存在')
+    if (!latest) throw new Error(messages[getActiveLocale()].dramaGen.errors.assetNotFound)
 
     const status = readGenerationStatus(latest)
     const currentUrl = assetMediaUrl(latest)
@@ -219,6 +223,7 @@ async function waitForAssetImage(
     if (status === 'failed' || status === 'cancelled') {
       const gen = (latest.params || {}).generation as { error?: string } | undefined
       const raw = String(gen?.error || '').trim()
+      // 兜底文案保持中文：dramaGenError 按「已取消」「^生图失败$」识别
       throw new Error(raw || (status === 'cancelled' ? '生图已取消' : '生图失败'))
     }
 
@@ -236,7 +241,7 @@ async function waitForAssetImage(
     // 仍是旧图且未进入过 in-flight：继续等（POST 后状态可能尚未可见）
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
   }
-  throw new Error('生图超时，请刷新后重试')
+  throw new Error(messages[getActiveLocale()].dramaGen.errors.imageTimeout)
 }
 
 const waitingPoll: InternalJob[] = []
@@ -370,7 +375,9 @@ export function enqueueDramaImageGen(input: EnqueueInput): Promise<DramaAsset> {
       id: makeJobId(),
       projectId: input.projectId,
       assetId: input.assetId,
+      // assetName 会作为 name 提交后端，默认名保持中文；界面标题用 displayName
       assetName: (input.assetName || '').trim() || `资产 ${input.assetId}`,
+      displayName: (input.assetName || '').trim(),
       assetType: input.assetType || 'character',
       prompt: input.prompt,
       options: input.options || {},

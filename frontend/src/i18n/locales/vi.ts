@@ -5,6 +5,7 @@ import { viBilling } from './vi/billing'
 import { viSettingsPanels } from './vi/settingsPanels'
 import { viShell } from './vi/shell'
 import { viErrors } from './vi/errors'
+import { viDramaGen } from './vi/dramaGen'
 
 export const vi = {
   ...viShell,
@@ -14,4 +15,5 @@ export const vi = {
   ...viBilling,
   ...viSettingsPanels,
   ...viErrors,
+  ...viDramaGen,
 }

@@ -5,6 +5,7 @@ import { zhBilling } from './zh/billing'
 import { zhSettingsPanels } from './zh/settingsPanels'
 import { zhShell } from './zh/shell'
 import { zhErrors } from './zh/errors'
+import { zhDramaGen } from './zh/dramaGen'
 
 export const zh = {
   ...zhShell,
@@ -14,4 +15,5 @@ export const zh = {
   ...zhBilling,
   ...zhSettingsPanels,
   ...zhErrors,
+  ...zhDramaGen,
 }

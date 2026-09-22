@@ -1,10 +1,27 @@
 /** 漫剧全局生成队列：图片 / 视频等任务统一展示与恢复 */
 import { useSyncExternalStore } from 'react'
 import type { DramaTaskBrief } from '../api/drama'
+import { getActiveLocale } from '../i18n/detect'
+import { interpolate } from '../i18n/lookup'
+import { messages } from '../i18n/messages'
 
 export type DramaGenJobKind = 'image' | 'video'
 
 export type DramaGenJobStatus = 'queued' | 'running' | 'done' | 'failed'
+
+/** 本地进度文案的 i18n key（dramaGen.msg.*），展示时再翻译，切换语言即时生效 */
+export type DramaGenMessageKey =
+  | 'queued'
+  | 'enqueued'
+  | 'generating'
+  | 'generatingImage'
+  | 'generatingVideo'
+  | 'generatingRefs'
+
+/** 分镜视频 subtype：内部标识（其它页面也按此值构造/比较），展示时翻译 */
+export const FRAGMENT_VIDEO_SUBTYPE = '分镜视频'
+/** 画布资产视频 subtype：内部标识，展示时翻译 */
+export const CANVAS_VIDEO_SUBTYPE = '画布视频'
 
 export type DramaGenJob = {
   id: string
@@ -19,7 +36,10 @@ export type DramaGenJob = {
   /** 子类型文案：角色 / 场景 / 分镜视频 等 */
   subtype: string
   status: DramaGenJobStatus
+  /** 后端返回的进度文案（原样展示） */
   message?: string
+  /** 本地进度文案 key；有值时优先于 message，展示时翻译 */
+  messageKey?: DramaGenMessageKey
   error?: string
   createdAt: number
   finishedAt?: number
@@ -71,6 +91,7 @@ function snapshotsEqual(a: DramaGenJob[], b: DramaGenJob[]): boolean {
       x.id !== y.id ||
       x.status !== y.status ||
       x.message !== y.message ||
+      x.messageKey !== y.messageKey ||
       x.error !== y.error ||
       x.finishedAt !== y.finishedAt ||
       x.title !== y.title ||
@@ -142,6 +163,7 @@ function jobDisplayEqual(a: DramaGenJob, b: DramaGenJob): boolean {
     a.subtype === b.subtype &&
     a.status === b.status &&
     a.message === b.message &&
+    a.messageKey === b.messageKey &&
     a.error === b.error &&
     a.finishedAt === b.finishedAt &&
     a.taskId === b.taskId
@@ -181,6 +203,7 @@ export function upsertDramaGenJob(
     subtype: patch.subtype,
     status,
     message: patch.message,
+    messageKey: patch.messageKey,
     error: patch.error,
     createdAt: patch.createdAt ?? prev?.createdAt ?? Date.now(),
     finishedAt,
@@ -192,6 +215,20 @@ export function upsertDramaGenJob(
     jobs = [...jobs, next]
   }
   if (!options?.silent) emit()
+}
+
+// 当前界面语言的 dramaGen 文案（非 React 模块用）
+function genMessages() {
+  return messages[getActiveLocale()].dramaGen
+}
+
+// 任务进度文案：本地 key 按当前语言翻译，否则用后端原文
+export function dramaGenJobMessage(
+  job: Pick<DramaGenJob, 'message' | 'messageKey'>,
+  t: (path: string) => string,
+): string | undefined {
+  if (job.messageKey) return t(`dramaGen.msg.${job.messageKey}`)
+  return job.message
 }
 
 // 图片任务 id
@@ -219,16 +256,17 @@ export function syncImageJobToUnified(input: {
     kind: 'image',
     projectId: input.projectId,
     targetId: input.assetId,
-    title: input.assetName || `资产 ${input.assetId}`,
+    // 标题在写入时按当前语言生成；每次 emit 都会重写，切换语言后下一次同步即更新
+    title: input.assetName || interpolate(genMessages().title.asset, { id: input.assetId }),
     subtype: input.assetType || 'image',
     status: input.status,
     taskId: input.taskId,
     error: input.error,
-    message:
+    messageKey:
       input.status === 'running'
-        ? '生图中'
+        ? 'generatingImage'
         : input.status === 'queued'
-          ? '排队中'
+          ? 'queued'
           : undefined,
   })
 }
@@ -251,15 +289,15 @@ export function syncAssetVideoJobToUnified(input: {
     kind: 'video',
     projectId: input.projectId,
     targetId: input.assetId,
-    title: input.assetName || `视频 ${input.assetId}`,
-    subtype: '画布视频',
+    title: input.assetName || interpolate(genMessages().title.video, { id: input.assetId }),
+    subtype: CANVAS_VIDEO_SUBTYPE,
     status: input.status,
     error: input.error,
-    message:
+    messageKey:
       input.status === 'running'
-        ? '生视频中'
+        ? 'generatingVideo'
         : input.status === 'queued'
-          ? '排队中'
+          ? 'queued'
           : undefined,
   })
 }
@@ -268,10 +306,17 @@ type FragmentStatusItem = {
   fragment_id: number
   status: string
   message?: string
+  /** 本地乐观入队时的文案 key（后端返回的行没有） */
+  messageKey?: DramaGenMessageKey
   phase?: string
   error?: string
   video?: string
   cover?: string
+}
+
+// 片段序号标签（按当前语言；写入标题时生成）
+function fragmentLabelText(no: number): string {
+  return interpolate(genMessages().title.fragment, { no: String(no).padStart(2, '0') })
 }
 
 // 根据分镜列表解析展示序号；无法可靠判断时返回 null，避免轮询把标题改成「片段 01」
@@ -281,14 +326,14 @@ function resolveFragmentLabel(
 ): string | null {
   const frag = fragments.find((f) => f.id === fragId)
   if (frag && typeof frag.sort_order === 'number' && frag.sort_order >= 0) {
-    return `片段 ${String(frag.sort_order + 1).padStart(2, '0')}`
+    return fragmentLabelText(frag.sort_order + 1)
   }
   // 仅当列表里已有可靠 sort_order 时，才允许用下标兜底（完整有序列表）
   const hasAnySortOrder = fragments.some((f) => typeof f.sort_order === 'number' && f.sort_order >= 0)
   if (!hasAnySortOrder) return null
   const idx = fragments.findIndex((f) => f.id === fragId)
   if (idx < 0) return null
-  return `片段 ${String(idx + 1).padStart(2, '0')}`
+  return fragmentLabelText(idx + 1)
 }
 
 // 组装队列标题：有可靠镜序时写入/纠正；否则保留已有标题
@@ -308,7 +353,8 @@ function resolveVideoJobTitle(
   }
   if (existing?.title) return existing.title
   const prefix = (episodeName || '').trim()
-  return prefix ? `${prefix} · 分镜视频` : '分镜视频'
+  const fallback = genMessages().title.fragmentVideo
+  return prefix ? `${prefix} · ${fallback}` : fallback
 }
 
 type FragmentTaskItem = DramaTaskBrief
@@ -370,14 +416,14 @@ export function syncEpisodeVideoJobs(input: {
             episodeId: input.episodeId,
             taskId: activeTask.id,
             title: resolveVideoJobTitle(existing, input.episodeName, fragLabel(item.fragment_id)),
-            subtype: '分镜视频',
+            subtype: FRAGMENT_VIDEO_SUBTYPE,
             status: activeTask.status === 'pending' || activeTask.status === 'leased' ? 'queued' : 'running',
-            message:
+            messageKey:
               activeTask.current_step_key === 'assets'
-                ? '生成参考图…'
+                ? 'generatingRefs'
                 : activeTask.status === 'pending' || activeTask.status === 'leased'
-                  ? '排队中'
-                  : '生成中',
+                  ? 'queued'
+                  : 'generating',
           },
           { silent: true },
         )
@@ -395,6 +441,7 @@ export function syncEpisodeVideoJobs(input: {
             title: existing.title,
             subtype: existing.subtype,
             status: 'failed',
+            // 保持中文：dramaGenError 按「任务已中断」识别并给出本地化说明
             error: latestTask?.error_message || '任务已中断，请重新生成',
           },
           { silent: true },
@@ -419,12 +466,25 @@ export function syncEpisodeVideoJobs(input: {
         : undefined) ||
       (raw === 'cancelled' ? '已取消' : undefined)
 
-    const messageFromTask =
-      activeTask && status === 'running'
-        ? activeTask.current_step_key === 'assets'
-          ? '生成参考图…'
-          : item.message || (item.phase === 'assets' ? '生成参考图…' : '生成中')
-        : item.message || (item.phase === 'assets' ? '生成参考图…' : undefined)
+    // 进度文案：后端 message 原样；本地兜底只存 key，展示时翻译
+    let message: string | undefined
+    let messageKey: DramaGenMessageKey | undefined
+    const itemMessage = item.messageKey ? undefined : item.message
+    const phaseKey: DramaGenMessageKey | undefined =
+      item.phase === 'assets' ? 'generatingRefs' : undefined
+    if (status === 'queued') {
+      message = itemMessage
+      messageKey = item.messageKey || (itemMessage ? undefined : 'queued')
+    } else if (activeTask && status === 'running' && activeTask.current_step_key === 'assets') {
+      messageKey = 'generatingRefs'
+    } else {
+      message = itemMessage
+      messageKey =
+        item.messageKey ||
+        (itemMessage
+          ? undefined
+          : phaseKey || (activeTask && status === 'running' ? 'generating' : undefined))
+    }
 
     upsertDramaGenJob(
       {
@@ -435,9 +495,10 @@ export function syncEpisodeVideoJobs(input: {
         episodeId: input.episodeId,
         taskId: boundTaskId,
         title: resolveVideoJobTitle(existing, input.episodeName, fragLabel(item.fragment_id)),
-        subtype: '分镜视频',
+        subtype: FRAGMENT_VIDEO_SUBTYPE,
         status,
-        message: status === 'queued' ? item.message || '排队中' : messageFromTask,
+        message,
+        messageKey,
         error: errText,
       },
       { silent: true },
@@ -464,7 +525,7 @@ export function enqueueEpisodeVideoJobs(input: {
     .map((f) => ({
       fragment_id: f.id,
       status: 'queued',
-      message: '已入队',
+      messageKey: 'enqueued' as const,
     }))
   syncEpisodeVideoJobs({
     projectId: input.projectId,
@@ -513,7 +574,7 @@ async function pollActiveEpisodeVideoJobs(): Promise<void> {
   const active = jobs.filter(
     (job) =>
       job.kind === 'video' &&
-      job.subtype === '分镜视频' &&
+      job.subtype === FRAGMENT_VIDEO_SUBTYPE &&
       (job.status === 'queued' || job.status === 'running') &&
       typeof job.episodeId === 'number',
   )
@@ -536,7 +597,7 @@ async function pollActiveEpisodeVideoJobs(): Promise<void> {
         const tracked = jobs.filter(
           (job) =>
             job.kind === 'video' &&
-            job.subtype === '分镜视频' &&
+            job.subtype === FRAGMENT_VIDEO_SUBTYPE &&
             job.episodeId === episodeId,
         )
         const trackedIds = new Set(tracked.map((job) => job.targetId))
@@ -607,6 +668,7 @@ export function markVideoJobsCancelled(fragmentIds?: number[]): void {
     return {
       ...job,
       status: 'failed' as const,
+      // 保持中文：dramaGenError 按「已取消」识别
       error: '已取消',
       finishedAt: Date.now(),
     }

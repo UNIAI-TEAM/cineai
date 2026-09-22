@@ -2,6 +2,8 @@
 import { dramaApi, type DramaAsset } from '../api/drama'
 import type { VideoGenerationOptions } from './dramaVideoGenerationOptions'
 import { syncAssetVideoJobToUnified } from './dramaGenQueue'
+import { getActiveLocale } from '../i18n/detect'
+import { messages } from '../i18n/messages'
 
 export type DramaVideoGenStatus = 'queued' | 'running' | 'done' | 'failed'
 
@@ -151,11 +153,11 @@ async function waitForAssetVideo(projectId: number, assetId: number): Promise<Dr
   while (Date.now() - started < POLL_TIMEOUT_MS) {
     const list = await dramaApi.listAssets(projectId)
     const latest = list.find((a) => a.id === assetId)
-    if (!latest) throw new Error('资产不存在')
+    if (!latest) throw new Error(messages[getActiveLocale()].dramaGen.errors.assetNotFound)
     const status = readGenerationStatus(latest)
     if (status === 'failed') {
       const gen = (latest.params || {}).generation as { error?: string } | undefined
-      throw new Error(String(gen?.error || '生视频失败'))
+      throw new Error(String(gen?.error || messages[getActiveLocale()].dramaGen.errors.videoFailed))
     }
     if (status === 'done' && latest.url) {
       return latest
@@ -165,7 +167,7 @@ async function waitForAssetVideo(projectId: number, assetId: number): Promise<Dr
     }
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
   }
-  throw new Error('生视频超时，请刷新后重试')
+  throw new Error(messages[getActiveLocale()].dramaGen.errors.videoTimeout)
 }
 
 // 有限并发轮询后端结果
@@ -178,7 +180,7 @@ async function pollJob(job: InternalJob) {
     emit()
     job.resolve(asset)
   } catch (err) {
-    const message = err instanceof Error ? err.message : '生视频失败'
+    const message = err instanceof Error ? err.message : messages[getActiveLocale()].dramaGen.errors.videoFailed
     job.status = 'failed'
     job.error = message
     job.finishedAt = Date.now()
@@ -229,7 +231,7 @@ function startJob(job: InternalJob) {
       waitingPoll.push(job)
       pump()
     } catch (err) {
-      const message = err instanceof Error ? err.message : '生视频失败'
+      const message = err instanceof Error ? err.message : messages[getActiveLocale()].dramaGen.errors.videoFailed
       job.status = 'failed'
       job.error = message
       job.finishedAt = Date.now()
@@ -274,7 +276,8 @@ export function enqueueDramaVideoGen(input: EnqueueInput): Promise<DramaAsset> {
       id: makeJobId(),
       projectId: input.projectId,
       assetId: input.assetId,
-      assetName: (input.assetName || '').trim() || `视频 ${input.assetId}`,
+      // 空名时由统一队列按当前语言显示「视频 {id}」
+      assetName: (input.assetName || '').trim(),
       prompt: input.prompt,
       options: input.options || {},
       referenceAssetIds: input.referenceAssetIds || [],
