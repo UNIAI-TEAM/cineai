@@ -24,7 +24,7 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
-backend/.venv/
+backend/.venv
 .venv/
 venv/
 
