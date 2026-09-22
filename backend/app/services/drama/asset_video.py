@@ -167,6 +167,7 @@ async def generate_asset_video(
         fallback_duration_sec=duration,
         provider_task_id=getattr(task_result, "provider_task_id", None),
         drama_project_id=project.id,
+        channel_id=getattr(task_result, "channel_id", None) or None,
     )
     await db.commit()
     await db.refresh(asset)

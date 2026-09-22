@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import or_, select
@@ -11,10 +12,13 @@ from app.config import get_settings
 from app.models import UsageEvent, User
 from app.services.billing import record_line
 from app.services.billing.context import get_current_task_run_id
+from app.services.billing.provider_rates import first_priced_model
 from app.services.drama.seed import SeedAssetsResult
 
 if TYPE_CHECKING:
     from app.services.ark import ImageResult, TaskResult
+
+logger = logging.getLogger(__name__)
 
 
 # 按分镜时长估算 Seedance 视频 token（与科普 pipeline 一致）
@@ -105,6 +109,15 @@ async def record_seedance_video_usage(
         except Exception:  # noqa: BLE001
             pass
 
+    # Giá tra theo model tác vụ thực chạy (ưu tiên ứng viên có dòng giá); tham số `model` chỉ là nhãn dự phòng
+    task_model = str(getattr(task_result, "model", "") or "")
+    billing_model, priced = first_priced_model(task_model, model)
+    if not priced or (task_model and billing_model != task_model):
+        logger.warning(
+            "billing: tác vụ video %s ghi theo model=%s (tác vụ=%s, nhãn=%s, có dòng giá=%s)",
+            provider_id or "-", billing_model or "-", task_model or "-", model or "-", priced,
+        )
+
     total_tokens = int(getattr(task_result, "total_tokens", 0) or 0)
     completion_tokens = int(getattr(task_result, "completion_tokens", 0) or 0)
     raw_usage = getattr(task_result, "raw_usage", None)
@@ -149,7 +162,7 @@ async def record_seedance_video_usage(
             db,
             user_id=user_id,
             billing_key=billing_key,
-            model=model,
+            model=billing_model,
             tokens=total_tokens,
             completion_tokens=completion_tokens,
             estimated=False,
@@ -169,7 +182,7 @@ async def record_seedance_video_usage(
         db,
         user_id=user_id,
         billing_key=billing_key,
-        model=model,
+        model=billing_model,
         tokens=fallback_tokens,
         estimated=True,
         raw=raw,
@@ -194,6 +207,8 @@ async def record_seedream_image_usage(
     extra_raw: dict[str, Any] | None = None,
 ) -> UsageEvent:
     """按 Seedream 响应 usage / 成本写入图片用量行；缺失时回退估算 token。"""
+    # Model thực tế đã sinh ảnh (ImageResult.model) thắng nhãn caller truyền vào
+    model = str(getattr(image_result, "model", "") or "") or model
     total_tokens = int(getattr(image_result, "total_tokens", 0) or 0)
     completion_tokens = int(getattr(image_result, "completion_tokens", 0) or 0)
     prompt_tokens = int(getattr(image_result, "prompt_tokens", 0) or 0)

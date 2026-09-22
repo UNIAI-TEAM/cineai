@@ -162,7 +162,10 @@ class OpenAIAdapter:
         return resp.content
 
     def cost_fen(self, model: str, raw_usage: dict[str, Any] | None) -> int | None:
-        return None  # Plan B: bảng giá provider_rates
+        """Chi phí fen theo provider_rates từ usage thật (gpt-image: output_tokens)."""
+        from app.services.billing.provider_rates import provider_cost_fen
+
+        return provider_cost_fen(model, raw_usage)
 
     def url_needs_auth(self, url: str) -> bool:
         """URL ảnh/audio OpenAI trả về (hoặc base64) không cần Bearer khi tải lại."""

@@ -401,37 +401,26 @@ def normalize_video_task_status(status: str) -> str:
 
 
 def build_task_result_from_payload(data: dict[str, Any]) -> TaskResult:
-    """Đọc trực tiếp response truy vấn tác vụ Ark (không unwrap kiểu New API) thành TaskResult."""
+    """Đọc trực tiếp response truy vấn tác vụ Ark thành TaskResult (giữ cả model để tính giá)."""
     status = normalize_video_task_status(str(data.get("status", "") or "running"))
     usage_parsed = parse_usage_dict(data)
-    total_tokens = int(usage_parsed.get("total_tokens") or 0)
-    completion_tokens = int(usage_parsed.get("completion_tokens") or 0)
-    raw_usage = data.get("usage") if isinstance(data.get("usage"), dict) else None
-
+    common: dict[str, Any] = {
+        "total_tokens": int(usage_parsed.get("total_tokens") or 0),
+        "completion_tokens": int(usage_parsed.get("completion_tokens") or 0),
+        "raw_usage": data.get("usage") if isinstance(data.get("usage"), dict) else None,
+        "model": str(data.get("model") or ""),
+    }
     if status == "succeeded":
         return TaskResult(
             status="succeeded",
             url=extract_video_result_url(data),
             last_frame_url=extract_seedance_last_frame_url(data),
-            total_tokens=total_tokens,
-            completion_tokens=completion_tokens,
-            raw_usage=raw_usage,
+            **common,
         )
     if status == "failed":
         err = data.get("error") or data.get("message") or data.get("fail_reason") or "failed"
-        return TaskResult(
-            status="failed",
-            error=format_video_task_error(err),
-            total_tokens=total_tokens,
-            completion_tokens=completion_tokens,
-            raw_usage=raw_usage,
-        )
-    return TaskResult(
-        status="running",
-        total_tokens=total_tokens,
-        completion_tokens=completion_tokens,
-        raw_usage=raw_usage,
-    )
+        return TaskResult(status="failed", error=format_video_task_error(err), **common)
+    return TaskResult(status="running", **common)
 
 
 class ArkAdapter:
@@ -548,8 +537,10 @@ class ArkAdapter:
         raise ProviderNotSupported("ModelArk không có TTS")
 
     def cost_fen(self, model: str, raw_usage: dict[str, Any] | None) -> int | None:
-        """Chưa ước tính chi phí cục bộ cho Ark (Plan B)."""
-        return None
+        """Chi phí fen theo provider_rates từ usage thật (Seedream: generated_images, Seedance: total_tokens)."""
+        from app.services.billing.provider_rates import provider_cost_fen
+
+        return provider_cost_fen(model, raw_usage)
 
     def url_needs_auth(self, url: str) -> bool:
         """URL trả về từ Ark là public, không cần Bearer khi tải."""

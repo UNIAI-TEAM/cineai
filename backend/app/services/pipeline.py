@@ -157,6 +157,8 @@ async def _record_seedance_usage(
                 provider_task_id=getattr(task_result, "provider_task_id", None),
                 project_id=project_id,
                 shot_id=shot_id,
+                # Re-fetch khi thiếu usage phải hỏi đúng kênh đã tạo (map nhớ trong tiến trình mất khi restart)
+                channel_id=getattr(task_result, "channel_id", None) or None,
             )
             await db.commit()
     except Exception:  # noqa: BLE001

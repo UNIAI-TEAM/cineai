@@ -164,6 +164,16 @@ def match_rate(model: str | None, rates: list[ProviderRate] | None = None) -> Pr
     return None
 
 
+def first_priced_model(*candidates: str | None) -> tuple[str, bool]:
+    """Chọn model để tính giá theo thứ tự ưu tiên: ứng viên đầu có dòng giá → (model, True);
+    không ứng viên nào có giá → (ứng viên không rỗng đầu tiên hoặc "", False)."""
+    names = [str(c or "").strip() for c in candidates]
+    for name in names:
+        if name and match_rate(name) is not None:
+            return name, True
+    return next((n for n in names if n), ""), False
+
+
 def _int(usage: dict[str, Any], *keys: str) -> int:
     """Giá trị nguyên dương đầu tiên trong các khoá; không có → 0."""
     for key in keys:
@@ -238,6 +248,9 @@ def provider_cost_fen(
     if rate is None:
         return None
     usage = usage_block(raw_usage)
+    # Upstream báo rõ 0 ảnh (hỏng/rỗng) → 0 fen; rate_cost_usd coi thiếu số ảnh là 1 nên phải chặn ở đây
+    if rate.unit == "per_image" and usage.get("generated_images") is not None and not _int(usage, "generated_images"):
+        return 0
     usd = rate_cost_usd(rate, usage)
     if not usd or usd <= 0:
         return None

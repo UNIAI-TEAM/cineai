@@ -74,6 +74,7 @@ class TaskResult:
     provider_task_id: str | None = None
     upstream_cost_fen: int | None = None
     channel_id: str = ""
+    model: str = ""  # model upstream báo trong payload tác vụ (route poll không biết model)
 
 
 @dataclass

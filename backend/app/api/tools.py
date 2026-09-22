@@ -178,6 +178,8 @@ async def get_tool_task(
             usage_tokens=int((data.get("usage") or {}).get("total_tokens") or 0),
             completion_tokens=int((data.get("usage") or {}).get("completion_tokens") or 0),
             raw_usage=data.get("raw_usage") if isinstance(data.get("raw_usage"), dict) else None,
+            upstream_cost_fen=data.get("upstream_cost_fen"),
+            model=str(data.get("model") or ""),
         )
     await update_tool_run_task(db, user.id, tid, data)
     await db.commit()

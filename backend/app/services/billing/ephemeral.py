@@ -306,6 +306,8 @@ async def settle_deferred_video_poll(
     completion_tokens: int = 0,
     raw_usage: dict | None = None,
     billing_key: str | None = None,
+    upstream_cost_fen: int | None = None,
+    model: str = "",
 ) -> None:
     """轮询终态后结算轻量视频任务：成功才记 seedance 用量。
 
@@ -353,7 +355,7 @@ async def settle_deferred_video_poll(
             generate_audio = bool(payload.get("generate_audio", True))
             key = billing_key or seedance_billing_key(generate_audio=generate_audio)
             task_result = None
-            if usage_tokens > 0:
+            if usage_tokens > 0 or upstream_cost_fen is not None:
                 from app.services.ark import TaskResult
 
                 task_result = TaskResult(
@@ -361,12 +363,14 @@ async def settle_deferred_video_poll(
                     total_tokens=int(usage_tokens),
                     completion_tokens=int(completion_tokens or usage_tokens),
                     raw_usage=raw_usage,
+                    upstream_cost_fen=upstream_cost_fen,
+                    model=model,
                 )
             await record_seedance_video_usage(
                 db,
                 user_id=user.id,
                 billing_key=key,
-                model=get_settings().model_video,
+                model=model or get_settings().model_video,
                 domain=task.domain or "api",
                 task_result=task_result,
                 fallback_duration_sec=payload.get("duration"),

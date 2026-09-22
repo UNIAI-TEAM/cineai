@@ -23,6 +23,7 @@ from app.errors import AppError
 from app.schemas_routing import ResolvedModelRoute
 from app.services import storage
 from app.services.ark_mock import mock_image_caption
+from app.services.billing.provider_rates import first_priced_model
 from app.services import kepu_text
 from app.services.function_router import (
     ModelNotAllowed,
@@ -81,6 +82,8 @@ class MediaGateway:
         """Khởi tạo facade; `settings=None` nghĩa là luôn đọc cấu hình hiện hành."""
         self._settings = settings
         self._task_channels: OrderedDict[str, str] = OrderedDict()
+        # task → model thực tạo tác vụ (cùng khoá, cùng trần LRU với _task_channels); mất khi khởi động lại
+        self._task_models: OrderedDict[str, str] = OrderedDict()
 
     @property
     def settings(self) -> Settings:
@@ -103,12 +106,18 @@ class MediaGateway:
             self._task_channels.move_to_end(task_id)
         return cid
 
-    def _remember_task_channel(self, task_id: str, channel_id: str) -> None:
-        """Ghi nhớ task → kênh, giới hạn LRU TASK_CHANNELS_MAX để map không phình vô hạn."""
+    def _remember_task_channel(self, task_id: str, channel_id: str, model: str = "") -> None:
+        """Ghi nhớ task → kênh (+ model lúc tạo để tính giá), giới hạn LRU TASK_CHANNELS_MAX để map không phình vô hạn."""
         self._task_channels[task_id] = channel_id
         self._task_channels.move_to_end(task_id)
+        if model:
+            self._task_models[task_id] = model
+            self._task_models.move_to_end(task_id)
+        else:
+            self._task_models.pop(task_id, None)
         while len(self._task_channels) > TASK_CHANNELS_MAX:
-            self._task_channels.popitem(last=False)
+            evicted, _ = self._task_channels.popitem(last=False)
+            self._task_models.pop(evicted, None)
 
     # ---- Route & failover -------------------------------------------------
 
@@ -351,7 +360,7 @@ class MediaGateway:
             allow_structure_fallback=True,
         )
         route, task_id = await self._try_candidates(function_id, model, lambda r, a: a.create_video(r, req))
-        self._remember_task_channel(task_id, route.channel_id)
+        self._remember_task_channel(task_id, route.channel_id, route.upstream_model)
         logger.info(
             "i2v create channel=%s model=%s duration=%s resolution=%s ratio=%s role=%s generate_audio=%s task=%s",
             route.channel_id,
@@ -395,7 +404,7 @@ class MediaGateway:
             content_labels=content_labels,
         )
         route, task_id = await self._try_candidates(function_id, requested, lambda r, a: a.create_video(r, req))
-        self._remember_task_channel(task_id, route.channel_id)
+        self._remember_task_channel(task_id, route.channel_id, route.upstream_model)
         logger.info(
             "Seedance multimodal create channel=%s model=%s duration=%s items=%s task=%s",
             route.channel_id,
@@ -548,8 +557,18 @@ class MediaGateway:
         result = await adapter.fetch_video(route, task_id)
         result.provider_task_id = result.provider_task_id or task_id
         result.channel_id = result.channel_id or route.channel_id
+        # Route poll dựng theo kênh (upstream_model rỗng) → tra giá theo model lúc tạo, rồi model payload trả về
+        created = self._task_models.get(task_id, "")
+        echoed = result.model
+        result.model, priced = first_priced_model(created, echoed, route.upstream_model)
         if result.raw_usage:
-            result.upstream_cost_fen = adapter.cost_fen(route.upstream_model, result.raw_usage)
+            result.upstream_cost_fen = adapter.cost_fen(result.model, result.raw_usage)
+            terminal = result.status in ("succeeded", "failed")
+            if terminal and (not priced or (created and result.model != created)):
+                logger.warning(
+                    "billing: tác vụ %s tính giá theo model=%s (lúc tạo=%s, payload=%s, có dòng giá=%s)",
+                    task_id, result.model or "-", created or "-", echoed or "-", priced,
+                )
         return result
 
     async def poll_task(self, task_id: str, *, channel_id: str | None = None) -> TaskResult:

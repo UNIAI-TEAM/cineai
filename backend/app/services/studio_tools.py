@@ -467,6 +467,8 @@ async def poll_video_task(user: User, task_id: str, *, channel_id: str | None = 
             "urls": [url],
             "usage": usage,
             "raw_usage": result.raw_usage,
+            "upstream_cost_fen": result.upstream_cost_fen,
+            "model": result.model,
         }
     if result.status == "failed":
         return {
@@ -476,6 +478,8 @@ async def poll_video_task(user: User, task_id: str, *, channel_id: str | None = 
             "error": result.error or "生成失败",
             "usage": usage,
             "raw_usage": result.raw_usage,
+            "upstream_cost_fen": result.upstream_cost_fen,
+            "model": result.model,
         }
     return {"status": "running", "kind": "video", "urls": [], "usage": usage}
 

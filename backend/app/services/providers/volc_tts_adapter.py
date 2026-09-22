@@ -152,8 +152,10 @@ class VolcTtsAdapter:
         return audio
 
     def cost_fen(self, model: str, raw_usage: dict[str, Any] | None) -> int | None:
-        """Cost estimation not available for Volc TTS."""
-        return None
+        """Chi phí fen theo provider_rates; openspeech không trả usage nên thực tế luôn None."""
+        from app.services.billing.provider_rates import provider_cost_fen
+
+        return provider_cost_fen(model, raw_usage)
 
     def url_needs_auth(self, url: str) -> bool:
         """URLs from Volc TTS do not need authentication."""
