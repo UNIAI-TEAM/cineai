@@ -1,4 +1,4 @@
-"""Load, cache, and persist model routing + flat runtime settings."""
+"""Load, cache, and persist provider routing (channels + function bindings) plus flat runtime settings."""
 
 from __future__ import annotations
 
@@ -17,13 +17,11 @@ from app.models_settings import AppSettings, SystemModelChannelRow
 from app.schemas_routing import (
     AdminRoutingSettingsOut,
     AdminRoutingSettingsPatch,
-    DefaultModels,
-    LogicalModel,
-    LogicalModelCapability,
+    FunctionBindings,
+    FunctionInfo,
+    ModelBinding,
     SystemChannelAdvancedConfig,
     SystemModelChannel,
-    default_models_from_dict,
-    default_models_to_dict,
 )
 from app.schemas_settings import (
     SECRET_FIELD_FLAGS,
@@ -33,12 +31,7 @@ from app.schemas_settings import (
     ModelCapabilityReadiness,
     model_config_field_names,
 )
-from app.services.model_routing_config import (
-    model_routing_validation_errors,
-    normalize_default_models,
-    resolve_logical_model_config,
-    synchronize_logical_models_with_channels,
-)
+from app.services.function_bindings import bindings_to_dict, parse_function_bindings, validate_function_bindings
 
 logger = logging.getLogger("app.model_settings")
 
@@ -49,16 +42,18 @@ _overlay: dict[str, Any] = {}
 
 @dataclass
 class RoutingSnapshot:
+    """Ảnh chụp routing hiện hành: danh sách provider (kèm key thật) và gán model theo chức năng."""
+
     channels: list[SystemModelChannel]
-    logical_models: list[LogicalModel]
-    default_models: DefaultModels
+    function_bindings: FunctionBindings
 
 
-_routing_snapshot = RoutingSnapshot(channels=[], logical_models=[], default_models=DefaultModels())
+_routing_snapshot = RoutingSnapshot(channels=[], function_bindings=FunctionBindings())
 
 
 # 从 secret_key 派生 Fernet 密钥
 def _fernet() -> Fernet:
+    """Suy khoá Fernet từ SECRET_KEY của app (dùng để mã hoá key nhạy cảm trong DB)."""
     digest = hashlib.sha256(get_settings().secret_key.encode("utf-8")).digest()
     key = base64.urlsafe_b64encode(digest)
     return Fernet(key)
@@ -66,12 +61,14 @@ def _fernet() -> Fernet:
 
 # 加密敏感字段
 def _encrypt_secret(value: str) -> str:
+    """Mã hoá một chuỗi bí mật, tiền tố `enc:` để nhận diện lúc giải mã."""
     token = _fernet().encrypt(value.encode("utf-8")).decode("utf-8")
     return f"{ENCRYPTED_PREFIX}{token}"
 
 
 # 解密敏感字段
 def _decrypt_secret(value: str) -> str:
+    """Giải mã một chuỗi đã mã hoá bằng `_encrypt_secret`; chuỗi rỗng/chưa mã hoá trả nguyên."""
     if not value:
         return ""
     if not value.startswith(ENCRYPTED_PREFIX):
@@ -82,16 +79,19 @@ def _decrypt_secret(value: str) -> str:
 
 # 返回当前路由快照
 def get_routing_snapshot() -> RoutingSnapshot:
+    """Trả snapshot routing đang cache trong process (channels + function_bindings)."""
     return _routing_snapshot
 
 
 # 返回 flat overlay
 def get_overlay_dict() -> dict[str, Any]:
+    """Trả bản sao overlay flat hiện hành (dùng để debug/kiểm tra)."""
     return dict(_overlay)
 
 
 # 刷新 flat overlay
 def _refresh_overlay(config: dict[str, Any]) -> None:
+    """Nạp lại overlay flat từ config đã lưu; chuỗi rỗng vẫn giữ (là tín hiệu "đã xoá khoá")."""
     global _overlay
     flat = config.get("flat") if isinstance(config.get("flat"), dict) else config
     # 空串必须保留：它是管理端「清除密钥」写入的显式值，
@@ -104,196 +104,77 @@ def _refresh_overlay(config: dict[str, Any]) -> None:
     }
 
 
-# 刷新路由快照
-def _refresh_routing_snapshot(
-    channels: list[SystemModelChannel],
-    logical_models: list[LogicalModel],
-    default_models: DefaultModels,
-) -> None:
+def _refresh_routing_snapshot(channels: list[SystemModelChannel], function_bindings: FunctionBindings) -> None:
+    """Ghi đè snapshot routing toàn cục (gọi sau khi nạp/lưu cấu hình)."""
     global _routing_snapshot
-    _routing_snapshot = RoutingSnapshot(
-        channels=channels,
-        logical_models=logical_models,
-        default_models=default_models,
-    )
+    _routing_snapshot = RoutingSnapshot(channels=channels, function_bindings=function_bindings)
 
 
-# 从 env 构建默认渠道（开源版仅 TokenFree）
+# Seed provider từ .env lần đầu (chỉ khi DB chưa có provider nào)
 def _bootstrap_channels_from_env(settings: Settings | None = None) -> list[SystemModelChannel]:
-    from app.services.tokenfree_gateway import locked_tokenfree_channel
-    from app.services.tokenfree_pricing import canonicalize_channel_models
+    """Suy ra 0..3 provider (openai/byteplus/volc_tts) từ các key .env đang có."""
+    from app.services.model_routing_config import infer_model_capability
+    from app.services.providers.ark_adapter import ARK_DEFAULT_BASE_URL
+    from app.services.providers.openai_adapter import OPENAI_DEFAULT_BASE_URL
 
     src = settings or get_settings()
-    key = (src.openai_api_key or src.ark_api_key or "").strip()
-    models = canonicalize_channel_models(
-        [
-            src.model_llm,
-            src.model_image,
-            src.model_image_45,
-            src.model_video,
-            src.model_video_2,
-            src.model_audio,
-        ]
-    )
-    return [locked_tokenfree_channel(api_key=key, models=models, enabled=True)]
+    env_models = [m for m in (src.model_llm, src.model_image, src.model_image_45, src.model_video, src.model_video_2, src.model_audio) if (m or "").strip()]
+    out: list[SystemModelChannel] = []
+    okey = (src.openai_api_key or "").strip()
+    if okey:
+        models = [m for m in env_models if infer_model_capability(m) in ("text", "audio")]
+        out.append(SystemModelChannel(id="openai", name="OpenAI", base_url=(src.openai_base_url or OPENAI_DEFAULT_BASE_URL).rstrip("/"),
+                                      api_key=okey, has_api_key=True, protocol="openai", api_format="openai", models=models, enabled=True, sort_order=0))
+    akey = (src.ark_api_key or "").strip()
+    if akey:
+        models = [m for m in env_models if infer_model_capability(m) in ("image", "video")]
+        out.append(SystemModelChannel(id="byteplus", name="BytePlus ModelArk", base_url=(src.ark_base_url or ARK_DEFAULT_BASE_URL).rstrip("/"),
+                                      api_key=akey, has_api_key=True, protocol="ark", api_format="ark", models=models, enabled=True, sort_order=1))
+    vkey = (src.volc_tts_api_key or "").strip()
+    if vkey or (src.volc_tts_app_id and src.volc_tts_access_key):
+        out.append(SystemModelChannel(id="volc_tts", name="BytePlus Seed Speech", base_url=(src.volc_tts_url or "").rstrip("/"),
+                                      api_key=vkey, has_api_key=bool(vkey), protocol="volc_tts", api_format="openai",
+                                      models=[src.volc_tts_resource_id or "seed-tts-2.0"], enabled=True, sort_order=2))
+    return out
 
 
-def _seedance_logical_meta(upstream: str) -> tuple[str, str]:
-    """按接入点 ID 推断 Seedance 逻辑模型（2.0 vs 2.5 vs Mini）。"""
-    mid = (upstream or "").strip().lower()
-    if "mini" in mid:
-        return "seedance-2-0-mini", "Seedance 2.0 Mini"
-    if any(token in mid for token in ("2-5", "2.5", "260628")):
-        return "seedance-2.5", "Seedance 2.5"
-    if any(token in mid for token in ("2-0", "2.0", "260128", "seedance-2")):
-        return "seedance-2", "Seedance 2"
-    return "seedance-2.5", "Seedance 2.5"
-
-
-def _append_seedance_alias(
-    alias_models: list[LogicalModel],
-    *,
-    upstream: str,
-    logical_id: str,
-    name: str,
-    bindings_for_upstream,
-) -> None:
-    if any(model.id == logical_id for model in alias_models):
-        return
-    bindings = bindings_for_upstream(upstream)
-    if not bindings:
-        return
-    alias_models.append(
-        LogicalModel(
-            id=logical_id,
-            name=name,
-            capability="video",
-            enabled=True,
-            bindings=bindings,
-        )
-    )
-
-
-def _merge_friendly_alias_models(
-    synced: list[LogicalModel],
-    aliases: list[LogicalModel],
-) -> list[LogicalModel]:
-    """保留 seedance/seedream 友好别名；去掉与别名同上游的 raw endpoint 重复项。"""
+# Gán slot mặc định từ MODEL_* của env: mỗi năng lực lấy model đầu tiên có provider bật
+def _bootstrap_bindings_from_env(settings: Settings, channels: list[SystemModelChannel]) -> FunctionBindings:
+    """Gán mỗi năng lực (text/image/video/audio) vào provider .env đang chứa model MODEL_* tương ứng."""
     from app.services.model_routing_config import normalize_model_name
 
-    if not aliases:
-        return synced
-    alias_ids = {model.id for model in aliases}
-    alias_upstream = {
-        normalize_model_name(binding.upstream_model)
-        for alias in aliases
-        for binding in alias.bindings
-    }
-    merged: list[LogicalModel] = []
-    seen_ids: set[str] = set()
-    for model in synced:
-        model_key = normalize_model_name(model.id)
-        binding_keys = {normalize_model_name(b.upstream_model) for b in model.bindings}
-        if (
-            model.capability in {"video", "image"}
-            and model.id not in alias_ids
-            and binding_keys
-            and binding_keys <= alias_upstream
-            and model_key in binding_keys
-        ):
-            continue
-        if model.id.lower() in seen_ids:
-            continue
-        merged.append(model)
-        seen_ids.add(model.id.lower())
-    for alias in aliases:
-        if alias.id.lower() in seen_ids:
-            continue
-        merged.append(alias)
-        seen_ids.add(alias.id.lower())
-    return merged
+    slots: dict[str, list[ModelBinding]] = {}
+    for cap, model in (("text", settings.model_llm), ("image", settings.model_image), ("video", settings.model_video), ("audio", settings.model_audio)):
+        mid = (model or "").strip()
+        for ch in channels:
+            if any(normalize_model_name(m) == normalize_model_name(mid) for m in ch.models):
+                slots[cap] = [ModelBinding(channel_id=ch.id, model=mid)]
+                break
+        else:
+            if cap == "audio":
+                volc = next((c for c in channels if c.protocol == "volc_tts"), None)
+                if volc:
+                    slots[cap] = [ModelBinding(channel_id=volc.id, model=volc.models[0])]
+    return FunctionBindings(slots=slots)
 
 
-# 从 env 构建默认逻辑模型与默认模型 ID
-def _bootstrap_logical_from_channels(channels: list[SystemModelChannel]) -> tuple[list[LogicalModel], DefaultModels]:
-    logical_models = synchronize_logical_models_with_channels([], channels)
-    settings = get_settings()
-    alias_models: list[LogicalModel] = []
-
-    def _bindings_for_upstream(upstream: str) -> list:
-        from app.schemas_routing import LogicalModelBinding
-        from app.services.tokenfree_pricing import canonicalize_channel_model_id
-
-        wanted = {(upstream or "").strip(), canonicalize_channel_model_id(upstream)}
-        wanted.discard("")
-        result = []
-        for model in logical_models:
-            for binding in model.bindings:
-                raw = (binding.upstream_model or "").strip()
-                if raw in wanted or canonicalize_channel_model_id(raw) in wanted:
-                    result.append(binding.model_copy())
-        return result
-
-    if settings.model_image:
-        bindings = _bindings_for_upstream(settings.model_image)
-        if bindings:
-            alias_models.append(
-                LogicalModel(
-                    id="seedream-5.0",
-                    name="Seedream 5.0",
-                    capability="image",
-                    enabled=True,
-                    bindings=bindings,
-                )
-            )
-    if settings.model_image_45:
-        bindings = _bindings_for_upstream(settings.model_image_45)
-        if bindings:
-            alias_models.append(
-                LogicalModel(
-                    id="seedream-4.5",
-                    name="Seedream 4.5",
-                    capability="image",
-                    enabled=True,
-                    bindings=bindings,
-                )
-            )
-    if settings.model_video:
-        logical_id, name = _seedance_logical_meta(settings.model_video)
-        _append_seedance_alias(
-            alias_models,
-            upstream=settings.model_video,
-            logical_id=logical_id,
-            name=name,
-            bindings_for_upstream=_bindings_for_upstream,
-        )
-    if settings.model_video_2:
-        logical_id_2, name_2 = _seedance_logical_meta(settings.model_video_2)
-        _append_seedance_alias(
-            alias_models,
-            upstream=settings.model_video_2,
-            logical_id=logical_id_2,
-            name=name_2,
-            bindings_for_upstream=_bindings_for_upstream,
-        )
-    default_video = ""
-    if settings.model_video:
-        default_video, _ = _seedance_logical_meta(settings.model_video)
-    elif settings.model_video_2:
-        default_video = "seedance-2"
-    synced = synchronize_logical_models_with_channels(logical_models, channels)
-    merged = _merge_friendly_alias_models(synced, alias_models)
-    defaults = DefaultModels(
-        text_model=settings.model_llm,
-        image_model="seedream-5.0" if settings.model_image else "",
-        video_model=default_video,
-        audio_model=settings.model_audio or settings.volc_tts_speaker,
-    )
-    return merged, normalize_default_models(defaults, merged, channels)
+def _migrate_legacy_config(config: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """Bỏ logical_models/default_models thời TokenFree; đảm bảo có function_bindings."""
+    out = dict(config)
+    changed = False
+    for key in ("logical_models", "default_models"):
+        if key in out:
+            out.pop(key)
+            changed = True
+    if "function_bindings" not in out:
+        out["function_bindings"] = bindings_to_dict(FunctionBindings())
+        changed = True
+    return out, changed
 
 
 # ORM 行转领域模型（admin 视图，密钥打码）
 def _channel_row_to_admin(row: SystemModelChannelRow) -> SystemModelChannel:
+    """Chuyển 1 dòng provider trong DB sang model admin (khoá bị che, chỉ giữ cờ has_api_key)."""
     api_key = _decrypt_secret(row.api_key_ciphertext or "")
     return SystemModelChannel(
         id=row.id,
@@ -314,11 +195,13 @@ def _channel_row_to_admin(row: SystemModelChannelRow) -> SystemModelChannel:
 
 # 运行时渠道（含明文密钥）
 def _channel_row_to_runtime(row: SystemModelChannelRow) -> SystemModelChannel:
+    """Chuyển 1 dòng provider trong DB sang model runtime (khoá giải mã, dùng để gọi upstream)."""
     channel = _channel_row_to_admin(row)
     return channel.model_copy(update={"api_key": _decrypt_secret(row.api_key_ciphertext or "")})
 
 
 async def _get_or_create_app_row(db: AsyncSession) -> AppSettings:
+    """Lấy dòng app_settings duy nhất (id="default"); tạo mới với flat = env hiện hành nếu chưa có."""
     row = (await db.execute(select(AppSettings).where(AppSettings.id == "default"))).scalar_one_or_none()
     if row:
         return row
@@ -329,6 +212,7 @@ async def _get_or_create_app_row(db: AsyncSession) -> AppSettings:
 
 
 async def _load_channels(db: AsyncSession, *, runtime: bool) -> list[SystemModelChannel]:
+    """Đọc toàn bộ provider theo sort_order/id; `runtime=True` trả khoá thật, ngược lại khoá bị che."""
     rows = list(
         (await db.execute(select(SystemModelChannelRow).order_by(SystemModelChannelRow.sort_order, SystemModelChannelRow.id)))
         .scalars()
@@ -341,96 +225,40 @@ async def _load_channels(db: AsyncSession, *, runtime: bool) -> list[SystemModel
     return [_channel_row_to_admin(row) for row in rows]
 
 
-async def _ensure_bootstrapped_channels(db: AsyncSession) -> list[SystemModelChannelRow]:
-    existing = list((await db.execute(select(SystemModelChannelRow))).scalars().all())
-    if existing:
-        await _ensure_tokenfree_channel(db, existing)
-        return list((await db.execute(select(SystemModelChannelRow))).scalars().all())
+async def _ensure_bootstrapped_channels(db: AsyncSession) -> None:
+    """Xoá kênh tokenfree cũ; DB trống provider thì seed từ env (kèm bindings)."""
+    rows = list((await db.execute(select(SystemModelChannelRow))).scalars().all())
+    legacy = [r for r in rows if r.id == "tokenfree" or "tokenfree.com" in (r.base_url or "")]
+    for r in legacy:
+        await db.delete(r)
+    rows = [r for r in rows if r not in legacy]
+    if rows:
+        await db.flush()
+        return
     channels = _bootstrap_channels_from_env()
-    rows: list[SystemModelChannelRow] = []
     for channel in channels:
-        row = SystemModelChannelRow(
-            id=channel.id,
-            name=channel.name,
-            base_url=channel.base_url,
-            api_key_ciphertext=_encrypt_secret(channel.api_key) if channel.api_key else None,
-            api_format=channel.api_format,
-            protocol=channel.protocol,
-            models=channel.models,
-            enabled=channel.enabled,
-            sort_order=channel.sort_order,
-            advanced_config=channel.advanced_config.model_dump() if channel.advanced_config else None,
-        )
-        db.add(row)
-        rows.append(row)
-    logical_models, defaults = _bootstrap_logical_from_channels(channels)
+        db.add(SystemModelChannelRow(id=channel.id, name=channel.name, base_url=channel.base_url,
+                                     api_key_ciphertext=_encrypt_secret(channel.api_key) if channel.api_key else None,
+                                     api_format=channel.api_format, protocol=channel.protocol, models=channel.models,
+                                     enabled=channel.enabled, sort_order=channel.sort_order, advanced_config=None))
     app_row = await _get_or_create_app_row(db)
-    app_row.config_json = {
-        "flat": _settings_to_dict(),
-        "logical_models": [model.model_dump() for model in logical_models],
-        "default_models": default_models_to_dict(defaults),
-    }
-    await db.commit()
-    return rows
-
-
-async def _ensure_tokenfree_channel(db: AsyncSession, existing: list[SystemModelChannelRow]) -> None:
-    """锁定唯一 TokenFree 渠道：固定 Base URL，其它渠道停用。"""
-    from app.services.tokenfree_gateway import (
-        TOKENFREE_BASE_URL,
-        TOKENFREE_CHANNEL_ID,
-        TOKENFREE_CHANNEL_NAME,
-        pick_migratable_api_key,
-    )
-    from app.services.tokenfree_pricing import canonicalize_channel_models
-
-    runtime = [_channel_row_to_runtime(row) for row in existing]
-    migrated_key = pick_migratable_api_key(runtime)
-    token_row = next((row for row in existing if row.id == TOKENFREE_CHANNEL_ID), None)
-    if token_row is None:
-        token_row = SystemModelChannelRow(id=TOKENFREE_CHANNEL_ID)
-        db.add(token_row)
-    current_key = _decrypt_secret(token_row.api_key_ciphertext or "")
-    token_row.name = TOKENFREE_CHANNEL_NAME
-    token_row.base_url = TOKENFREE_BASE_URL
-    token_row.api_format = "openai"
-    token_row.protocol = "auto"
-    token_row.enabled = True
-    token_row.sort_order = 0
-    token_row.advanced_config = None
-    if not current_key and migrated_key:
-        token_row.api_key_ciphertext = _encrypt_secret(migrated_key)
-        current_key = migrated_key
-    src = get_settings()
-    env_models = canonicalize_channel_models(
-        [
-            src.model_llm,
-            src.model_image,
-            src.model_image_45,
-            src.model_video,
-            src.model_video_2,
-            src.model_audio,
-        ]
-    )
-    if not token_row.models:
-        token_row.models = env_models
-    else:
-        # 已有 DB 清单只折叠别名，不再把 .env 模型并回去
-        merged = canonicalize_channel_models(token_row.models)
-        if merged != list(token_row.models or []):
-            token_row.models = merged
-    for row in existing:
-        if row.id != TOKENFREE_CHANNEL_ID:
-            row.enabled = False
-    await db.commit()
+    config = dict(app_row.config_json or {})
+    if channels and not parse_function_bindings(config.get("function_bindings")).slots:
+        config["function_bindings"] = bindings_to_dict(_bootstrap_bindings_from_env(get_settings(), channels))
+    if "flat" not in config:
+        config["flat"] = _encrypt_flat_config(_settings_to_dict())
+    app_row.config_json = config
+    await db.flush()
 
 
 def _settings_to_dict(settings: Settings | None = None) -> dict[str, Any]:
+    """Chụp các trường Settings quản lý được ở admin thành dict phẳng."""
     src = settings or get_settings()
     return {field: getattr(src, field) for field in model_config_field_names()}
 
 
 def _decrypt_flat_config(raw: dict[str, Any] | None) -> dict[str, Any]:
+    """Giải mã các trường bí mật trong config flat đã lưu DB."""
     data = dict((raw or {}).get("flat") or raw or {})
     for field in SECRET_FIELDS:
         if field in data and data[field]:
@@ -443,6 +271,7 @@ def _decrypt_flat_config(raw: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def _encrypt_flat_config(raw: dict[str, Any]) -> dict[str, Any]:
+    """Mã hoá các trường bí mật trước khi ghi config flat vào DB."""
     data = dict(raw)
     for field in SECRET_FIELDS:
         value = data.get(field)
@@ -452,6 +281,7 @@ def _encrypt_flat_config(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def _effective_flat(stored: dict[str, Any] | None) -> dict[str, Any]:
+    """Hợp nhất flat đã lưu (nếu có) lên trên mặc định Settings hiện hành."""
     merged = _settings_to_dict()
     if stored:
         for field in model_config_field_names():
@@ -460,134 +290,149 @@ def _effective_flat(stored: dict[str, Any] | None) -> dict[str, Any]:
     return merged
 
 
-async def _compose_runtime_state(db: AsyncSession) -> tuple[list[SystemModelChannel], list[LogicalModel], DefaultModels, dict[str, Any], AppSettings]:
-    """组装运行时路由：始终按渠道 models 同步逻辑模型，默认文字模型随可用上游回落。"""
+async def _compose_runtime_state(db: AsyncSession) -> tuple[list[SystemModelChannel], FunctionBindings, dict[str, Any], AppSettings]:
+    """Kênh runtime (key thật) + bindings + flat overlay."""
     app_row = await _get_or_create_app_row(db)
     await _ensure_bootstrapped_channels(db)
     channels = await _load_channels(db, runtime=True)
-    config = dict(app_row.config_json or {})
-    logical_models = [LogicalModel.model_validate(item) for item in config.get("logical_models") or []]
-    default_models = default_models_from_dict(config.get("default_models"))
-    if not logical_models and channels:
-        logical_models, default_models = _bootstrap_logical_from_channels(
-            [_channel_row_to_admin(row) for row in (await db.execute(select(SystemModelChannelRow))).scalars().all()]
-        )
-    # 渠道 models 变更后，丢弃失效绑定并补齐新上游（支持任意 OpenAI 兼容模型）
-    logical_models = synchronize_logical_models_with_channels(logical_models, channels)
-    boot_logical, boot_defaults = _bootstrap_logical_from_channels(
-        [_channel_row_to_admin(row) for row in (await db.execute(select(SystemModelChannelRow))).scalars().all()]
-    )
-    alias_ids = {"seedream-5.0", "seedream-4.5", "seedance-2.5", "seedance-2"}
-    logical_models = _merge_friendly_alias_models(
-        logical_models,
-        [model for model in boot_logical if model.id in alias_ids],
-    )
-    if not (default_models.video_model or "").strip() and boot_defaults.video_model:
-        default_models = default_models.model_copy(update={"video_model": boot_defaults.video_model})
-    default_models = normalize_default_models(default_models, logical_models, channels)
+    config, changed = _migrate_legacy_config(dict(app_row.config_json or {}))
+    if changed:
+        app_row.config_json = config
+        await db.flush()
+    bindings = parse_function_bindings(config.get("function_bindings"))
     flat = _effective_flat(_decrypt_flat_config(config))
-    from app.services.tokenfree_gateway import apply_tokenfree_flat_overlay
-
-    flat = apply_tokenfree_flat_overlay(flat, channels)
-    if default_models.text_model:
-        flat["model_llm"] = default_models.text_model
-    if default_models.image_model:
-        flat["model_image"] = default_models.image_model
-    if default_models.video_model:
-        flat["model_video"] = default_models.video_model
-    if default_models.audio_model:
-        flat["model_audio"] = default_models.audio_model
-    return channels, logical_models, default_models, flat, app_row
+    return channels, bindings, flat, app_row
 
 
 async def load_model_settings_cache(db: AsyncSession) -> None:
-    """加载路由快照；若与渠道不同步则回写 healed 配置，避免默认仍钉死旧模型名。"""
-    channels, logical_models, default_models, flat, app_row = await _compose_runtime_state(db)
-    config = dict(app_row.config_json or {})
-    old_ids = {(item or {}).get("id") for item in (config.get("logical_models") or [])}
-    new_ids = {model.id for model in logical_models}
-    old_defaults = default_models_from_dict(config.get("default_models"))
-    flat_cfg = dict(config.get("flat") or {})
-    flat_cfg.update({k: v for k, v in flat.items() if v not in (None, "")})
-    flat_changed = flat_cfg != dict(config.get("flat") or {})
-    if old_ids != new_ids or old_defaults != default_models or flat_changed:
-        config["logical_models"] = [model.model_dump() for model in logical_models]
-        config["default_models"] = default_models_to_dict(default_models)
-        config["flat"] = _encrypt_flat_config(flat_cfg) if flat_cfg else config.get("flat")
-        app_row.config_json = config
-        await db.commit()
-    _refresh_routing_snapshot(channels, logical_models, default_models)
+    """Nạp snapshot lúc khởi động / sau khi lưu."""
+    channels, bindings, flat, _ = await _compose_runtime_state(db)
+    await db.commit()
+    _refresh_routing_snapshot(channels, bindings)
     _refresh_overlay({"flat": flat})
     reload_settings()
 
 
-def _build_readiness(
-    channels: list[SystemModelChannel],
-    logical_models: list[LogicalModel],
-    defaults: DefaultModels,
-) -> list[ModelCapabilityReadiness]:
-    labels = {"text": "文本", "image": "图像", "video": "视频", "audio": "语音"}
+_CAP_LABEL = {"text": "Văn bản", "image": "Ảnh", "video": "Video", "audio": "Giọng đọc"}
+
+
+def _build_readiness(bindings: FunctionBindings, channels: list[SystemModelChannel]) -> list[ModelCapabilityReadiness]:
+    """Trạng thái 4 slot năng lực."""
+    from app.services.function_router import allowed_bindings
+
+    snap = RoutingSnapshot(channels=channels, function_bindings=bindings)
     items: list[ModelCapabilityReadiness] = []
-    for capability, attr in {
-        "text": "text_model",
-        "image": "image_model",
-        "video": "video_model",
-        "audio": "audio_model",
-    }.items():
-        cap = capability  # type: LogicalModelCapability
-        model_id = getattr(defaults, attr) or ""
-        resolved = resolve_logical_model_config(logical_models, channels, cap, model_id) if model_id else None
-        items.append(
-            ModelCapabilityReadiness(
-                capability=capability,
-                label=labels[capability],
-                model=model_id,
-                ready=bool(resolved),
-                message=f"路由至渠道 {resolved['channel'].name}" if resolved else f"需配置默认{labels[capability]}模型与渠道绑定",
-            )
-        )
+    first_fn = {"text": "kepu.script", "image": "kepu.image", "video": "kepu.video", "audio": "kepu.tts"}
+    for cap, label in _CAP_LABEL.items():
+        assigned = bindings.slots.get(cap) or []
+        usable = allowed_bindings(first_fn[cap], snapshot=snap) if assigned else []
+        model = usable[0].model if usable else (assigned[0].model if assigned else "")
+        if not assigned:
+            msg = "Chưa gán model cho slot này"
+        elif not usable:
+            msg = "Model đã gán tạm không dùng được (provider tắt hoặc thiếu key)"
+        else:
+            msg = f"{len(usable)} model sẵn sàng"
+        items.append(ModelCapabilityReadiness(capability=cap, label=label, model=model, ready=bool(usable), message=msg))
     return items
 
 
-def _to_admin_flat_out(flat: dict[str, Any], *, source: str, updated_at, channels, logical_models, defaults) -> AdminModelSettingsOut:
+def _to_admin_flat_out(
+    flat: dict[str, Any],
+    *,
+    source: str,
+    updated_at: Any,
+    channels: list[SystemModelChannel],
+    bindings: FunctionBindings,
+) -> AdminModelSettingsOut:
+    """Chuyển flat dict + readiness theo bindings thành payload admin (khoá bị che theo cờ has_*)."""
     payload = {field: flat.get(field) for field in model_config_field_names()}
     for field, flag in SECRET_FIELD_FLAGS.items():
         payload[field] = ""
         payload[flag] = bool(str(flat.get(field) or "").strip())
     payload["source"] = source
     payload["updated_at"] = updated_at
-    payload["readiness"] = _build_readiness(channels, logical_models, defaults)
+    payload["readiness"] = _build_readiness(bindings, channels)
     return AdminModelSettingsOut.model_validate(payload)
 
 
 async def get_admin_model_settings(db: AsyncSession) -> AdminModelSettingsOut:
-    channels, logical_models, defaults, flat, app_row = await _compose_runtime_state(db)
+    """Đọc cấu hình flat hiện hành (DB ưu tiên, env dự phòng) kèm readiness theo slot chức năng."""
+    channels, bindings, flat, app_row = await _compose_runtime_state(db)
     admin_channels = await _load_channels(db, runtime=False)
     source = "db" if app_row.config_json else "env"
-    return _to_admin_flat_out(flat, source=source, updated_at=app_row.updated_at, channels=admin_channels, logical_models=logical_models, defaults=defaults)
+    return _to_admin_flat_out(flat, source=source, updated_at=app_row.updated_at, channels=admin_channels, bindings=bindings)
 
 
 async def get_admin_routing_settings(db: AsyncSession) -> AdminRoutingSettingsOut:
-    from app.services.tokenfree_gateway import TOKENFREE_CHANNEL_ID
+    """Toàn bộ cấu hình routing cho admin: provider, function_bindings, readiness, danh mục chức năng, preset."""
+    from app.services.functions import function_catalog_payload
+    from app.services.providers.presets import PROVIDER_PRESETS
 
-    channels, logical_models, defaults, _, app_row = await _compose_runtime_state(db)
-    admin_channels = [
-        item for item in await _load_channels(db, runtime=False) if item.id == TOKENFREE_CHANNEL_ID
-    ]
-    errors = model_routing_validation_errors(logical_models, admin_channels or channels, defaults)
+    channels, bindings, _, app_row = await _compose_runtime_state(db)
+    admin_channels = await _load_channels(db, runtime=False)
     return AdminRoutingSettingsOut(
-        system_channels=admin_channels,
-        logical_models=logical_models,
-        default_models=defaults,
-        validation_errors=errors,
+        providers=admin_channels, function_bindings=bindings,
+        readiness=_build_readiness(bindings, channels),
+        function_catalog=[FunctionInfo(**row) for row in function_catalog_payload()],
+        presets=PROVIDER_PRESETS, validation_errors=validate_function_bindings(bindings, admin_channels),
         updated_at=app_row.updated_at,
     )
+
+
+async def patch_admin_routing_settings(
+    db: AsyncSession,
+    body: AdminRoutingSettingsPatch,
+) -> tuple[AdminRoutingSettingsOut, list[str]]:
+    """Lưu danh sách provider (thay thế toàn bộ) và/hoặc function_bindings; validate trước khi commit."""
+    app_row = await _get_or_create_app_row(db)
+    applied: list[str] = []
+    existing = {row.id: row for row in (await db.execute(select(SystemModelChannelRow))).scalars().all()}
+    if body.providers is not None:
+        keep: set[str] = set()
+        for idx, item in enumerate(body.providers):
+            cid = (item.id or "").strip()
+            if not cid or not (item.name or "").strip():
+                raise ValueError("Provider cần có id và tên")
+            if (item.protocol or "auto") not in ("openai", "ark", "volc_tts"):
+                raise ValueError(f"Provider {item.name}: protocol không hỗ trợ")
+            row = existing.get(cid) or SystemModelChannelRow(id=cid)
+            prev_key = _decrypt_secret(row.api_key_ciphertext or "") if row.api_key_ciphertext else ""
+            key = "" if item.clear_api_key else (str(item.api_key).strip() if item.api_key and str(item.api_key).strip() else prev_key)
+            row.name = item.name.strip(); row.base_url = (item.base_url or "").strip().rstrip("/")
+            row.api_key_ciphertext = _encrypt_secret(key) if key else None
+            row.protocol = item.protocol; row.api_format = "ark" if item.protocol == "ark" else "openai"
+            row.models = list(dict.fromkeys(m.strip() for m in item.models if m and m.strip()))
+            row.enabled = bool(item.enabled); row.sort_order = idx; row.advanced_config = None
+            db.add(row); keep.add(cid)
+        for cid, row in existing.items():
+            if cid not in keep:
+                await db.delete(row)
+        await db.flush()
+        applied.append("providers")
+    config, _ = _migrate_legacy_config(dict(app_row.config_json or {}))
+    bindings = parse_function_bindings(config.get("function_bindings"))
+    if body.function_bindings is not None:
+        bindings = parse_function_bindings(body.function_bindings.model_dump())
+        applied.append("function_bindings")
+    admin_channels = await _load_channels(db, runtime=False)
+    errors = validate_function_bindings(bindings, admin_channels)
+    if errors:
+        raise ValueError("; ".join(errors[:5]))
+    config["function_bindings"] = bindings_to_dict(bindings)
+    if "flat" not in config:
+        config["flat"] = _encrypt_flat_config(_settings_to_dict())
+    app_row.config_json = config
+    await db.commit()
+    await load_model_settings_cache(db)
+    return await get_admin_routing_settings(db), applied
 
 
 async def patch_admin_model_settings(
     db: AsyncSession,
     body: AdminModelSettingsPatch,
 ) -> tuple[AdminModelSettingsOut, list[str]]:
+    """Cập nhật một phần cấu hình flat (giá trị rỗng nghĩa là không đổi; clear_* để xoá khoá)."""
     app_row = await _get_or_create_app_row(db)
     config = dict(app_row.config_json or {})
     stored_flat = _decrypt_flat_config(config)
@@ -615,13 +460,13 @@ async def patch_admin_model_settings(
     app_row.config_json = config
     await db.commit()
     await load_model_settings_cache(db)
-    channels, logical_models, defaults, flat, app_row = await _compose_runtime_state(db)
+    channels, bindings, flat, app_row = await _compose_runtime_state(db)
     admin_channels = await _load_channels(db, runtime=False)
-    return _to_admin_flat_out(flat, source="db", updated_at=app_row.updated_at, channels=admin_channels, logical_models=logical_models, defaults=defaults), applied
+    return _to_admin_flat_out(flat, source="db", updated_at=app_row.updated_at, channels=admin_channels, bindings=bindings), applied
 
 
 def _flat_from_env_settings() -> dict[str, Any]:
-    # 读取进程环境 / .env（不经 DB overlay）
+    """Đọc trực tiếp process env / .env (không qua overlay DB)."""
     env = Settings()
     return {field: getattr(env, field) for field in model_config_field_names()}
 
@@ -650,109 +495,14 @@ async def import_admin_model_settings_from_env(
     app_row.config_json = config
     await db.commit()
     await load_model_settings_cache(db)
-    channels, logical_models, defaults, flat, app_row = await _compose_runtime_state(db)
+    channels, bindings, flat, app_row = await _compose_runtime_state(db)
     admin_channels = await _load_channels(db, runtime=False)
     out = _to_admin_flat_out(
         flat,
         source="db",
         updated_at=app_row.updated_at,
         channels=admin_channels,
-        logical_models=logical_models,
-        defaults=defaults,
+        bindings=bindings,
     )
     logger.info("imported %d fields from env, skipped %d empty secrets", len(imported), len(skipped_secrets))
     return out, imported, skipped_secrets
-
-
-async def patch_admin_routing_settings(
-    db: AsyncSession,
-    body: AdminRoutingSettingsPatch,
-) -> tuple[AdminRoutingSettingsOut, list[str]]:
-    app_row = await _get_or_create_app_row(db)
-    applied: list[str] = []
-    existing_rows = {
-        row.id: row
-        for row in (await db.execute(select(SystemModelChannelRow))).scalars().all()
-    }
-
-    if body.system_channels is not None:
-        from app.services.tokenfree_gateway import (
-            TOKENFREE_BASE_URL,
-            TOKENFREE_CHANNEL_ID,
-            TOKENFREE_CHANNEL_NAME,
-            locked_tokenfree_channel,
-        )
-        from app.services.tokenfree_pricing import canonicalize_channel_models
-
-        incoming = next(
-            (item for item in body.system_channels if (item.id or "").strip() == TOKENFREE_CHANNEL_ID),
-            body.system_channels[0] if body.system_channels else None,
-        )
-        prev = existing_rows.get(TOKENFREE_CHANNEL_ID)
-        prev_key = _decrypt_secret(prev.api_key_ciphertext or "") if prev else ""
-        api_key = prev_key
-        if incoming is not None:
-            if incoming.clear_api_key:
-                api_key = ""
-            elif incoming.api_key is not None and str(incoming.api_key).strip():
-                api_key = str(incoming.api_key).strip()
-        models = canonicalize_channel_models(
-            list(incoming.models) if incoming is not None else (list(prev.models or []) if prev else [])
-        )
-        locked = locked_tokenfree_channel(api_key=api_key, models=models, enabled=True)
-        row = prev or SystemModelChannelRow(id=TOKENFREE_CHANNEL_ID)
-        row.name = TOKENFREE_CHANNEL_NAME
-        row.base_url = TOKENFREE_BASE_URL
-        row.api_key_ciphertext = _encrypt_secret(locked.api_key) if locked.api_key else None
-        row.api_format = "openai"
-        row.protocol = "auto"
-        row.models = locked.models
-        row.enabled = True
-        row.sort_order = 0
-        row.advanced_config = None
-        db.add(row)
-        for cid, stale in existing_rows.items():
-            if cid == TOKENFREE_CHANNEL_ID:
-                continue
-            stale.enabled = False
-            db.add(stale)
-        await db.flush()
-        applied.append("system_channels")
-
-    config = dict(app_row.config_json or {})
-    channels_after = await _load_channels(db, runtime=False)
-    logical_models = [LogicalModel.model_validate(item) for item in config.get("logical_models") or []]
-    defaults = default_models_from_dict(config.get("default_models"))
-
-    if body.logical_models is not None:
-        logical_models = body.logical_models
-        applied.append("logical_models")
-
-    # 无论前端是否提交逻辑模型，最终都以渠道 models 为准同步（通用 OpenAI 兼容）
-    synced = synchronize_logical_models_with_channels(logical_models, channels_after)
-    bootstrapped, boot_defaults = _bootstrap_logical_from_channels(channels_after)
-    alias_ids = {"seedream-5.0", "seedream-4.5", "seedance-2.5", "seedance-2"}
-    logical_models = _merge_friendly_alias_models(
-        synced,
-        [model for model in bootstrapped if model.id in alias_ids],
-    )
-    if body.system_channels is not None and not (defaults.video_model or "").strip() and boot_defaults.video_model:
-        defaults = defaults.model_copy(update={"video_model": boot_defaults.video_model})
-    if body.default_models is not None:
-        defaults = body.default_models
-        applied.append("default_models")
-    defaults = normalize_default_models(defaults, logical_models, channels_after)
-
-    errors = model_routing_validation_errors(logical_models, channels_after, defaults)
-    if errors:
-        raise ValueError("；".join(errors[:5]))
-
-    config["logical_models"] = [model.model_dump() for model in logical_models]
-    config["default_models"] = default_models_to_dict(defaults)
-    if "flat" not in config:
-        config["flat"] = _encrypt_flat_config(_settings_to_dict())
-    app_row.config_json = config
-    await db.commit()
-    await load_model_settings_cache(db)
-    out = await get_admin_routing_settings(db)
-    return out, applied

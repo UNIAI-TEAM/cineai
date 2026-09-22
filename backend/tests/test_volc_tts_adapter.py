@@ -52,7 +52,8 @@ async def test_tts_uses_api_key_header_and_default_url(monkeypatch):
     monkeypatch.setattr(volc_tts_adapter.httpx, "AsyncClient", rec.client())
     audio = await VolcTtsAdapter().tts(_route(), base.TtsRequest(text="xin chào", voice="narrator_calm", emotion_hint="ấm áp"))
     url, headers, body = rec.calls[0]
-    assert url == volc_tts_adapter.VOLC_TTS_DEFAULT_URL
+    # route.base_url rỗng → rơi về settings.volc_tts_url (mặc định BytePlus Seed Speech, không phải openspeech cũ)
+    assert url == volc_tts_adapter.BYTEPLUS_TTS_URL
     assert headers["X-Api-Key"] == "vk" and headers["X-Api-Resource-Id"] == "seed-tts-2.0"
     assert body["req_params"]["speaker"] == "zh_female_cancan_uranus_bigtts"
     assert body["req_params"]["audio_params"] == {"format": "mp3", "sample_rate": 24000}

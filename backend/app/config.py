@@ -30,29 +30,30 @@ class Settings(BaseSettings):
     db_pool_timeout_sec: int = 30
     redis_url: str = "redis://127.0.0.1:6379/0"
 
+    # BytePlus ModelArk (Seedream/Seedance) provider — seed lần đầu từ .env, sau đó cấu hình ở admin
     ark_api_key: str = ""
-    ark_base_url: str = "https://www.tokenfree.com/v1"
-    # 文字模型：开源版固定 TokenFree New API，后台选模型
+    ark_base_url: str = "https://ark.ap-southeast.bytepluses.com/api/v3"
+    # OpenAI provider (text + audio) — seed lần đầu từ .env, sau đó cấu hình ở admin
     openai_api_key: str = ""
-    openai_base_url: str = "https://www.tokenfree.com/v1"
-    # 默认示例为 kimi；实际以后台渠道 models + 默认定稿为准，可改为 deepseek-chat 等
-    model_llm: str = "kimi-k2.6"
-    model_image: str = "doubao-seedream-5-0-260128"
+    openai_base_url: str = "https://api.openai.com/v1"
+    # 默认示例；实际以后台渠道 models + function_bindings 定稿为准
+    model_llm: str = "gpt-5.6-sol"
+    model_image: str = "dola-seedream-5-0-pro-260628"
     # Seedream 4.5 接入点（可选；未配则回退 model_image）
     model_image_45: str = ""
-    model_video: str = "doubao-seedance-2-5-260628"
+    model_video: str = "dreamina-seedance-2-5-260628"
     # Seedance 2.0 接入点（可选；未配则仅使用 MODEL_VIDEO）
     model_video_2: str = ""
     # Seedance 2.5 官方范围约 4–30 秒
     seedance_duration_min: int = 4
     seedance_duration_max: int = 30
-    model_audio: str = "qwen-tts-2025-05-22"
+    model_audio: str = "gpt-4o-mini-tts"
     # 豆包语音（openspeech）— 与方舟 ARK_API_KEY 不同产品线
     volc_tts_app_id: str = ""
     volc_tts_access_key: str = ""
     volc_tts_resource_id: str = "seed-tts-2.0"
     volc_tts_speaker: str = "zh_female_cancan_uranus_bigtts"
-    volc_tts_url: str = "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
+    volc_tts_url: str = "https://voice.ap-southeast-1.bytepluses.com/api/v3/tts/unidirectional"
     # 新版控制台 API Key（与 app_id/access_key 二选一，优先 api_key）
     volc_tts_api_key: str = ""
     # 音色设计：控制台购买的 S_ 槽位，逗号分隔；配了且鉴权齐全则漫剧走 voice_design
@@ -66,8 +67,6 @@ class Settings(BaseSettings):
     ark_video_poll_timeout: float = 900.0
     # Parallel generation concurrency (per project)
     pipeline_image_concurrency: int = 3
-    # TokenFree / New API 同时观察的生图任务上限（超出会 429）
-    tokenfree_image_concurrency: int = 1
     # Seedance 2.5 官方并发上限约 10
     pipeline_video_concurrency: int = 10
     pipeline_audio_concurrency: int = 4
@@ -102,7 +101,7 @@ class Settings(BaseSettings):
     # Legacy flag; prefer billing_enabled
     quota_enabled: bool = False
 
-    # Token 计费：用户扣费 = TokenFree 官方成本（billing_markup 保留兼容，不再乘）
+    # Token 计费：用户扣费 = provider 官方成本（billing_markup 保留兼容，不再乘）
     billing_enabled: bool = False
     billing_markup: float = 1.0
     # token / 视频时长估价缓冲；按张生图官价不再乘此系数（否则 5 元赠金冻不住一张图）
@@ -115,7 +114,7 @@ class Settings(BaseSettings):
     billing_tts_per_m: float = 2.0
     # Kie：1 credit 折合人民币分（约 $0.005 ≈ ¥0.035 → 3.5）
     billing_kie_fen_per_credit: float = 3.5
-    # TokenFree / New API：quota→USD→人民币（500000 quota = 1 USD）
+    # provider（New API 协议）：quota→USD→人民币（500000 quota = 1 USD）
     billing_usd_cny: float = 7.0
     # Fallback tokens when API omits usage
     billing_est_llm_tokens: int = 80_000

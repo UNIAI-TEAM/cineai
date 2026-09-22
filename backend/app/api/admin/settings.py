@@ -130,17 +130,30 @@ async def admin_billing_model_rates(
     return {"items": items, "source": tokenfree_pricing_url()}
 
 
-@router.get("/settings/tokenfree/quota")
-async def admin_tokenfree_account_quota(
-    _admin: User = Depends(get_current_admin),
-) -> dict:
-    """查询 TokenFree / New API 账户剩余额度（与模型页同一把 Key）。"""
-    from app.services.tokenfree_usage import fetch_tokenfree_account, tokenfree_usage_configured
+class AdminProviderTestRequest(BaseModel):
+    """Kiểm tra kết nối provider trước khi lưu."""
 
-    if not tokenfree_usage_configured():
-        raise HTTPException(status_code=400, detail="未配置 TokenFree API Key（请先在「模型」填写）")
+    channel_id: str | None = Field(default=None, max_length=64)
+    protocol: str = Field(default="openai", max_length=32)
+    base_url: str = Field(default="", max_length=512)
+    api_key: str | None = Field(default=None, max_length=512)
+
+
+@router.post("/settings/providers/test")
+async def admin_test_provider(
+    body: AdminProviderTestRequest,
+    _admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """openai: GET /models; ark/volc_tts: chỉ kiểm tra có key (không có endpoint rẻ để test)."""
     try:
-        return await fetch_tokenfree_account()
+        models = await list_upstream_models(
+            db,
+            channel_id=body.channel_id,
+            protocol=body.protocol,
+            base_url=body.base_url,
+            api_key_override=body.api_key,
+        )
     except RuntimeError as exc:
-        logger.warning("tokenfree quota query failed: %s", exc)
-        raise HTTPException(status_code=502, detail="TokenFree 额度查询失败") from exc
+        return {"ok": False, "message": str(exc)}
+    return {"ok": True, "message": f"Kết nối thành công, {len(models)} model", "models_count": len(models)}

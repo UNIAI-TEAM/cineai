@@ -33,27 +33,32 @@ def test_tokenfree_style_ids_infer_capability():
 
 
 def test_catalog_payload_uses_tokenfree_routing() -> None:
-    from app.schemas_routing import DefaultModels, LogicalModel, SystemModelChannel
-    from app.services.media_catalog import build_media_catalog
+    """catalog_payload() phải suy ra image/video từ function_bindings hiệu lực của snapshot routing."""
+    from app.schemas_routing import FunctionBindings, ModelBinding, SystemModelChannel
+    from app.services.media_catalog import catalog_payload
+    from app.services.model_settings import _refresh_routing_snapshot, get_routing_snapshot
 
-    payload = build_media_catalog(
-        logical_models=[
-            LogicalModel(id="seedream-5.0", name="Seedream 5.0", capability="image", enabled=True),
-            LogicalModel(id="seedance-2.5", name="Seedance 2.5", capability="video", enabled=True),
-        ],
-        channels=[
-            SystemModelChannel(
-                id="tokenfree",
-                name="TokenFree",
-                base_url="https://www.tokenfree.com/v1",
-                models=["doubao-seedance-2-5-260628"],
-                enabled=True,
-            )
-        ],
-        defaults=DefaultModels(image_model="seedream-5.0", video_model="seedance-2.5"),
-    )
-    assert payload["defaults"]["video_model"] == "seedance-2.5"
-    assert any(m["id"] == "seedance-2.5" for m in payload["video_models"])
-    assert all(m["provider"] == "tokenfree" for m in payload["video_models"])
-    assert not any("kie" in m["id"] for m in payload["video_models"])
-    assert not any("方舟" in m["label"] for m in payload["video_models"])
+    prev = get_routing_snapshot()
+    try:
+        channel = SystemModelChannel(
+            id="tokenfree",
+            name="TokenFree",
+            base_url="https://www.tokenfree.com/v1",
+            api_key="k",
+            has_api_key=True,
+            protocol="openai",
+            models=["doubao-seedance-2-5-260628"],
+            enabled=True,
+        )
+        bindings = FunctionBindings(
+            slots={"video": [ModelBinding(channel_id="tokenfree", model="doubao-seedance-2-5-260628")]}
+        )
+        _refresh_routing_snapshot([channel], bindings)
+        payload = catalog_payload()
+        assert payload["defaults"]["video_model"] == "doubao-seedance-2-5-260628"
+        assert any(m["id"] == "doubao-seedance-2-5-260628" for m in payload["video_models"])
+        assert all(m["provider"] == "tokenfree" for m in payload["video_models"])
+        assert not any("kie" in m["id"] for m in payload["video_models"])
+        assert not any("方舟" in m["label"] for m in payload["video_models"])
+    finally:
+        _refresh_routing_snapshot(prev.channels, prev.function_bindings)
