@@ -45,6 +45,7 @@ def infer_model_capability(model: str) -> LogicalModelCapability:
         or "veo" in mid
         or "video" in mid
         or "i2v" in mid
+        or "sora" in mid
         or mid.startswith("kie-veo")
         or mid.startswith("kie-seedance")
     ):

@@ -128,3 +128,10 @@ async def test_list_models_infers_capability(monkeypatch):
 async def test_create_video_not_supported():
     with pytest.raises(base.ProviderNotSupported):
         await OpenAIAdapter().create_video(_route(), base.VideoRequest(body={}))
+
+
+def test_infer_model_capability_recognizes_sora_as_video():
+    from app.services.model_routing_config import infer_model_capability
+
+    assert infer_model_capability("sora-2") == "video"
+    assert infer_model_capability("sora-2-pro") == "video"

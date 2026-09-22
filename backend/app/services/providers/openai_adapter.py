@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import logging
 import re
 from typing import Any
 from urllib.parse import urlparse
@@ -18,16 +17,11 @@ from app.services.providers.base import (
     join_url, reraise_upstream_timeout, upstream_timeout,
 )
 
-logger = logging.getLogger(__name__)
-
 OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1"
 MAX_EDIT_REFS = 16
 # gpt-image-2 / 2.5: WxH tuỳ ý chia hết 16, cạnh ≤ 3840x2160, tỉ lệ trong [1:3, 3:1]
 _ARBITRARY_SIZE_MODELS = re.compile(r"^gpt-image-2(\.|-|$)")
 _TIER_QUALITY = {"1K": "low", "2K": "medium", "3K": "high", "4K": "high"}
-# OpenAI đã gỡ Sora khỏi API model list vào 2026-09-24; infer_model_capability (dùng chung
-# cho mọi provider) chưa biết tiền tố "sora" nên phải lọc riêng ở đây để không lộ ra danh sách model.
-_SORA_MODEL_PREFIX = "sora"
 
 
 def is_official_openai(base_url: str) -> bool:
@@ -36,6 +30,7 @@ def is_official_openai(base_url: str) -> bool:
 
 
 def _ratio_of(aspect_ratio: str) -> float | None:
+    """Parse chuỗi "W:H" thành tỉ lệ số thực; không khớp hoặc H=0 thì trả None."""
     m = re.match(r"^\s*(\d+)\s*:\s*(\d+)\s*$", aspect_ratio or "")
     return (int(m.group(1)) / int(m.group(2))) if m and int(m.group(2)) else None
 
@@ -79,6 +74,7 @@ def openai_voice_for_speaker(speaker: str) -> str:
 
 
 def _error_text(resp: httpx.Response) -> str:
+    """Rút gọn thông báo lỗi upstream: ưu tiên error.message JSON, không có thì lấy text thô."""
     try:
         err = resp.json().get("error")
         if isinstance(err, dict) and err.get("message"):
@@ -94,6 +90,7 @@ class OpenAIAdapter:
     protocol = "openai"
 
     async def list_models(self, route: ResolvedModelRoute, capability: str = "all") -> list[dict[str, str]]:
+        """GET /models rồi suy luận capability từng model, loại video (OpenAI/OpenRouter chưa hỗ trợ)."""
         from app.services.model_routing_config import infer_model_capability
 
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -105,8 +102,6 @@ class OpenAIAdapter:
             mid = str(item.get("id") or "").strip()
             if not mid:
                 continue
-            if mid.lower().startswith(_SORA_MODEL_PREFIX):
-                continue  # OpenAI không còn video (Sora đã gỡ khỏi API)
             cap = infer_model_capability(mid)
             if cap == "video":
                 continue  # OpenAI không còn video; OpenRouter chưa có
@@ -115,6 +110,7 @@ class OpenAIAdapter:
         return sorted(out, key=lambda m: m["id"])
 
     async def gen_image(self, route: ResolvedModelRoute, req: ImageRequest) -> ImageOutput:
+        """Sinh ảnh: có ref/style_ref thì gọi /images/edits, không thì /images/generations; trả base64."""
         model = route.upstream_model
         size, quality = openai_image_size(req.size, req.aspect_ratio, model)
         refs = [*req.refs, *req.style_refs][:MAX_EDIT_REFS]
@@ -144,12 +140,15 @@ class OpenAIAdapter:
                            completion_tokens=int(usage.get("completion_tokens") or 0))
 
     async def create_video(self, route: ResolvedModelRoute, req: VideoRequest) -> str:
+        """OpenAI không có API tạo video (Sora đã gỡ khỏi API)."""
         raise ProviderNotSupported("OpenAI không hỗ trợ tạo video")
 
     async def fetch_video(self, route: ResolvedModelRoute, task_id: str) -> TaskResult:
+        """OpenAI không có API tạo video nên cũng không có tác vụ để tra."""
         raise ProviderNotSupported("OpenAI không hỗ trợ tạo video")
 
     async def tts(self, route: ResolvedModelRoute, req: TtsRequest) -> bytes:
+        """Chuyển văn bản thành giọng nói qua /audio/speech, trả mp3 bytes."""
         model = route.upstream_model or "gpt-4o-mini-tts"
         body: dict[str, Any] = {"model": model, "input": req.text, "voice": openai_voice_for_speaker(req.voice), "response_format": "mp3"}
         if req.emotion_hint and not model.startswith("tts-1"):
@@ -166,7 +165,9 @@ class OpenAIAdapter:
         return None  # Plan B: bảng giá provider_rates
 
     def url_needs_auth(self, url: str) -> bool:
+        """URL ảnh/audio OpenAI trả về (hoặc base64) không cần Bearer khi tải lại."""
         return False
 
     def is_transient_error(self, exc: BaseException) -> bool:
+        """Lỗi tạm thời (429/5xx/mạng) có thể failover sang model kế tiếp."""
         return isinstance(exc, (TransientUpstreamError, httpx.TransportError))
