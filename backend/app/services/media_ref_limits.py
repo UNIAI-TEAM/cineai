@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-# 下游插件硬上限：一次提交最多 9 张参考图
-MAX_REFERENCE_IMAGES = 9
+# 下游插件硬上限：一次提交最多 9 张参考图（定义已迁移至 ark_adapter）
+from app.services.providers.ark_adapter import MAX_REFERENCE_IMAGES  # noqa: F401
 
 
 def cap_url_list(urls: list[str] | None, *, limit: int = MAX_REFERENCE_IMAGES) -> list[str]:
