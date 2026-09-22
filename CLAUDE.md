@@ -60,11 +60,13 @@ pytest tests/test_x.py::test_name       # 单测
 
 `api/drama/` + `services/drama/`（30+ 小文件，按 jobs/fragment/voice/asset 等拆分）+ `models_drama.py`（projects→scripts→episodes→fragments→asset_refs）。分镜视频是一镜一 TaskRun（`fragment_video`），有预算、最大尝试次数与排队上限（见 config 中 `DRAMA_*`）。产品规则见 `docs/EPISODE_RULES.md`、`docs/SHOT_SPLITTING.md`。
 
-### 模型路由：上游被锁定为 TokenFree
+### 模型路由：Provider 适配层，直连 OpenAI + BytePlus ModelArk
 
-开源版**只允许 TokenFree New API 一个上游**（OpenAI 兼容 `https://www.tokenfree.com/v1`，文本与图/视频共用），由 `services/tokenfree_gateway.py` 强制（渠道 Base URL/协议不可改）。Key 与模型在**管理后台「系统设置 → 模型」**配置，存 `system_model_channels` / `app_settings` 表；启动/保存后经 `model_settings.py` 生成 overlay，`config.get_settings()`（lru_cache）以 `model_copy(update=overlay)` 叠加到 env 配置之上——所以运行时配置以 DB overlay 优先，`.env` 仅首次导入。逻辑模型→渠道绑定（priority/weight/failover）解析在 `logical_model_router.py`。无 Key 联调设 `ARK_MOCK=true` 走本地 mock 素材。
+已下线 TokenFree 网关：现在直接对接多个上游，`services/providers/`（`base.py` 定义 `ProviderAdapter` Protocol + 公共类型，`registry.get_adapter(protocol)` 按 `openai|ark|volc_tts` 返回单例，`openai_adapter.py`/`ark_adapter.py`/`volc_tts_adapter.py` 各实现一个协议，`presets.py` 是管理后台新增 provider 时的模板）。新增 provider：写一个新 adapter 文件实现该 Protocol，在 `registry.get_adapter` 里加一个分支，需要的话把预设加进 `presets.PROVIDER_PRESETS`；`function_router.py`/`media_gateway.py` 只认 `protocol` 字符串，不直接 import 具体 adapter 类。
 
-文本 `llm_client.py`；图/视频走 `ark.py` + `tokenfree_image.py` / `tokenfree_video.py`；配音豆包 openspeech（`VOLC_TTS_*`，与方舟 Key 不同），未配则回退 edge-tts。
+按「功能」而不是按渠道分配模型：`services/functions.py` 是固定的功能目录（`kepu.script/kepu.image/kepu.video/kepu.tts/drama.*/tools.*` 等，domain × 能力），`function_bindings.py` 定义 `FunctionBindings{slots: 按能力(text/image/video/audio)的默认模型列表, overrides: 按 function_id 覆盖}`，`effective_bindings()` 优先取该功能的 override，没有则退到能力 slot；同一 slot 内多个 `{channel_id, model, weight}` 按 weight 加权随机排序，遇到上游临时错误（`adapter.is_transient_error`）就换下一个候选（failover）。`function_router.resolve_function_candidates(function_id, requested_model)` 是唯一的路由解析入口。管理后台经 `GET/PATCH /api/admin/settings/routing`（`model_settings.py` 生成/保存 `AdminRoutingSettingsOut`，存 `system_model_channels` / `app_settings` 表）配置 provider 与 function_bindings；`config.get_settings()`（lru_cache）仍以 DB overlay 优先叠加到 env 配置之上，`.env` 仅首次（DB 无任何 provider 时）用于 seed。无 Key 联调设 `ARK_MOCK=true`（或不配任何 provider key）走本地 mock 素材，`MediaGateway.mock` 会自动判定。
+
+`media_gateway.py` 是唯一对外的生成入口（facade，不含 HTTP，只做路由解析 + 调 adapter + 落盘/OSS + failover + mock）；文本走 `llm_client.py`（同样经 `function_router` 解析到 OpenAI 兼容渠道）；配音豆包 openspeech（`VOLC_TTS_*`，与 OpenAI/Ark Key 不同）优先，`tts_service.py` 里 mock → slot 内模型级联 → 均失败才回退 edge-tts。视频只能走 `ark`（BytePlus ModelArk / Seedance）协议，OpenAI 适配器的 `create_video`/`fetch_video` 直接 raise 不支持。轮询正在进行的视频任务时，`TaskRun.provider_channel_id` 记录了创建任务时用的渠道，poller 按这个字段回访同一渠道（不会因为 weight 重新洗牌落到别的 provider 而查不到任务）。详见 `docs/PROVIDERS.md`（adapter 写法、BytePlus 静态模型表、function_bindings JSON 示例、curl 配置示例、已知限制）。
 
 ### 计费：每个 TaskRun 走「预扣 → 用量行 → 结算」
 

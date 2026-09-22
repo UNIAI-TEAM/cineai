@@ -12,7 +12,7 @@
 | 后端 | Python 3.12 · FastAPI · SQLAlchemy · PostgreSQL |
 | 用户端 | React 19 · TypeScript · Vite 8 |
 | 管理端 | React 19 · Tailwind · shadcn/ui |
-| AI | 文字 / 生图 / 生视频：TokenFree New API（Seedance 视频自带口播） |
+| AI | 文字 / 生图 / 生视频：直接对接 OpenAI + BytePlus ModelArk（Seedance 视频自带口播；见 [docs/PROVIDERS.md](docs/PROVIDERS.md)） |
 | 任务 | 应用内 scheduler + executor + poller（随 FastAPI 进程启动） |
 | 部署 | Docker 全栈镜像，或本机三个进程 + Postgres/Redis 容器 |
 
@@ -50,7 +50,7 @@ cd cineai
 
 cp deploy/.env.docker.example deploy/.env.docker
 # 请把 POSTGRES_PASSWORD、SECRET_KEY 改成自己的值
-# 填入 TokenFree API Key（OPENAI_API_KEY 与 ARK_API_KEY 可用同一把）
+# 填入 OpenAI API Key（OPENAI_API_KEY）与 BytePlus ModelArk API Key（ARK_API_KEY，两者是不同上游）
 
 docker compose --env-file deploy/.env.docker up -d
 ```
@@ -168,7 +168,7 @@ docker compose --env-file deploy/.env.docker -f docker-compose.full.yml up -d --
 |------|------|
 | `POSTGRES_PASSWORD` | 数据库密码；compose 会用它拼 `DATABASE_URL` |
 | `SECRET_KEY` | JWT 签名，生产必须换成长随机串 |
-| `OPENAI_API_KEY` / `ARK_API_KEY` | TokenFree Key（可填同一把） |
+| `OPENAI_API_KEY` / `ARK_API_KEY` | OpenAI Key / BytePlus ModelArk Key（两个不同上游，见 [docs/PROVIDERS.md](docs/PROVIDERS.md)） |
 | `PUBLIC_BASE_URL` | 用户访问的站点根，默认 `http://localhost:8080` |
 | `CORS_ORIGINS` | 浏览器来源，逗号分隔 |
 | `ADMIN_BOOTSTRAP_EMAILS` | 已注册用户提权邮箱 |
@@ -209,29 +209,30 @@ docker compose --env-file deploy/.env.docker down -v
 
 ## AI 服务配置
 
-开源版图 / 视频 / 文字统一走 **TokenFree New API**（`https://www.tokenfree.com/v1`）。视频口播交给 Seedance 自行发挥，不必再配 TTS / 音色。
+开源版图 / 视频 / 文字**直接对接 OpenAI + BytePlus ModelArk**（不再经 TokenFree 等中转网关，按功能分别配置渠道与模型；架构与限制见 [docs/PROVIDERS.md](docs/PROVIDERS.md)）。视频口播交给 Seedance 自行发挥，不必再配 TTS / 音色。
 
-可在管理后台 **系统设置 → 模型** 填写渠道 Key 并拉取模型；`deploy/.env.docker` 或 `backend/.env` 仅作首次导入。
+可在管理后台 **系统设置 → 模型** 填写渠道 Key 并拉取模型；`deploy/.env.docker` 或 `backend/.env` 仅作首次导入（DB 已有 provider 后不再生效）。
 
 ### 环境变量
 
 ```env
 OPENAI_API_KEY=sk-你的密钥
-OPENAI_BASE_URL=https://www.tokenfree.com/v1
-MODEL_LLM=kimi-k2.6
+OPENAI_BASE_URL=https://api.openai.com/v1
+MODEL_LLM=gpt-5.6-sol
 
 ARK_MOCK=false
 ARK_API_KEY=sk-你的密钥
-MODEL_IMAGE=doubao-seedream-5-0-260128
-MODEL_VIDEO=doubao-seedance-2-5-260628
+ARK_BASE_URL=https://ark.ap-southeast.bytepluses.com/api/v3
+MODEL_IMAGE=dola-seedream-5-0-pro-260628
+MODEL_VIDEO=dreamina-seedance-2-5-260628
 ```
 
 | 变量 | 说明 |
 |------|------|
-| `OPENAI_API_KEY` | 文字模型 Key，勿提交到 Git |
-| `OPENAI_BASE_URL` | OpenAI 兼容根地址；开源版固定 TokenFree |
+| `OPENAI_API_KEY` | OpenAI（或 OpenAI 兼容渠道）文字/图片/TTS Key，勿提交到 Git |
+| `OPENAI_BASE_URL` | OpenAI 兼容根地址；官方为 `api.openai.com`，也可填 OpenRouter 等兼容端点 |
 | `MODEL_LLM` | 对话 / 分镜脚本模型 |
-| `ARK_API_KEY` | 生图 / 生视频 Key（与文字可用同一把 TokenFree Key） |
+| `ARK_API_KEY` / `ARK_BASE_URL` | BytePlus ModelArk（生图 / 生视频）Key 与地址，与 `OPENAI_API_KEY` 是不同的上游 |
 | `ARK_MOCK` | `true` 时走本地 mock 素材，便于无 Key 联调 |
 | `MODEL_IMAGE` / `MODEL_VIDEO` | 生图 / 生视频模型 ID |
 
@@ -293,7 +294,7 @@ PRINTFILM 面向创作者与运营：输入主题或剧本，按模板生成分�
         ├── 任务运行时（scheduler / executor / poller）
         ├── PostgreSQL
         ├── Redis（找回密码、缓存等）
-        ├── TokenFree（图 / 视频 / 文本；Seedance 出片自带口播）
+        ├── OpenAI + BytePlus ModelArk（图 / 视频 / 文本；Seedance 出片自带口播）
         └── 本地 static/generated + 可选阿里云 OSS
                     │
                     ▼
