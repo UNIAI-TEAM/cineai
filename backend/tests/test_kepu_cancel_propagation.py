@@ -86,7 +86,9 @@ async def test_regen_image_does_not_revive_cancelled_project(
 
     fake_ark = SimpleNamespace(
         gen_image=AsyncMock(
-            return_value=SimpleNamespace(local_url="/static/new.png", remote_url="http://up/new.png")
+            return_value=SimpleNamespace(
+                local_url="/static/new.png", remote_url="http://up/new.png", model="img-x"
+            )
         )
     )
     record = AsyncMock()

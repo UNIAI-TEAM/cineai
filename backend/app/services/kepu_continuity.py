@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from app.services.providers.registry import url_needs_auth
 from app.services.style_lock import seedream_ref_urls
 
 
@@ -32,19 +33,17 @@ def previous_usable_shot(shots: list[Any], shot_no: int) -> Any | None:
 
 
 def _usable_seedream_url(raw: str | None, *, allow_republish: bool = False) -> str | None:
-    """只返回 Seedream 能拉的公网地址；TokenFree 产物地址不可作参考。"""
+    """只返回 Seedream 能拉的公网地址；需要鉴权才能取的产物地址不可作参考。"""
     url = str(raw or "").strip()
     if not url:
         return None
-    from app.services.tokenfree_image import is_tokenfree_image_url
-
-    if is_tokenfree_image_url(url):
+    if url_needs_auth(url):
         return None
     if allow_republish and not (url.startswith("http://") or url.startswith("https://")):
         from app.services import storage
 
         url = str(storage.republish_url(url, sync=True) or "").strip()
-        if is_tokenfree_image_url(url):
+        if url_needs_auth(url):
             return None
     ok = seedream_ref_urls(url)
     return ok[0] if ok else None
@@ -67,7 +66,7 @@ def shot_image_ref(shot: Any | None) -> str | None:
 
 
 def _any_shot_image(shot: Any) -> str | None:
-    """静帧任意可用地址（含本地 /static）；TokenFree 产物跳过。优先本地路径。"""
+    """静帧任意可用地址（含本地 /static）；需要鉴权的产物跳过。优先本地路径。"""
     for raw in (getattr(shot, "image_url", None), getattr(shot, "image_ark_url", None)):
         url = _usable_video_ref(raw)
         if url:
@@ -76,7 +75,7 @@ def _any_shot_image(shot: Any) -> str | None:
 
 
 def shot_last_frame_ref(shot: Any | None) -> str | None:
-    """上一镜尾帧；TokenFree 任务 URL 跳过，避免下游无鉴权拉不到。"""
+    """上一镜尾帧；需要鉴权的任务 URL 跳过，避免下游无鉴权拉不到。"""
     if shot is None:
         return None
     last = str(getattr(shot, "last_frame_url", None) or "").strip()
@@ -86,16 +85,11 @@ def shot_last_frame_ref(shot: Any | None) -> str | None:
 
 
 def _usable_video_ref(raw: str | None) -> str | None:
-    """本地路径或公网图可作下一镜参考；TokenFree 产物地址不行。"""
+    """本地路径或公网图可作下一镜参考；需要鉴权才能取的产物地址不行。"""
     url = str(raw or "").strip()
     if not url:
         return None
-    from app.services.tokenfree_image import is_tokenfree_image_url
-    from app.services.tokenfree_video import is_tokenfree_content_url
-
-    if is_tokenfree_image_url(url) or is_tokenfree_content_url(url):
-        return None
-    return url
+    return None if url_needs_auth(url) else url
 
 
 def image_refs_for_shot(prev: Any | None, base_refs: list[str] | None = None) -> list[str]:
@@ -119,7 +113,7 @@ def persist_last_frame_from_video(
     video_url: str,
     preferred_url: str | None = None,
 ) -> str | None:
-    """优先已落盘/公网尾帧；TokenFree 任务 URL 不当公网尾帧，改从成片抽。"""
+    """优先已落盘/公网尾帧；需要鉴权的任务 URL 不当公网尾帧，改从成片抽。"""
     from app.services import storage
     from app.services.ffmpeg_compose import extract_video_last_frame
 

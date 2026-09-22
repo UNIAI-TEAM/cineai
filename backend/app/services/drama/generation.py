@@ -778,7 +778,7 @@ def extract_asset_ids_from_content(content: str) -> list[int]:
     return ids
 
 
-# Seedance / TokenFree 参考图仅接受常见位图；SVG 占位图会被上游拒绝
+# Seedance 参考图仅接受常见位图；SVG 占位图会被上游拒绝
 _REF_IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
 
 
@@ -1310,6 +1310,7 @@ async def generate_asset_image(
     )
     result = await ark.gen_image(
         full_prompt.strip(),
+        function_id="drama.asset_image",
         project_id=project.id,
         size=size,
         model=model,
@@ -1615,6 +1616,7 @@ async def prepare_fragment_video_for_submit(
         )
         still = await ark.gen_image(
             still_prompt,
+            function_id="drama.asset_image",
             project_id=project.id,
             shot_no=fragment.id,
             size=seedream_still_size_for_video_ratio(ratio),
@@ -1633,6 +1635,19 @@ async def prepare_fragment_video_for_submit(
     )
 
 
+def _allowed_fragment_video_model(model_id: str | None) -> str | None:
+    """Model đã lưu trong tác vụ: không còn được admin gán thì trả None để slot tự quyết."""
+    from app.services.function_router import is_model_allowed
+
+    mid = (model_id or "").strip()
+    if not mid:
+        return None
+    if is_model_allowed("drama.video", mid):
+        return mid
+    logger.warning("model %s không còn được gán cho drama.video, dùng model của slot", mid)
+    return None
+
+
 # Worker 提交阶段：仅 HTTP 创建上游任务，立即返回 provider_task_id（非阻塞）。
 async def submit_prepared_fragment_video(
     prepared: FragmentVideoPrepared,
@@ -1641,10 +1656,11 @@ async def submit_prepared_fragment_video(
 ) -> str:
     ark = get_ark()
     if prepared.submit_mode == "kie":
-        raise RuntimeError("已改为 TokenFree 通道，请重新生成本镜视频")
+        raise RuntimeError("Kênh video cũ không còn, hãy tạo lại phân cảnh này")
     if prepared.submit_mode == "seedance_body" and prepared.seedance_body:
         return await ark.gen_video_seedance_body(
             prepared.seedance_body,
+            function_id="drama.video",
             project_id=project_id,
             content_labels=prepared.content_labels,
         )
@@ -1653,6 +1669,8 @@ async def submit_prepared_fragment_video(
             prepared.image_url,
             prepared.prompt,
             prepared.duration,
+            function_id="drama.video",
+            model=_allowed_fragment_video_model(prepared.model_id),
             resolution=prepared.resolution,
             ratio=prepared.ratio,
             generate_audio=prepared.generate_audio,

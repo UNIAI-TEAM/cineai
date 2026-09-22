@@ -1,4 +1,4 @@
-"""Seedream 前端选项 → TokenFree model / size 解析。"""
+"""Seedream 前端选项 → 上游 model / size 解析。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import math
 import re
 
 from app.config import get_settings
-from app.services.logical_model_router import resolve_logical_model_id, resolve_upstream_model
 
 # SeedreamAspectRatio 支持的比例
 SeedreamAspectRatio = str
@@ -118,20 +117,20 @@ def clamp_seedream_pixel_size(
     return f"{new_w}x{new_h}"
 
 
-# 将前端模型 ID 解析为 TokenFree 上游模型名
+def is_seedream_family(model: str) -> bool:
+    """Model có thuộc họ Seedream không (dùng cho bảng giá theo ảnh)."""
+    return "seedream" in (model or "").strip().lower()
+
+
 def resolve_seedream_model_endpoint(model_id: str | None) -> str:
-    raw = (model_id or "").strip()
-    settings = get_settings()
-    mid = raw.lower()
-    logical_id = resolve_logical_model_id("image", model_id)
-    routed = resolve_upstream_model("image", logical_id)
-    if routed and routed != logical_id:
-        return routed
-    if mid in {"", "seedream-5.0", "seedream-5", "5.0"}:
-        return resolve_upstream_model("image", "seedream-5.0") or settings.model_image
-    if mid in {"seedream-4.5", "seedream-4", "4.5"}:
-        return resolve_upstream_model("image", "seedream-4.5") or (settings.model_image_45 or "").strip() or settings.model_image
-    return model_id or settings.model_image
+    """Model ảnh cho phim ngắn: model user chọn (nếu admin cho phép) hoặc model đầu của slot; rỗng → settings.model_image."""
+    from app.services.function_router import ModelNotAllowed, resolve_function_route
+
+    try:
+        route = resolve_function_route("drama.asset_image", (model_id or "").strip() or None)
+    except ModelNotAllowed:
+        route = resolve_function_route("drama.asset_image")
+    return route.upstream_model if route else ((model_id or "").strip() or get_settings().model_image)
 
 
 # 将清晰度 + 比例解析为 Ark size；Pro 自动降到 ≤2K

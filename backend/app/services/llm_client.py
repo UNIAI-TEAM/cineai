@@ -8,8 +8,8 @@ from typing import Any
 
 import httpx
 
-from app.config import get_settings
-from app.services.logical_model_router import resolve_logical_model, resolve_logical_model_id
+from app.services.function_router import resolve_function_route
+from app.services.providers.openai_adapter import is_official_openai
 
 logger = logging.getLogger(__name__)
 
@@ -19,25 +19,6 @@ DEFAULT_MAX_TOKENS = 32768
 
 class LlmUnavailableError(RuntimeError):
     """文字 LLM 未配置或不可用。"""
-
-
-# 解析 LLM API Key（对齐 manju resolveOpenaiApiKey）
-def resolve_llm_api_key() -> str:
-    key = (get_settings().openai_api_key or "").strip()
-    if not key:
-        raise LlmUnavailableError(
-            "未配置 OPENAI_API_KEY，无法调用文字模型。"
-            "请在管理后台「系统设置 → 模型」填写 TokenFree API Key 并选择文本模型。"
-        )
-    return key
-
-
-# 解析 OpenAI 兼容 Base URL
-def resolve_llm_base_url() -> str:
-    base = (get_settings().openai_base_url or "").strip().rstrip("/")
-    if base:
-        return base
-    return "https://api.openai.com/v1"
 
 
 # kimi / deepseek-v4 默认 thinking 会占满 token、content 常为空；结构化产出统一关闭
@@ -67,38 +48,29 @@ async def chat_completions(
     system: str,
     user: str,
     *,
+    function_id: str = "drama.script",
     temperature: float = 0.6,
     max_tokens: int = DEFAULT_MAX_TOKENS,
     timeout: float = 300.0,
     response_format: dict[str, Any] | None = None,
 ) -> str:
-    settings = get_settings()
-    logical_id = resolve_logical_model_id("text", None)
-    route = resolve_logical_model("text", logical_id)
-    if route:
-        api_key = route.api_key
-        model = (route.upstream_model or "").strip()
-        base = route.base_url.rstrip("/") or resolve_llm_base_url()
-    else:
-        api_key = resolve_llm_api_key()
-        model = (settings.model_llm or "").strip()
-        base = resolve_llm_base_url()
-    if not model:
-        raise LlmUnavailableError(
-            "未解析到可用文字模型。请在管理后台填写 TokenFree API Key，拉取并选择文本模型。"
-        )
+    """Gọi chat/completions theo route của chức năng; OpenAI chính thức dùng max_completion_tokens."""
+    route = resolve_function_route(function_id)
+    if route is None or not route.upstream_model:
+        raise LlmUnavailableError("Chưa gán model văn bản. Vào Admin → Cài đặt → Mô hình để cấu hình.")
+    api_key, model, base = route.api_key, route.upstream_model, route.base_url
     # kimi 系列仅允许 temperature=0.6，其它值会 400
     effective_temperature = 0.6 if model.lower().startswith("kimi") else temperature
 
     payload: dict[str, Any] = {
         "model": model,
         "temperature": effective_temperature,
-        "max_tokens": max_tokens,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
     }
+    payload["max_completion_tokens" if is_official_openai(base) else "max_tokens"] = max_tokens
     extra = _llm_extra_body(model)
     if extra:
         payload.update(extra)

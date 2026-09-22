@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
 from app.config import get_settings
-from app.services.logical_model_router import resolve_logical_model_id, resolve_upstream_model
 from app.models_drama import DramaAsset
 from app.services.drama.build_fragments import rewrite_dialogue_action_lines
 from app.services.drama.fragment_content_duration import (
@@ -681,20 +680,14 @@ def build_seedance_content_items(
 
 
 def resolve_seedance_model_endpoint(model_id: str | None) -> str:
-    settings = get_settings()
-    raw = (model_id or "").strip()
-    logical_id = resolve_logical_model_id("video", model_id)
-    routed = resolve_upstream_model("video", logical_id or (raw if raw else None))
-    if routed:
-        return routed
-    if not raw:
-        return settings.model_video or (settings.model_video_2 or "").strip()
-    lowered = raw.lower()
-    if lowered in {"seedance-2", "seedance-1.5", "seedance-1"}:
-        return (settings.model_video_2 or "").strip() or settings.model_video or raw
-    if lowered == "seedance-2.5":
-        return settings.model_video or (settings.model_video_2 or "").strip() or raw
-    return raw
+    """Model video phim ngắn: model user chọn (nếu admin cho phép) hoặc model đầu của slot; rỗng → settings.model_video."""
+    from app.services.function_router import ModelNotAllowed, resolve_function_route
+
+    try:
+        route = resolve_function_route("drama.video", (model_id or "").strip() or None)
+    except ModelNotAllowed:
+        route = resolve_function_route("drama.video")
+    return route.upstream_model if route else ((model_id or "").strip() or get_settings().model_video)
 
 
 def resolve_seedance_ratio(aspect_ratio: str | None) -> str:

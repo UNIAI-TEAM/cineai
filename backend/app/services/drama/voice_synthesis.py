@@ -8,7 +8,6 @@ from app.config import get_settings
 from app.models import User
 from app.models_drama import DramaAsset, DramaProject
 from app.services.ark import get_ark
-from app.services.logical_model_router import resolve_upstream_model
 from app.services.billing import record_line
 from app.services.drama.voice_design import (
     design_voice,
@@ -124,6 +123,14 @@ async def _synthesize_via_voice_design(
         audio_url[:80],
     )
     return audio_url, result.speaker_id
+def _drama_tts_model() -> str:
+    """Model giọng đọc đang gán cho phim ngắn (rỗng nếu chưa gán)."""
+    from app.services.function_router import resolve_function_route
+
+    route = resolve_function_route("drama.tts")
+    return route.upstream_model if route else ""
+
+
 async def synthesize_voice_asset(
     db: AsyncSession,
     user: User,
@@ -191,6 +198,7 @@ async def synthesize_voice_asset(
         audio_url = await ark.tts(
             text,
             resolved_speaker,
+            function_id="drama.tts",
             project_id=project.id,
             shot_no=asset.id,
             emotion_hint=prompt,
@@ -221,7 +229,7 @@ async def synthesize_voice_asset(
         project_id=None,
         drama_project_id=project.id,
         billing_key="tts",
-        model=(resolve_upstream_model("audio", None) or settings.model_audio),
+        model=(_drama_tts_model() or settings.model_audio),
         estimated=True,
         domain="drama",
     )

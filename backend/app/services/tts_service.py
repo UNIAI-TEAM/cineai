@@ -13,6 +13,7 @@ from app.services.ffmpeg_compose import is_near_silent_audio
 from app.services.function_router import resolve_function_candidates
 from app.services.providers.base import TtsRequest
 from app.services.providers.registry import get_adapter
+from app.services.providers.volc_tts_adapter import SPEAKER_ALIASES
 from app.services.voices import edge_tts_voice_for_text
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,9 @@ class TtsService:
     ) -> str:
         """Sinh lời bình: mock trả file mock; thật thì thử từng model trong slot rồi mới edge-tts."""
         clean = (text or "").strip() or "这一幕。"
-        speaker = (voice or "").strip() or (self.settings.volc_tts_speaker or "")
+        raw_voice = (voice or "").strip() or (self.settings.volc_tts_speaker or "")
+        # Alias giọng đọc (narrator_calm…) phải quy đổi trước khi gửi adapter hoặc edge-tts
+        speaker = SPEAKER_ALIASES.get(raw_voice, raw_voice)
         if self.mock:
             digest = hashlib.md5(f"{speaker}:{clean}".encode()).hexdigest()[:8]
             dest = Path(__file__).resolve().parents[2] / "static" / "mock" / f"audio_{digest}.mp3"

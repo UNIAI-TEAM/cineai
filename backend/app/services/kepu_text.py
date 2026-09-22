@@ -312,6 +312,7 @@ async def chat_storyboard(
         content = await chat_completions(
             system,
             user,
+            function_id="kepu.script",
             temperature=0.6,
             timeout=120.0,
             response_format=json_format,
@@ -320,7 +321,7 @@ async def chat_storyboard(
         if "response_format" not in str(exc).lower():
             raise
         logger.warning("分镜 LLM 不支持 response_format，降级普通调用: %s", exc)
-        content = await chat_completions(system, user, temperature=0.6, timeout=120.0)
+        content = await chat_completions(system, user, function_id="kepu.script", temperature=0.6, timeout=120.0)
 
     if not (content or "").strip():
         logger.warning("分镜 LLM 返回空内容，重试一次 source_type=%s", source_type)
@@ -333,6 +334,7 @@ async def chat_storyboard(
             content = await chat_completions(
                 system,
                 retry_user,
+                function_id="kepu.script",
                 temperature=0.6,
                 timeout=120.0,
                 response_format=json_format,
@@ -341,7 +343,7 @@ async def chat_storyboard(
             if "response_format" not in str(exc).lower():
                 raise
             content = await chat_completions(
-                system, retry_user, temperature=0.6, timeout=120.0
+                system, retry_user, function_id="kepu.script", temperature=0.6, timeout=120.0
             )
 
     if not (content or "").strip():
@@ -540,6 +542,7 @@ async def expand_content(topic: str, mode: str = "theme", *, mock: bool) -> dict
     content = await chat_completions(
         system,
         f"主题/素材：{topic}",
+        function_id="kepu.script",
         temperature=0.6,
         max_tokens=4096,
         timeout=90.0,

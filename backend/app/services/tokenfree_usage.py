@@ -11,17 +11,45 @@ from typing import Any
 import httpx
 
 from app.config import Settings, get_settings
-from app.services.tokenfree_gateway import (
-    TOKENFREE_BASE_URL,
-    TOKENFREE_CONSOLE_URL,
-    TOKENFREE_QUOTA_PER_USD,
-    resolve_tokenfree_api_key,
-    tokenfree_site_origin,
-)
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_USD_CNY = 7.0
+
+TOKENFREE_CHANNEL_ID = "tokenfree"
+# New API OpenAI 兼容根路径（/channels 是控制台，不是接口）
+TOKENFREE_BASE_URL = "https://www.tokenfree.com/v1"
+TOKENFREE_CONSOLE_URL = "https://www.tokenfree.com/channels"
+# New API 内部额度：500000 quota = 1 USD
+TOKENFREE_QUOTA_PER_USD = 500_000
+
+
+def tokenfree_site_origin(base_url: str | None = None) -> str:
+    """把 /v1 兼容根路径收成站点 origin，供 /api/* 与 dashboard 计费用。"""
+    raw = (base_url or TOKENFREE_BASE_URL).strip().rstrip("/")
+    if raw.endswith("/v1"):
+        return raw[: -len("/v1")].rstrip("/")
+    return raw
+
+
+def resolve_tokenfree_api_key() -> str:
+    """优先 tokenfree.com 渠道 Key，其次运行时 overlay / 环境变量。"""
+    try:
+        from app.services.model_settings import get_routing_snapshot
+
+        channels = get_routing_snapshot().channels
+    except Exception:  # noqa: BLE001
+        channels = []
+    for channel in channels:
+        key = (channel.api_key or "").strip()
+        if not key:
+            continue
+        if channel.id == TOKENFREE_CHANNEL_ID or "tokenfree.com" in (channel.base_url or "").lower():
+            return key
+    from app.config import get_settings as _get_settings
+
+    s = _get_settings()
+    return (s.openai_api_key or s.ark_api_key or "").strip()
 
 
 def usd_cny_rate(settings: Settings | None = None) -> float:

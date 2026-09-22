@@ -94,7 +94,7 @@ def _download_timeout(timeout: float | httpx.Timeout) -> httpx.Timeout:
     return httpx.Timeout(connect=min(30.0, seconds), read=seconds, write=60.0, pool=30.0)
 
 
-# 下载远程文件到 dest；TokenFree 成片 URL 可传 Bearer headers
+# 下载远程文件到 dest；需要鉴权的成片 URL 可传 Bearer headers
 async def download_to(
     url: str,
     dest: Path,

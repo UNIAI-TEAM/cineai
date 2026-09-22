@@ -9,12 +9,12 @@ import pytest
 from app.config import get_settings
 from app.services.billing.display import resolve_billing_basis
 from app.services.billing.pricing import parse_upstream_cost_fen
-from app.services.tokenfree_gateway import tokenfree_site_origin
 from app.services.tokenfree_usage import (
     aggregate_quota_data_by_day,
     billing_usage_to_cost_fen,
     fetch_tokenfree_account,
     quota_to_cost_fen,
+    tokenfree_site_origin,
     usage_dates_are_ignored,
     used_quota_from_raw_json,
 )
@@ -73,40 +73,6 @@ def test_parse_upstream_cost_fen_from_newapi_quota():
     ) == 700
     assert parse_upstream_cost_fen({"prompt_tokens": 1, "quota": 500_000}, settings) == 700
     assert parse_upstream_cost_fen({"quota": 500_000}, settings) is None
-
-
-def test_pick_migratable_api_key_skips_moonshot_and_ark():
-    """启动迁 Key 时不要把 Moonshot/方舟 Key 写进 TokenFree。"""
-    from app.schemas_routing import SystemModelChannel
-    from app.services.tokenfree_gateway import pick_migratable_api_key
-
-    moonshot = SystemModelChannel(
-        id="openai-default",
-        name="Moonshot",
-        base_url="https://api.moonshot.cn/v1",
-        api_key="sk-moonshot",
-    )
-    ark = SystemModelChannel(
-        id="ark-default",
-        name="Ark",
-        base_url="https://ark.cn-beijing.volces.com/api/v3",
-        api_key="ark-key",
-    )
-    assert pick_migratable_api_key([moonshot, ark]) == ""
-    tokenfree = SystemModelChannel(
-        id="tokenfree",
-        name="TokenFree",
-        base_url="https://www.tokenfree.com/v1",
-        api_key="sk-tokenfree",
-    )
-    assert pick_migratable_api_key([moonshot, tokenfree]) == "sk-tokenfree"
-    aliased = SystemModelChannel(
-        id="legacy-openai",
-        name="TF",
-        base_url="https://www.tokenfree.com/v1",
-        api_key="sk-from-url",
-    )
-    assert pick_migratable_api_key([moonshot, aliased]) == "sk-from-url"
 
 
 def test_parse_upstream_cost_fen_prefers_quota_over_usd_cost():

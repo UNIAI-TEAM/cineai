@@ -138,6 +138,19 @@ async def _pg_columns(conn, table: str) -> set[str]:
     return {row[0] for row in result.fetchall()}
 
 
+async def _pg_varchar_len(conn, table: str, column: str) -> int | None:
+    """Độ dài tối đa hiện tại của một cột VARCHAR (None nếu không phải varchar/không có cột)."""
+    result = await conn.execute(
+        text(
+            "SELECT character_maximum_length FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = :table AND column_name = :column"
+        ),
+        {"table": table, "column": column},
+    )
+    row = result.fetchone()
+    return int(row[0]) if row and row[0] is not None else None
+
+
 async def _apply_schema_patches() -> None:
     """Lightweight additive migrations（仅 PostgreSQL）。"""
     async with engine.begin() as conn:
@@ -169,9 +182,16 @@ async def _apply_schema_patches() -> None:
         if "extra_prompt" not in pcols:
             await conn.execute(text("ALTER TABLE projects ADD COLUMN extra_prompt TEXT DEFAULT ''"))
         if "image_model" not in pcols:
-            await conn.execute(text("ALTER TABLE projects ADD COLUMN image_model VARCHAR(64) DEFAULT ''"))
+            await conn.execute(text("ALTER TABLE projects ADD COLUMN image_model VARCHAR(128) DEFAULT ''"))
         if "video_model" not in pcols:
-            await conn.execute(text("ALTER TABLE projects ADD COLUMN video_model VARCHAR(64) DEFAULT ''"))
+            await conn.execute(text("ALTER TABLE projects ADD COLUMN video_model VARCHAR(128) DEFAULT ''"))
+        # Tên model upstream mới dài hơn 64 ký tự; nới cột cũ (idempotent)
+        for column in ("image_model", "video_model"):
+            current = await _pg_varchar_len(conn, "projects", column)
+            if current is not None and current < 128:
+                await conn.execute(
+                    text(f"ALTER TABLE projects ALTER COLUMN {column} TYPE VARCHAR(128)")
+                )
 
         # User billing columns
         ucols = await _pg_columns(conn, "users")

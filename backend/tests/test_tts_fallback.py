@@ -40,7 +40,8 @@ async def test_slot_adapter_ok_no_edge(monkeypatch, tmp_path, audio_snapshot):
     url = await svc.synthesize("xin chào", "narrator_calm", function_id="kepu.tts", project_id=1, shot_no=3)
     assert url == "/static/shot_003_tts.mp3" and edge.await_count == 0
     req = adapter.tts.await_args.args[1]
-    assert isinstance(req, base.TtsRequest) and req.voice == "narrator_calm"
+    # Alias giọng đọc được quy đổi trước khi dựng TtsRequest
+    assert isinstance(req, base.TtsRequest) and req.voice == "zh_female_cancan_uranus_bigtts"
 
 
 async def test_adapter_error_falls_back_to_edge(monkeypatch, tmp_path, audio_snapshot):

@@ -118,6 +118,7 @@ async def generate_asset_video(
     )
     local_video, local_last_frame, task_result = await ark.gen_and_wait_seedance_body(
         body,
+        function_id="drama.video",
         project_id=project.id,
         shot_no=asset.id,
     )

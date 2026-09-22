@@ -65,6 +65,7 @@ async def generate_image(
                 prompt,
                 body.negative,
                 refs,
+                function_id="tools.image",
                 project_id=0,
                 shot_no=user.id,
                 size=size,
@@ -75,7 +76,7 @@ async def generate_image(
         await record_seedream_image_usage(
             db,
             user_id=user.id,
-            model=get_settings().model_image,
+            model=result.model or get_settings().model_image,
             domain="api",
             image_result=result,
             extra_raw={"source": "api_v1_image"},
@@ -121,6 +122,7 @@ async def generate_video(
                 body.image_url.strip(),
                 body.prompt.strip(),
                 body.duration,
+                function_id="tools.video",
                 resolution=body.resolution,
                 generate_audio=body.generate_audio,
             )
@@ -157,12 +159,10 @@ async def forward_seedance(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(_resolve_api_user),
 ) -> V1GenerationOut:
-    """转发 Seedance 多模态 body 到 TokenFree。"""
+    """Chuyển tiếp body Seedance đa phương thức lên provider đang gán cho tools.video."""
     if not body.content:
         raise HTTPException(status_code=400, detail="content 不能为空")
-    settings = get_settings()
     payload: dict = {
-        "model": settings.model_video,
         "content": body.content,
         "resolution": body.resolution,
         "watermark": body.watermark,
@@ -177,7 +177,9 @@ async def forward_seedance(
     async def _exec() -> str:
         ark = get_ark()
         try:
-            upstream_id = await ark.gen_video_seedance_body(payload, project_id=0)
+            upstream_id = await ark.gen_video_seedance_body(
+                payload, function_id="tools.video", project_id=0
+            )
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=502, detail=str(exc)[:400]) from exc
 

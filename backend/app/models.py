@@ -128,9 +128,9 @@ class Project(Base):
     style_prompt: Mapped[str] = mapped_column(Text, default="")
     character_prompt: Mapped[str] = mapped_column(Text, default="")
     extra_prompt: Mapped[str] = mapped_column(Text, default="")
-    # 科普图/视频模型；空则走后台 TokenFree 默认
-    image_model: Mapped[str] = mapped_column(String(64), default="")
-    video_model: Mapped[str] = mapped_column(String(64), default="")
+    # 科普图/视频模型；空则走后台已分配的默认模型
+    image_model: Mapped[str] = mapped_column(String(128), default="")
+    video_model: Mapped[str] = mapped_column(String(128), default="")
     ref_image_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -236,7 +236,7 @@ class UsageEvent(Base):
 
 
 class UpstreamUsageDaily(Base):
-    """TokenFree / New API 官方日用量快照，用于与本地 usage_events 对照。"""
+    """上游 New API 官方日用量快照，用于与本地 usage_events 对照。"""
 
     __tablename__ = "upstream_usage_daily"
 

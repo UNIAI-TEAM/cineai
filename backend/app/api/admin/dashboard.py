@@ -85,7 +85,7 @@ async def admin_upstream_usage(
     _admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ) -> AdminUpstreamUsageOut:
-    """近 N 日 TokenFree 官方用量与本地成本对照。"""
+    """近 N 日上游官方用量与本地成本对照。"""
     raw = await build_upstream_usage_compare(db, days=days)
     return AdminUpstreamUsageOut(**raw)
 

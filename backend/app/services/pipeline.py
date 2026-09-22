@@ -56,6 +56,19 @@ _COMPOSE_SIGTERM_MAX_ATTEMPTS = 3
 _cancelled: set[int] = set()
 
 
+def _effective_project_model(function_id: str, raw: str | None) -> str | None:
+    """Model đã lưu trong dự án: id cũ không còn được admin gán thì trả None để slot tự quyết."""
+    mid = (raw or "").strip()
+    if not mid:
+        return None
+    from app.services.function_router import is_model_allowed
+
+    if is_model_allowed(function_id, mid):
+        return mid
+    logger.warning("model %s không còn được gán cho %s, dùng model của slot", mid, function_id)
+    return None
+
+
 async def _record_usage_est(
     project_id: int,
     billing_key: str,
@@ -304,6 +317,7 @@ async def _synthesize_continuous_audio(
         audio_url = await ark.tts(
             full_text,
             voice,
+            function_id="kepu.tts",
             project_id=project_id,
             shot_no=0,
             duration_hint=hint,
@@ -891,8 +905,8 @@ async def _parallel_image_and_audio(project_id: int) -> None:
         image_size = _image_size_for(project)
         negative = _project_image_negative(project)
         voice = _project_voice(project)
-        image_model = (getattr(project, "image_model", None) or "").strip()
-        video_model = (getattr(project, "video_model", None) or "").strip()
+        image_model = _effective_project_model("kepu.image", getattr(project, "image_model", None))
+        video_model = _effective_project_model("kepu.video", getattr(project, "video_model", None))
         output_ratio = _project_output_ratio(project) or ""
 
     if not shot_meta:
@@ -971,6 +985,7 @@ async def _parallel_image_and_audio(project_id: int) -> None:
                 prompt,
                 negative,
                 ref_urls,
+                function_id="kepu.image",
                 project_id=project_id,
                 shot_no=meta["shot_no"],
                 size=image_size,
@@ -981,7 +996,7 @@ async def _parallel_image_and_audio(project_id: int) -> None:
         await _record_seedream_usage(
             project_id,
             image_result=img,
-            model=s.model_image,
+            model=img.model or s.model_image,
             shot_id=meta["id"],
         )
         await persist_image(meta, img)
@@ -1124,7 +1139,7 @@ async def _parallel_videos(project_id: int) -> None:
         ]
         style_prefix = _effective_style(project)
         total = len(shot_meta)
-        video_model = (getattr(project, "video_model", None) or "").strip()
+        video_model = _effective_project_model("kepu.video", getattr(project, "video_model", None))
 
     if not shot_meta:
         return
@@ -1199,6 +1214,7 @@ async def _parallel_videos(project_id: int) -> None:
                 meta["image_ref"],
                 prompt,
                 int(dur),
+                function_id="kepu.video",
                 project_id=project_id,
                 shot_no=meta["shot_no"],
                 character_consistency=consistency,
@@ -1507,12 +1523,13 @@ async def regen_shot_image(project_id: int, shot_id: int) -> None:
         negative = _project_image_negative(project)
         prompt = _locked_shot_prompt(project, shot.img_prompt)
         image_size = _image_size_for(project)
-        image_model = (getattr(project, "image_model", None) or "").strip()
+        image_model = _effective_project_model("kepu.image", getattr(project, "image_model", None))
         aspect_ratio = _project_output_ratio(project) or None
     img = await ark.gen_image(
         prompt,
         negative,
         ref_urls,
+        function_id="kepu.image",
         project_id=project_id,
         shot_no=shot_no,
         size=image_size,
@@ -1542,7 +1559,7 @@ async def regen_shot_image(project_id: int, shot_id: int) -> None:
     await _record_seedream_usage(
         project_id,
         image_result=img,
-        model=s.model_image,
+        model=img.model or s.model_image,
         shot_id=shot_id,
     )
     if cancelled:
@@ -1591,12 +1608,13 @@ async def regen_shot_video(project_id: int, shot_id: int) -> None:
         shot_no = shot.shot_no
         image_ref = shot.image_ark_url or shot.image_url or ""
         extra_refs = video_extra_refs_for_shot(previous_usable_shot(list(project.shots), shot_no))
-        video_model = (getattr(project, "video_model", None) or "").strip()
+        video_model = _effective_project_model("kepu.video", getattr(project, "video_model", None))
         ratio = _project_output_ratio(project) or cfg.ark_video_ratio
     local_video, task_result = await ark.gen_and_wait_video(
         image_ref,
         prompt,
         int(dur),
+        function_id="kepu.video",
         project_id=project_id,
         shot_no=shot_no,
         character_consistency=consistency,

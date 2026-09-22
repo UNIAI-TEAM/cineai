@@ -1,4 +1,4 @@
-"""TokenFree 视频参考图张数上限（与漫剧分镜资产规则解耦）。"""
+"""上游视频参考图张数上限（与漫剧分镜资产规则解耦）。"""
 
 from __future__ import annotations
 

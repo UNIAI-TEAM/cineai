@@ -11,8 +11,7 @@ from typing import Any
 import httpx
 
 from app.config import Settings, get_settings
-from app.services.tokenfree_gateway import TOKENFREE_CONSOLE_URL, tokenfree_site_origin
-from app.services.tokenfree_usage import usd_cny_rate
+from app.services.tokenfree_usage import TOKENFREE_CONSOLE_URL, tokenfree_site_origin, usd_cny_rate
 
 logger = logging.getLogger(__name__)
 
@@ -347,15 +346,13 @@ def kie_sunburst_credits_for_size(size: str | None = "") -> int:
 def resolve_billing_image_size(settings: Settings, *, model: str = "", size: str = "") -> str:
     """计费用清晰度：与 ark 生成侧一致，Pro / sunburst 把 3K·4K 钳到 2K。"""
     from app.services.drama.seedream_options import is_seedream_pro_model
-    from app.services.tokenfree_image import tokenfree_working_image_model
 
     raw = (size or "").strip() or str(getattr(settings, "ark_image_size", "") or "2K")
     upstream = (model or getattr(settings, "model_image", "") or "").strip()
-    working = tokenfree_working_image_model(upstream)
     if (
         is_seedream_pro_model(upstream)
-        or "sunburst" in working.lower()
-        or "gpt-image" in working.lower()
+        or "sunburst" in upstream.lower()
+        or "gpt-image" in upstream.lower()
     ):
         if raw.strip().upper() in {"3K", "4K"}:
             return "2K"
@@ -365,10 +362,10 @@ def resolve_billing_image_size(settings: Settings, *, model: str = "", size: str
 def charge_fen_official_image(settings: Settings, *, model: str = "", size: str = "") -> int:
     """生图预估：sunburst / Seedream / gpt-image 按 Kie 积分档；其它按张走价目。"""
     from app.services.billing.pricing import kie_credits_to_cost_fen
-    from app.services.tokenfree_image import is_seedream_family, tokenfree_working_image_model
+    from app.services.drama.seedream_options import is_seedream_family
 
     raw_model = model or getattr(settings, "model_image", "") or ""
-    mid = tokenfree_working_image_model(raw_model)
+    mid = raw_model.strip()
     rate = lookup_rate(mid)
     use_kie_table = (
         "sunburst" in mid.lower()

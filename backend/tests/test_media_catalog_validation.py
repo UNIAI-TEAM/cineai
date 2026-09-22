@@ -1,64 +1,54 @@
-"""项目 image_model / video_model 校验与前台目录一致。"""
+"""Catalog phía user lấy từ slot/override; scope kepu/drama/tools; validate model dự án."""
+import pytest
 
-from app.services.media_catalog import is_valid_project_media_model
-
-
-def test_legacy_seedream_names_infer_image():
-    """旧项目里的 kie-/ark- 名仍可按能力推断，避免打开项目直接校验失败。"""
-    assert is_valid_project_media_model("kie-seedream-5", "image") is True
-    assert is_valid_project_media_model("ark-seedream", "image") is True
+from app.schemas_routing import FunctionBindings, ModelBinding, SystemModelChannel
+from app.services import media_catalog
+from app.services.model_settings import _refresh_routing_snapshot, get_routing_snapshot
 
 
-def test_empty_model_allowed():
-    assert is_valid_project_media_model("", "image") is True
-    assert is_valid_project_media_model("  ", "video") is True
-
-
-def test_garbage_model_rejected():
-    assert is_valid_project_media_model("not-a-real-model-xyz", "image") is False
-
-
-def test_tokenfree_style_ids_infer_capability():
-    from app.services.model_routing_config import infer_model_capability
-
-    assert infer_model_capability("gpt-image-2-5") == "image"
-    assert infer_model_capability("seedance-2-0-mini") == "video"
-    assert infer_model_capability("kie-veo3-fast") == "video"
-    assert infer_model_capability("kie-seedream-5") == "image"
-    assert infer_model_capability("nano-banana-2") == "image"
-    assert infer_model_capability("qwen-tts-2025-05-22") == "audio"
-    assert infer_model_capability("gemini-3.1-flash-tts") == "audio"
-    assert infer_model_capability("elevenlabs/text-to-speech-multilingual-v2") == "audio"
-    assert infer_model_capability("elevenlabs-tts") == "audio"
-
-
-def test_catalog_payload_uses_tokenfree_routing() -> None:
-    """catalog_payload() phải suy ra image/video từ function_bindings hiệu lực của snapshot routing."""
-    from app.schemas_routing import FunctionBindings, ModelBinding, SystemModelChannel
-    from app.services.media_catalog import catalog_payload
-    from app.services.model_settings import _refresh_routing_snapshot, get_routing_snapshot
-
+@pytest.fixture
+def snap():
+    """Snapshot routing: slot ảnh/video của BytePlus, override tools.image sang OpenAI."""
     prev = get_routing_snapshot()
+    byte = SystemModelChannel(id="byteplus", name="BytePlus", base_url="https://x", api_key="k", has_api_key=True, protocol="ark",
+                              models=["dola-seedream-5-0-pro-260628", "dreamina-seedance-2-5-260628"], enabled=True)
+    oai = SystemModelChannel(id="openai", name="OpenAI", base_url="https://x", api_key="k", has_api_key=True, protocol="openai", models=["gpt-image-2"], enabled=True)
+    b = FunctionBindings(slots={"image": [ModelBinding(channel_id="byteplus", model="dola-seedream-5-0-pro-260628")],
+                                "video": [ModelBinding(channel_id="byteplus", model="dreamina-seedance-2-5-260628")]},
+                         overrides={"tools.image": [ModelBinding(channel_id="openai", model="gpt-image-2")]})
+    _refresh_routing_snapshot([byte, oai], b)
+    yield
+    _refresh_routing_snapshot(prev.channels, prev.function_bindings)
+
+
+def test_scope_kepu_lists_slot_models(snap):
+    cat = media_catalog.catalog_payload("kepu")
+    assert [m["id"] for m in cat["image_models"]] == ["dola-seedream-5-0-pro-260628"]
+    assert cat["image_models"][0]["provider"] == "byteplus" and cat["image_models"][0]["recommended"]
+    assert cat["defaults"] == {"image_model": "dola-seedream-5-0-pro-260628", "video_model": "dreamina-seedance-2-5-260628"}
+
+
+def test_scope_tools_uses_override(snap):
+    cat = media_catalog.catalog_payload("tools")
+    assert [m["id"] for m in cat["image_models"]] == ["gpt-image-2"]
+
+
+def test_no_scope_is_union(snap):
+    ids = {m["id"] for m in media_catalog.catalog_payload()["image_models"]}
+    assert ids == {"dola-seedream-5-0-pro-260628", "gpt-image-2"}
+
+
+def test_project_model_validation(snap):
+    assert media_catalog.is_valid_project_media_model("", "image")
+    assert media_catalog.is_valid_project_media_model("dola-seedream-5-0-pro-260628", "image")
+    assert not media_catalog.is_valid_project_media_model("gpt-image-2", "image")     # chỉ override tools
+    assert not media_catalog.is_valid_project_media_model("garbage", "video")
+
+
+def test_empty_config_gives_empty_lists():
+    prev = get_routing_snapshot(); _refresh_routing_snapshot([], FunctionBindings())
     try:
-        channel = SystemModelChannel(
-            id="tokenfree",
-            name="TokenFree",
-            base_url="https://www.tokenfree.com/v1",
-            api_key="k",
-            has_api_key=True,
-            protocol="openai",
-            models=["doubao-seedance-2-5-260628"],
-            enabled=True,
-        )
-        bindings = FunctionBindings(
-            slots={"video": [ModelBinding(channel_id="tokenfree", model="doubao-seedance-2-5-260628")]}
-        )
-        _refresh_routing_snapshot([channel], bindings)
-        payload = catalog_payload()
-        assert payload["defaults"]["video_model"] == "doubao-seedance-2-5-260628"
-        assert any(m["id"] == "doubao-seedance-2-5-260628" for m in payload["video_models"])
-        assert all(m["provider"] == "tokenfree" for m in payload["video_models"])
-        assert not any("kie" in m["id"] for m in payload["video_models"])
-        assert not any("方舟" in m["label"] for m in payload["video_models"])
+        cat = media_catalog.catalog_payload("drama")
+        assert cat["image_models"] == [] and cat["defaults"]["image_model"] == ""
     finally:
         _refresh_routing_snapshot(prev.channels, prev.function_bindings)

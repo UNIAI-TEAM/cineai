@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """上游轮询韧性回归：
 
-- fetch_task_once / poll_task 遇到 429、5xx 或单次网络故障时，
+- adapter.fetch_video 遇到 429、5xx 或单次网络故障时，
   任务状态未知，必须按 running 退避，不能单次误判 failed；
 - 400/404 等确定 4xx 仍是终态 failed；
+- MediaGateway.poll_task 按 deadline 收敛，不因一次 transient 直接判死；
 - gen_and_wait_seedance_body 只允许在"参考音频下载失败"时去掉参考音频重提一次，
   隐私拦截/任务失败/超时等异常必须立即上抛，禁止用同 body 重新建单重复计费。
 """
@@ -15,13 +16,10 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
-from app.services import ark as ark_module
-from app.services.ark import (
-    ArkGateway,
-    TaskResult,
-    _is_transient_http_status,
-    _retry_after_seconds,
-)
+from app.schemas_routing import ResolvedModelRoute
+from app.services.ark import ArkGateway, TaskResult, _is_transient_http_status, _retry_after_seconds
+from app.services.providers import ark_adapter as ark_adapter_module
+from app.services.providers.ark_adapter import ArkAdapter
 
 
 class _FakeResponse:
@@ -58,22 +56,30 @@ def _install_fake_http(monkeypatch, handler):
                 raise outcome
             return outcome
 
-    monkeypatch.setattr(ark_module.httpx, "AsyncClient", _FakeAsyncClient)
+    monkeypatch.setattr(ark_adapter_module.httpx, "AsyncClient", _FakeAsyncClient)
     return calls
 
 
 @pytest.fixture
-def ark_client(monkeypatch) -> ArkGateway:
-    """非 mock、零轮询间隔的客户端（mock 属性会因无渠道 Key 为 True，需显式关掉）。"""
-    settings = SimpleNamespace(
-        ark_video_poll_timeout=30.0,
-        ark_video_poll_interval=0.0,
-        ark_base_url="https://ark.cn-beijing.volces.com",
-        ark_api_key="test-key",
+def route() -> ResolvedModelRoute:
+    """Route cố định trỏ vào một kênh Ark giả."""
+    return ResolvedModelRoute(
+        capability="video",
+        logical_model_id="kepu.video",
+        upstream_model="dreamina-seedance-2-5-260628",
+        channel_id="byteplus",
+        channel_name="BytePlus",
+        base_url="https://ark.ap-southeast.bytepluses.com/api/v3",
+        api_key="test-key",
+        protocol="ark",
+        api_format="ark",
     )
-    client = ArkGateway(settings)
-    monkeypatch.setattr(ArkGateway, "mock", property(lambda self: False))
-    return client
+
+
+@pytest.fixture
+def adapter() -> ArkAdapter:
+    """Adapter Ark thật (chỉ HTTP bị thay bằng client giả)."""
+    return ArkAdapter()
 
 
 # ---------- 纯函数 ----------
@@ -99,79 +105,107 @@ def test_retry_after_seconds_honors_header_and_caps() -> None:
     )
 
 
-# ---------- fetch_task_once ----------
+# ---------- adapter.fetch_video ----------
 
 @pytest.mark.parametrize("code", [429, 500, 502, 503, 504])
-async def test_fetch_once_transient_http_treated_running(ark_client, monkeypatch, code: int) -> None:
+async def test_fetch_once_transient_http_treated_running(adapter, route, monkeypatch, code: int) -> None:
     _install_fake_http(monkeypatch, lambda: _FakeResponse(code, text="upstream busy"))
-    result = await ark_client.fetch_task_once("task-abc")
+    result = await adapter.fetch_video(route, "task-abc")
     assert result.status == "running"
     assert result.provider_task_id == "task-abc"
     assert not result.error
 
 
 @pytest.mark.parametrize("code", [400, 404])
-async def test_fetch_once_terminal_4xx_is_failed(ark_client, monkeypatch, code: int) -> None:
+async def test_fetch_once_terminal_4xx_is_failed(adapter, route, monkeypatch, code: int) -> None:
     _install_fake_http(monkeypatch, lambda: _FakeResponse(code, text="task gone"))
-    result = await ark_client.fetch_task_once("task-abc")
+    result = await adapter.fetch_video(route, "task-abc")
     assert result.status == "failed"
     assert result.error == "task gone"
 
 
-async def test_fetch_once_network_error_treated_running(ark_client, monkeypatch) -> None:
+async def test_fetch_once_network_error_treated_running(adapter, route, monkeypatch) -> None:
     _install_fake_http(monkeypatch, lambda: httpx.ConnectError("connection reset"))
-    result = await ark_client.fetch_task_once("task-abc")
+    result = await adapter.fetch_video(route, "task-abc")
     assert result.status == "running"
     assert result.provider_task_id == "task-abc"
 
 
-async def test_fetch_once_succeeded_passthrough(ark_client, monkeypatch) -> None:
+async def test_fetch_once_succeeded_passthrough(adapter, route, monkeypatch) -> None:
     payload = {
         "id": "task-abc",
         "status": "succeeded",
         "content": {"video_url": "https://cdn.example.com/v.mp4"},
     }
     _install_fake_http(monkeypatch, lambda: _FakeResponse(200, payload=payload))
-    result = await ark_client.fetch_task_once("task-abc")
+    result = await adapter.fetch_video(route, "task-abc")
     assert result.status == "succeeded"
     assert result.url == "https://cdn.example.com/v.mp4"
 
 
-# ---------- poll_task 长轮询 ----------
+# ---------- MediaGateway.poll_task 长轮询 ----------
 
-async def test_poll_retries_after_503_then_succeeds(ark_client, monkeypatch) -> None:
-    responses = iter(
+@pytest.fixture
+def poll_gateway(monkeypatch) -> ArkGateway:
+    """非 mock、零轮询间隔的 gateway（mock 属性会因无渠道 Key 为 True，需显式关掉）。"""
+    settings = SimpleNamespace(ark_video_poll_timeout=30.0, ark_video_poll_interval=0.0)
+    gateway = ArkGateway(settings)
+    monkeypatch.setattr(ArkGateway, "mock", property(lambda self: False))
+    gateway._task_channels["task-abc"] = "byteplus"
+    return gateway
+
+
+def _script_fetch(monkeypatch, gateway, results):
+    """Cho fetch_task_once trả lần lượt các TaskResult trong kịch bản; trả về số lần gọi."""
+    calls: list[str] = []
+    seq = iter(results)
+
+    async def _fake(task_id, *, channel_id=None):
+        calls.append(task_id)
+        return next(seq)
+
+    monkeypatch.setattr(gateway, "fetch_task_once", _fake)
+    return calls
+
+
+async def test_poll_retries_after_transient_then_succeeds(poll_gateway, monkeypatch) -> None:
+    calls = _script_fetch(
+        monkeypatch,
+        poll_gateway,
         [
-            _FakeResponse(503, text="gateway"),
-            _FakeResponse(
-                200,
-                payload={
-                    "id": "task-abc",
-                    "status": "succeeded",
-                    "content": {"video_url": "https://cdn.example.com/v.mp4"},
-                },
-            ),
-        ]
+            TaskResult(status="running", provider_task_id="task-abc"),
+            TaskResult(status="succeeded", url="https://cdn.example.com/v.mp4", provider_task_id="task-abc"),
+        ],
     )
-    calls = _install_fake_http(monkeypatch, lambda: next(responses))
-    result = await ark_client.poll_task("task-abc")
+    result = await poll_gateway.poll_task("task-abc")
     assert result.status == "succeeded"
     assert len(calls) == 2
 
 
-async def test_poll_persistent_429_ends_in_poll_timeout(ark_client, monkeypatch) -> None:
-    # 0.05s 总超时 + interval=0：持续 429 必须被 deadline 收敛，而不是首轮判 failed
-    ark_client.settings.ark_video_poll_timeout = 0.05
-    calls = _install_fake_http(monkeypatch, lambda: _FakeResponse(429, text="rate limited"))
-    result = await ark_client.poll_task("task-abc")
+async def test_poll_persistent_running_ends_in_poll_timeout(poll_gateway, monkeypatch) -> None:
+    # 0.05s 总超时 + interval=0：持续 running 必须被 deadline 收敛，而不是首轮判 failed
+    poll_gateway.settings.ark_video_poll_timeout = 0.05
+
+    calls: list[str] = []
+
+    async def _always_running(task_id, *, channel_id=None):
+        calls.append(task_id)
+        return TaskResult(status="running", provider_task_id=task_id)
+
+    monkeypatch.setattr(poll_gateway, "fetch_task_once", _always_running)
+    result = await poll_gateway.poll_task("task-abc")
     assert result.status == "failed"
     assert result.error == "poll timeout"
     assert len(calls) >= 2
 
 
-async def test_poll_404_fails_immediately_without_retry(ark_client, monkeypatch) -> None:
-    calls = _install_fake_http(monkeypatch, lambda: _FakeResponse(404, text="task gone"))
-    result = await ark_client.poll_task("task-abc")
+async def test_poll_failed_result_returns_immediately(poll_gateway, monkeypatch) -> None:
+    calls = _script_fetch(
+        monkeypatch,
+        poll_gateway,
+        [TaskResult(status="failed", error="task gone", provider_task_id="task-abc")],
+    )
+    result = await poll_gateway.poll_task("task-abc")
     assert result.status == "failed"
     assert result.error == "task gone"
     assert len(calls) == 1

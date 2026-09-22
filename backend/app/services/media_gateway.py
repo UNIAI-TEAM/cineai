@@ -30,6 +30,7 @@ from app.services.function_router import (
     resolve_function_candidates,
     route_for_channel,
 )
+from app.services.providers import ark_adapter, volc_tts_adapter
 from app.services.providers.ark_adapter import (
     resolve_seedance_i2v_image_role,
     seedance_duration,
@@ -65,6 +66,12 @@ class ImageResult:
 
 class MediaGateway:
     """Cổng duy nhất mà pipeline/drama/tools gọi để sinh ảnh, video, TTS."""
+
+    # Giữ tương thích test/caller cũ: các classifier Seedance/TTS nay nằm ở adapter
+    _is_seedance_text_policy_error = staticmethod(ark_adapter.is_seedance_text_policy_error)
+    _is_seedance_input_privacy_error = staticmethod(ark_adapter.is_seedance_input_privacy_error)
+    _seedance_content_with_cg_style = staticmethod(ark_adapter.seedance_content_with_cg_style)
+    _build_tts_additions = staticmethod(volc_tts_adapter.build_tts_additions)
 
     def __init__(self, settings: Settings | None = None) -> None:
         """Khởi tạo facade; `settings=None` nghĩa là luôn đọc cấu hình hiện hành."""

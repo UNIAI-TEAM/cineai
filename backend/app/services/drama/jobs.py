@@ -1405,7 +1405,7 @@ async def poll_fragment_video_task(task_id: int) -> None:
                 return
 
             if str(payload.get("video_provider") or "") == "kie":
-                await _fail_task(db, task, RuntimeError("已改为 TokenFree 通道，请重新生成本镜视频"))
+                await _fail_task(db, task, RuntimeError("Kênh video cũ không còn, hãy tạo lại phân cảnh này"))
                 return
 
             result = await get_ark().fetch_task_once(task.provider_task_id)

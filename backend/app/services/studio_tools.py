@@ -194,6 +194,7 @@ async def run_image_tool(
         full_prompt,
         negative,
         refs or None,
+        function_id="tools.image",
         project_id=0,
         shot_no=user.id,
         size=size,
@@ -201,7 +202,7 @@ async def run_image_tool(
     await record_seedream_image_usage(
         db,
         user_id=user.id,
-        model=get_settings().model_image,
+        model=result.model or get_settings().model_image,
         domain="studio",
         image_result=result,
         extra_raw={"tool_id": tool_id},
@@ -384,6 +385,7 @@ async def start_video_tool(
         still = await ark.gen_image(
             f"{text}。电影感静帧，无文字",
             "文字，字幕，水印，logo",
+            function_id="tools.image",
             project_id=0,
             shot_no=user.id,
             size=ratio_to_size(ratio or "9:16"),
@@ -391,7 +393,7 @@ async def start_video_tool(
         await record_seedream_image_usage(
             db,
             user_id=user.id,
-            model=get_settings().model_image,
+            model=still.model or get_settings().model_image,
             domain="studio",
             image_result=still,
             extra_raw={"tool_id": "t2v-still"},
@@ -426,6 +428,7 @@ async def start_video_tool(
         image_url,
         video_prompt,
         duration,
+        function_id="tools.video",
         resolution="480p",
         generate_audio=False,
     )
