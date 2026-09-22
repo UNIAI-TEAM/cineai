@@ -142,6 +142,15 @@ class AppError(ValueError):
         """复制一份，供 `raise ... from exc` 时避免异常以自身为 cause。"""
         return AppError(self.code, status=self.status, **self.params)
 
+    def __reduce__(self):
+        """支持 copy / pickle：按 code / status / params 重建。"""
+        return (_rebuild_app_error, (self.code, self.status, self.params))
+
+
+def _rebuild_app_error(code: str, status: int | None, params: dict[str, Any]) -> AppError:
+    """__reduce__ 的重建函数：copy.copy / pickle.loads 都按此还原 AppError。"""
+    return AppError(code, status=status, **params)
+
 
 def register_app_error_handler(app: FastAPI) -> None:
     """注册全局处理器：AppError → JSON {detail, code, params}。"""

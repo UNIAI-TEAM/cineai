@@ -17,6 +17,13 @@ export function isBillingError(message: string) {
   return billingMessages.has(message) || /余额不足|请先充值|402|insufficient_balance/i.test(message)
 }
 
+// 结构化判断：ApiError 带 402 或 billing.insufficient_balance* 码（不引入 apiError 以免循环依赖）
+function isBillingErrorObject(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const e = err as { status?: unknown; code?: unknown }
+  return e.status === 402 || (typeof e.code === 'string' && e.code.startsWith('billing.insufficient_balance'))
+}
+
 /** 跳转定价页充值 */
 export function goToTopup() {
   if (typeof window !== 'undefined') {
@@ -33,7 +40,7 @@ export async function handleBillingError(
   navigate?: (path: string) => void,
 ): Promise<boolean> {
   const message = err instanceof Error ? err.message : String(err || '')
-  if (!isBillingError(message)) return false
+  if (!isBillingErrorObject(err) && !isBillingError(message)) return false
   // 非组件环境：按当前界面语言取文案
   const m = messages[getActiveLocale()]
   const go = await dialog.confirm({

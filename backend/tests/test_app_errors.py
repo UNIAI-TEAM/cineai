@@ -2,6 +2,8 @@
 """AppError / 错误码目录 / 全局处理器 单测（不需要数据库）。"""
 from __future__ import annotations
 
+import copy
+import pickle
 import re
 import string
 from pathlib import Path
@@ -58,6 +60,23 @@ def test_app_error_is_value_error_and_keeps_params() -> None:
 
 def test_status_override() -> None:
     assert AppError("project.not_found", status=410).status == 410
+
+
+def test_app_error_is_copy_and_pickle_safe() -> None:
+    """copy.copy / pickle.dumps+loads 后 code/status/params/detail 保持不变。"""
+    original = AppError("billing.insufficient_balance", need_fen=100, available_fen=0)
+
+    copied = copy.copy(original)
+    assert copied.code == original.code
+    assert copied.status == original.status
+    assert copied.params == original.params
+    assert copied.detail == original.detail
+
+    restored = pickle.loads(pickle.dumps(original))
+    assert restored.code == original.code
+    assert restored.status == original.status
+    assert restored.params == original.params
+    assert restored.detail == original.detail
 
 
 def test_money_detail_has_no_yuan_sign() -> None:
