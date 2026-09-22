@@ -1,6 +1,6 @@
 /** 独立创作工具 API：/api/tools/* */
 
-import { apiErrorText, throwApiError } from '../lib/apiError'
+import { apiErrorText, parseApiError, throwApiError } from '../lib/apiError'
 
 function defaultApiBase() {
   if (typeof window !== 'undefined' && window.location?.hostname) {
@@ -61,15 +61,6 @@ export function resolveToolMediaUrl(url?: string | null): string {
   return url
 }
 
-// 解析 FastAPI 错误详情
-function errorMessage(detail: unknown, fallback: string): string {
-  if (typeof detail === 'string') return detail
-  if (Array.isArray(detail)) {
-    return detail.map((d: { msg?: string }) => d.msg || JSON.stringify(d)).join('; ')
-  }
-  return fallback
-}
-
 export type ToolRunPayload = {
   toolId: string
   prompt?: string
@@ -104,10 +95,10 @@ export async function runStudioTool(payload: ToolRunPayload): Promise<ToolRunRes
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body,
   })
-  if (res.status === 401) throw new Error(apiErrorText('loginRequired'))
+  if (res.status === 401) throw parseApiError(401, null, apiErrorText('loginRequired'))
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throwApiError(res.status, err.detail, apiErrorText('generateFailed'))
+    throwApiError(res.status, err, apiErrorText('generateFailed'))
   }
   return res.json()
 }
@@ -118,10 +109,10 @@ export async function pollStudioToolTask(taskId: string): Promise<ToolTaskResult
   const res = await fetch(`${API_BASE}/api/tools/tasks/${encodeURIComponent(taskId)}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   })
-  if (res.status === 401) throw new Error(apiErrorText('loginRequired'))
+  if (res.status === 401) throw parseApiError(401, null, apiErrorText('loginRequired'))
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(errorMessage(err.detail, apiErrorText('queryFailed')))
+    throwApiError(res.status, err, apiErrorText('queryFailed'))
   }
   return res.json()
 }
@@ -133,10 +124,10 @@ export async function listToolRuns(page = 1, pageSize = 8): Promise<ToolRunList>
   const res = await fetch(`${API_BASE}/api/tools/runs?${qs}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   })
-  if (res.status === 401) throw new Error(apiErrorText('loginRequired'))
+  if (res.status === 401) throw parseApiError(401, null, apiErrorText('loginRequired'))
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(errorMessage(err.detail, apiErrorText('loadFailed')))
+    throwApiError(res.status, err, apiErrorText('loadFailed'))
   }
   return res.json()
 }
@@ -147,10 +138,10 @@ export async function getToolRun(runId: number): Promise<ToolRunRecord> {
   const res = await fetch(`${API_BASE}/api/tools/runs/${runId}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   })
-  if (res.status === 401) throw new Error(apiErrorText('loginRequired'))
+  if (res.status === 401) throw parseApiError(401, null, apiErrorText('loginRequired'))
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(errorMessage(err.detail, apiErrorText('loadFailed')))
+    throwApiError(res.status, err, apiErrorText('loadFailed'))
   }
   return res.json()
 }

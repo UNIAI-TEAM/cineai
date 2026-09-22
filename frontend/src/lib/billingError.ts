@@ -4,9 +4,17 @@ import { dialog } from './dialog'
 
 export const PRICING_PATH = '/pricing'
 
-/** 是否为余额不足 / 计费拦截类错误 */
+// 由错误码识别出的余额不足文案（翻译后不再含「余额不足」，靠登记识别）
+const billingMessages = new Set<string>()
+
+/** 登记一条余额不足文案，供只拿到字符串的组件识别 */
+export function markBillingMessage(message: string) {
+  billingMessages.add(message)
+}
+
+/** 是否为余额不足 / 计费拦截类错误（错误码登记 + 旧中文文案兜底，漫剧第二阶段前保留） */
 export function isBillingError(message: string) {
-  return /余额不足|请先充值|402|insufficient_balance/i.test(message)
+  return billingMessages.has(message) || /余额不足|请先充值|402|insufficient_balance/i.test(message)
 }
 
 /** 跳转定价页充值 */

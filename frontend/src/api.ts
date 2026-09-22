@@ -28,7 +28,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throwApiError(res.status, err.detail, res.statusText)
+    throwApiError(res.status, err, res.statusText)
   }
   return res.json()
 }
@@ -402,14 +402,7 @@ export const api = {
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }))
-      const detail = err.detail
-      const message =
-        typeof detail === 'string'
-          ? detail
-          : Array.isArray(detail)
-            ? detail.map((d: { msg?: string }) => d.msg || JSON.stringify(d)).join('; ')
-            : res.statusText
-      throw new Error(message || apiErrorText('avatarUploadFailed'))
+      throwApiError(res.status, err, apiErrorText('avatarUploadFailed'))
     }
     return res.json() as Promise<User>
   },
@@ -471,14 +464,7 @@ export const api = {
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }))
-      const detail = err.detail
-      const message =
-        typeof detail === 'string'
-          ? detail
-          : Array.isArray(detail)
-            ? detail.map((d: { msg?: string }) => d.msg || JSON.stringify(d)).join('; ')
-            : res.statusText
-      throw new Error(message || apiErrorText('coverUploadFailed'))
+      throwApiError(res.status, err, apiErrorText('coverUploadFailed'))
     }
     return res.json() as Promise<Project>
   },
@@ -534,14 +520,7 @@ export const api = {
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }))
-      const detail = err.detail
-      const message =
-        typeof detail === 'string'
-          ? detail
-          : Array.isArray(detail)
-            ? detail.map((d: { msg?: string }) => d.msg || JSON.stringify(d)).join('; ')
-            : res.statusText
-      throw new Error(message || apiErrorText('zipDownloadFailed'))
+      throwApiError(res.status, err, apiErrorText('zipDownloadFailed'))
     }
     const blob = await res.blob()
     const cd = res.headers.get('Content-Disposition') || ''
@@ -588,8 +567,7 @@ export const api = {
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }))
-      const detail = err.detail
-      throw new Error(typeof detail === 'string' ? detail : apiErrorText('frameUploadFailed'))
+      throwApiError(res.status, err, apiErrorText('frameUploadFailed'))
     }
     return res.json() as Promise<Project>
   },

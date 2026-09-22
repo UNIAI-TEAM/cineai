@@ -1,6 +1,6 @@
 /** API Key 管理客户端（/api/user/api-keys） */
 
-import { apiErrorText } from '../lib/apiError'
+import { apiErrorText, throwApiError } from '../lib/apiError'
 
 function defaultApiBase() {
   if (typeof window !== 'undefined' && window.location?.hostname) {
@@ -39,14 +39,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    const detail = err.detail
-    const message =
-      typeof detail === 'string'
-        ? detail
-        : Array.isArray(detail)
-          ? detail.map((d: { msg?: string }) => d.msg || JSON.stringify(d)).join('; ')
-          : res.statusText
-    throw new Error(message || apiErrorText('requestFailed'))
+    throwApiError(res.status, err, apiErrorText('requestFailed'))
   }
   return res.json() as Promise<T>
 }

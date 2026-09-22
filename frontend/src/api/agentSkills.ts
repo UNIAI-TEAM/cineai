@@ -1,6 +1,6 @@
 /** Agent Skill API：列表 / 上传 / 启用 / 删除 */
 
-import { apiErrorText } from '../lib/apiError'
+import { apiErrorText, throwApiError } from '../lib/apiError'
 import { getDramaApiBase } from './drama'
 
 /** 组装请求头；FormData 时不要强行 JSON */
@@ -20,8 +20,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    const detail = err.detail
-    throw new Error(typeof detail === 'string' ? detail : apiErrorText('requestFailed'))
+    throwApiError(res.status, err, apiErrorText('requestFailed'))
   }
   return res.json()
 }
@@ -65,7 +64,7 @@ export async function uploadAgentSkillFile(file: File) {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(typeof err.detail === 'string' ? err.detail : apiErrorText('uploadFailed'))
+    throwApiError(res.status, err, apiErrorText('uploadFailed'))
   }
   return res.json() as Promise<AgentSkill>
 }

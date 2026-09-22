@@ -4,6 +4,7 @@ import { viStudioBoard } from './vi/studioBoard'
 import { viBilling } from './vi/billing'
 import { viSettingsPanels } from './vi/settingsPanels'
 import { viShell } from './vi/shell'
+import { viErrors } from './vi/errors'
 
 export const vi = {
   ...viShell,
@@ -12,4 +13,5 @@ export const vi = {
   ...viStudioBoard,
   ...viBilling,
   ...viSettingsPanels,
+  ...viErrors,
 }

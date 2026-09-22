@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import string
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI, HTTPException
@@ -14,6 +15,9 @@ from app.services.billing.http import http_exception_for_value_error
 
 CODE_RE = re.compile(r"^[a-z_]+\.[a-z_]+$")
 MONEY_FIELDS = {"need", "available", "pending"}
+
+LOCALES_DIR = Path(__file__).resolve().parents[2] / "frontend" / "src" / "i18n" / "locales"
+KEY_RE = re.compile(r"^\s*'([a-z_]+\.[a-z_]+)':", re.MULTILINE)
 
 
 def _sample_params(template: str) -> dict[str, object]:
@@ -152,3 +156,11 @@ def test_projects_api_has_no_chinese_http_detail() -> None:
         if "detail=" in line and re.search(r"[一-鿿]", line)
     ]
     assert offenders == []
+
+
+@pytest.mark.parametrize("locale", ["zh", "en", "vi"])
+def test_frontend_error_translations_match_catalog(locale: str) -> None:
+    src = (LOCALES_DIR / locale / "errors.ts").read_text(encoding="utf-8")
+    keys = set(KEY_RE.findall(src))
+    assert sorted(set(ERRORS) - keys) == [], f"{locale} 缺少翻译"
+    assert sorted(keys - set(ERRORS)) == [], f"{locale} 有多余的码"

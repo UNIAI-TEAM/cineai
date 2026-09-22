@@ -59,7 +59,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throwApiError(res.status, err.detail, '请求失败')
+    throwApiError(res.status, err, '请求失败')
   }
   return res.json()
 }

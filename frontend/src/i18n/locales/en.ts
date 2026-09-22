@@ -4,6 +4,7 @@ import { enStudioBoard } from './en/studioBoard'
 import { enBilling } from './en/billing'
 import { enSettingsPanels } from './en/settingsPanels'
 import { enShell } from './en/shell'
+import { enErrors } from './en/errors'
 
 export const en = {
   ...enShell,
@@ -12,4 +13,5 @@ export const en = {
   ...enStudioBoard,
   ...enBilling,
   ...enSettingsPanels,
+  ...enErrors,
 }
