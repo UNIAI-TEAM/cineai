@@ -137,6 +137,14 @@ def resolve_seedream_model_endpoint(model_id: str | None) -> str:
     return bindings[0].model if bindings else get_settings().model_image
 
 
+def explicit_seedream_model(model_id: str | None) -> str | None:
+    """Model ảnh user chọn tường minh và admin cho phép; không chọn/không hợp lệ → None để slot xoay theo weight."""
+    from app.services.function_router import is_model_allowed
+
+    mid = (model_id or "").strip()
+    return mid if mid and is_model_allowed("drama.asset_image", mid) else None
+
+
 # 将清晰度 + 比例解析为 Ark size；Pro 自动降到 ≤2K
 def resolve_seedream_size(
     *,

@@ -13,10 +13,18 @@ from app.services.ffmpeg_compose import is_near_silent_audio
 from app.services.function_router import resolve_function_candidates
 from app.services.providers.base import TtsRequest
 from app.services.providers.registry import get_adapter
-from app.services.providers.volc_tts_adapter import resolve_volc_speaker
+from app.services.providers.volc_tts_adapter import is_volc_speaker, resolve_volc_speaker
 from app.services.voices import edge_tts_voice_for_text
 
 logger = logging.getLogger(__name__)
+
+
+def _prefer_volc_for_speaker(routes: list, speaker: str) -> list:
+    """Speaker kiểu Volc thì xếp các route volc_tts lên trước (giữ thứ tự tương đối), ngược lại giữ nguyên."""
+    if not is_volc_speaker(speaker):
+        return list(routes)
+    volc = [r for r in routes if r.protocol == "volc_tts"]
+    return volc + [r for r in routes if r.protocol != "volc_tts"]
 
 
 class TtsService:
@@ -51,7 +59,9 @@ class TtsService:
 
         dest = storage.project_dir(project_id or 0) / f"shot_{(shot_no or 0):03d}_tts.mp3"
         req = TtsRequest(text=clean, voice=speaker, emotion_hint=emotion_hint)
-        for route in resolve_function_candidates(function_id):
+        # Giọng clone S_* / giọng Volc do caller chỉ định: đưa provider volc_tts lên đầu để giữ đúng giọng nhân vật
+        requested = resolve_volc_speaker((voice or "").strip(), "")
+        for route in _prefer_volc_for_speaker(resolve_function_candidates(function_id), requested):
             adapter = get_adapter(route.protocol)
             try:
                 audio = await adapter.tts(route, req)

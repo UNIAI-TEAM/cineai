@@ -694,6 +694,14 @@ def resolve_seedance_model_endpoint(model_id: str | None) -> str:
     return bindings[0].model if bindings else get_settings().model_video
 
 
+def explicit_seedance_model(model_id: str | None) -> str | None:
+    """Model video user chọn tường minh và admin cho phép; không chọn/không hợp lệ → None để slot xoay theo weight."""
+    from app.services.function_router import is_model_allowed
+
+    mid = (model_id or "").strip()
+    return mid if mid and is_model_allowed("drama.video", mid) else None
+
+
 def resolve_seedance_ratio(aspect_ratio: str | None) -> str:
     # 与漫剧默认竖屏一致；缺失时不得回落到横屏 16:9
     return (aspect_ratio or "9:16").strip() or "9:16"
@@ -723,7 +731,6 @@ def build_seedance_generate_body(input_params: BuildSeedanceGenerateBodyInput) -
         character_intro = True
 
     body: dict[str, Any] = {
-        "model": resolve_seedance_model_endpoint(input_params.get("model_id")),
         "content": build_seedance_content_items(
             content,
             reference,
@@ -742,4 +749,8 @@ def build_seedance_generate_body(input_params: BuildSeedanceGenerateBodyInput) -
     }
     if not use_first_frame_mode:
         body["ratio"] = resolve_seedance_ratio(input_params.get("aspect_ratio"))
+    # Chỉ ghim model khi user chọn tường minh; không chọn thì gateway xoay theo weight của slot
+    explicit = explicit_seedance_model(input_params.get("model_id"))
+    if explicit:
+        body = {"model": explicit, **body}
     return body

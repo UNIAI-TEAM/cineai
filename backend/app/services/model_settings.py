@@ -152,11 +152,11 @@ def _bootstrap_bindings_from_env(settings: Settings, channels: list[SystemModelC
             if any(normalize_model_name(m) == normalize_model_name(mid) for m in ch.models):
                 slots[cap] = [ModelBinding(channel_id=ch.id, model=mid)]
                 break
-        else:
-            if cap == "audio":
-                volc = next((c for c in channels if c.protocol == "volc_tts"), None)
-                if volc:
-                    slots[cap] = [ModelBinding(channel_id=volc.id, model=volc.models[0])]
+    # Env có Volc TTS thì Volc đứng đầu slot audio (giọng clone S_* / giọng nhân vật chỉ Volc đọc được)
+    volc = next((c for c in channels if c.protocol == "volc_tts"), None)
+    if volc:
+        rest = [b for b in slots.get("audio", []) if b.channel_id != volc.id]
+        slots["audio"] = [ModelBinding(channel_id=volc.id, model=volc.models[0])] + rest
     return FunctionBindings(slots=slots)
 
 

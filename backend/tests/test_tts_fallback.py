@@ -79,3 +79,56 @@ async def test_near_silent_output_rejected(monkeypatch, tmp_path, audio_snapshot
     monkeypatch.setattr(svc, "_tts_edge", AsyncMock(side_effect=RuntimeError("edge down")))
     with pytest.raises(RuntimeError):
         await svc.synthesize("a", "v", project_id=1, shot_no=2)
+
+
+# ---- I-8: giọng clone S_* / giọng Volc luôn ưu tiên provider volc_tts nếu slot có ----
+
+@pytest.fixture
+def mixed_audio_snapshot():
+    """Slot audio có cả OpenAI (đứng đầu, weight cao) lẫn Volc TTS."""
+    prev = get_routing_snapshot()
+    chans = [
+        SystemModelChannel(id="openai", name="OpenAI", base_url="https://api.openai.com/v1", api_key="k", has_api_key=True,
+                           protocol="openai", models=["gpt-4o-mini-tts"], enabled=True),
+        SystemModelChannel(id="volc_tts", name="Volc", base_url="https://voice.example/tts", api_key="v", has_api_key=True,
+                           protocol="volc_tts", models=["seed-tts-2.0"], enabled=True),
+    ]
+    _refresh_routing_snapshot(chans, FunctionBindings(slots={"audio": [
+        ModelBinding(channel_id="openai", model="gpt-4o-mini-tts", weight=100),
+        ModelBinding(channel_id="volc_tts", model="seed-tts-2.0", weight=1),
+    ]}))
+    yield
+    _refresh_routing_snapshot(prev.channels, prev.function_bindings)
+
+
+def _recording_svc(monkeypatch, tmp_path, calls):
+    """Adapter giả ghi lại protocol được gọi, luôn lỗi để thấy toàn bộ thứ tự thử."""
+    async def _tts(route, req):
+        calls.append(route.protocol)
+        raise RuntimeError("down")
+
+    svc = _svc(monkeypatch, tmp_path, SimpleNamespace(tts=_tts, is_transient_error=lambda e: False))
+    monkeypatch.setattr(svc, "_tts_edge", AsyncMock(side_effect=RuntimeError("edge down")))
+    return svc
+
+
+@pytest.mark.parametrize("voice", ["S_abc123", "zh_male_shaonianzixin_uranus_bigtts", "narrator_calm", "en_female_x_bigtts"])
+async def test_volc_speaker_prefers_volc_provider(monkeypatch, tmp_path, mixed_audio_snapshot, voice):
+    for _ in range(10):
+        calls: list[str] = []
+        svc = _recording_svc(monkeypatch, tmp_path, calls)
+        with pytest.raises(RuntimeError):
+            await svc.synthesize("a", voice, function_id="drama.tts", project_id=1, shot_no=1)
+        assert calls[0] == "volc_tts"
+
+
+async def test_openai_voice_keeps_slot_order(monkeypatch, tmp_path, mixed_audio_snapshot):
+    """Giọng không phải kiểu Volc (vd. alloy) không bị ép sang Volc."""
+    seen: set[str] = set()
+    for _ in range(30):
+        calls: list[str] = []
+        svc = _recording_svc(monkeypatch, tmp_path, calls)
+        with pytest.raises(RuntimeError):
+            await svc.synthesize("a", "alloy", function_id="drama.tts", project_id=1, shot_no=1)
+        seen.add(calls[0])
+    assert "openai" in seen

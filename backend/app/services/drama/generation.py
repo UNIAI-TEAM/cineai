@@ -40,7 +40,11 @@ from app.services.drama.fragment_asset_limit import cap_fragment_asset_ids
 from app.services.drama.build_fragments import prepare_fragment_content
 from app.services.drama.generation_prompt import append_style_prompt, build_generation_prompt
 from app.services.drama.image_styles import resolve_image_style_board_url
-from app.services.drama.seedream_options import resolve_seedream_model_endpoint, resolve_seedream_size
+from app.services.drama.seedream_options import (
+    explicit_seedream_model,
+    resolve_seedream_model_endpoint,
+    resolve_seedream_size,
+)
 from app.services.drama.visual_prompt import resolve_visual_prompt_for_asset
 from app.services.drama.voice_synthesis import build_voice_sample_text, synthesize_voice_asset
 from app.services.drama.voice_prompt import fallback_voice_prompt
@@ -1289,7 +1293,9 @@ async def generate_asset_image(
         "3:4" if (kind or "").lower() == "character" else "16:9"
     )
     res = (resolution or "").strip() or "2K"
+    # model xác định chỉ để tính size; gửi gateway chỉ model user chọn (None → slot xoay theo weight)
     model = resolve_seedream_model_endpoint(model_id)
+    requested_model = explicit_seedream_model(model_id)
     size = resolve_seedream_size(aspect_ratio=ratio, resolution=res, model_id=model)
     # board 风格封面的公网 URL；没有栅格图时仍只靠提示词
     board = resolve_image_style_board_url(style_id)
@@ -1313,7 +1319,7 @@ async def generate_asset_image(
         function_id="drama.asset_image",
         project_id=project.id,
         size=size,
-        model=model,
+        model=requested_model,
         aspect_ratio=ratio,
         style_ref_urls=[board] if board else None,
     )
@@ -1340,7 +1346,7 @@ async def generate_asset_image(
     await record_seedream_image_usage(
         db,
         user_id=user.id,
-        model=model or settings.model_image,
+        model=getattr(result, "model", "") or model or settings.model_image,
         domain="drama",
         image_result=result,
         drama_project_id=project.id,

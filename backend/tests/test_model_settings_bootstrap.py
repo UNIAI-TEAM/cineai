@@ -69,3 +69,13 @@ def test_bootstrap_skips_provider_pointing_at_tokenfree():
     s = Settings(openai_api_key="tf", openai_base_url="https://www.tokenfree.com/v1", ark_api_key="",
                  ark_base_url="https://www.tokenfree.com/v1", volc_tts_api_key="", volc_tts_app_id="")
     assert ms._bootstrap_channels_from_env(s) == []
+
+
+def test_bootstrap_bindings_put_volc_first_when_volc_configured():
+    """I-8: có cấu hình Volc TTS trong env thì slot audio seed Volc đứng đầu (giữ giọng clone/nhân vật)."""
+    s = Settings(openai_api_key="sk", openai_base_url="https://api.openai.com/v1", ark_api_key="",
+                 volc_tts_api_key="vk", model_llm="gpt-5.6-sol", model_audio="gpt-4o-mini-tts")
+    chans = ms._bootstrap_channels_from_env(s)
+    audio = ms._bootstrap_bindings_from_env(s, chans).slots["audio"]
+    assert audio[0].channel_id == "volc_tts"
+    assert [b.channel_id for b in audio] == ["volc_tts", "openai"]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from typing import Any
 
 import httpx
@@ -33,6 +34,18 @@ VOLC_TTS_STATIC_MODELS: list[dict[str, str]] = [
 def resolve_volc_speaker(voice: str, default: str) -> str:
     """Resolve voice name to speaker using SPEAKER_ALIASES or fallback to default."""
     return SPEAKER_ALIASES.get(voice, voice) or default
+
+
+# Speaker id kiểu Volc/BytePlus: zh_/en_/ja_/multi_… (vd. zh_female_cancan_uranus_bigtts)
+_VOLC_SPEAKER_RE = re.compile(r"^(zh|en|ja|es|id|pt|multi)_[a-z0-9]+_")
+
+
+def is_volc_speaker(speaker: str) -> bool:
+    """Speaker chỉ Volc phục vụ được: giọng clone S_*, *_bigtts, hoặc id kiểu zh_/en_… của Volc."""
+    sp = (speaker or "").strip()
+    if not sp:
+        return False
+    return sp.startswith("S_") or sp.endswith("_bigtts") or bool(_VOLC_SPEAKER_RE.match(sp))
 
 
 def resource_id_for_speaker(speaker: str, default: str) -> str:
