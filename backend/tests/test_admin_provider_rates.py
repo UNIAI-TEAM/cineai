@@ -124,3 +124,20 @@ async def test_put_invalid_returns_400_vietnamese(admin_client):
                                  json={"items": [{"pattern": "", "unit": "per_image", "usd": 1}]})
     assert res.status_code == 400
     assert res.json()["detail"] == "Dòng 1: thiếu mẫu tên model"
+
+
+async def test_put_overlong_unit_returns_400_vietnamese(admin_client):
+    """Đơn vị quá dài bị service từ chối bằng 400 tiếng Việt (không phải 422 của schema)."""
+    unit = "x" * 40
+    res = await admin_client.put("/api/admin/settings/billing/model-rates",
+                                 json={"items": [{"pattern": "a*", "unit": unit, "usd": 1}]})
+    assert res.status_code == 400
+    assert res.json()["detail"] == f"Dòng 1: đơn vị '{unit}' không hợp lệ"
+
+
+async def test_put_overlong_note_is_truncated(admin_client):
+    """Ghi chú quá dài không trả 422: được nhận và cắt còn 200 ký tự."""
+    res = await admin_client.put("/api/admin/settings/billing/model-rates",
+                                 json={"items": [{"pattern": "a*", "unit": "per_image", "usd": 1, "note": "n" * 300}]})
+    assert res.status_code == 200
+    assert res.json()["items"][0]["note"] == "n" * 200

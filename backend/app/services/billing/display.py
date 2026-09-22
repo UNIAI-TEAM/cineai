@@ -78,17 +78,22 @@ def billing_basis_sql_filter(basis: str) -> ColumnElement[bool] | None:
         return UsageEvent.estimated.is_(True)
     if normalized == "upstream":
         return UsageEvent.estimated.is_(False)
+    # 与 resolve_billing_basis 一致：带 llm_calls 的 LLM 汇总行归 upstream_usage（其 cost_fen 为本地价目算出）
+    has_llm_calls = _raw_usage_jsonb().has_key("llm_calls")
     if normalized == "upstream_cost":
         return and_(
             UsageEvent.estimated.is_(False),
             UsageEvent.raw_usage_json.isnot(None),
+            ~has_llm_calls,
             _usage_has_upstream_cost_clause(),
         )
     if normalized == "upstream_usage":
         return and_(
             UsageEvent.estimated.is_(False),
             UsageEvent.raw_usage_json.isnot(None),
-            ~_usage_has_upstream_cost_clause(),
-            _usage_has_upstream_tokens_clause(),
+            or_(
+                has_llm_calls,
+                and_(~_usage_has_upstream_cost_clause(), _usage_has_upstream_tokens_clause()),
+            ),
         )
     return None

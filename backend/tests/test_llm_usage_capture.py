@@ -69,8 +69,12 @@ async def test_no_usage_falls_back_to_estimate(db_session: AsyncSession, fake_ll
     fake_llm.append(None)
     ev = await _scoped_line(db_session, 1)
     # Không có usage nhưng đã biết model thực đã gọi (gpt-5.6-terra) → tính theo giá model đó với
-    # 80 000 token ước tính mỗi lần gọi (không còn đoán sang model đắt nhất của slot)
-    assert ev.model == "gpt-5.6-terra" and ev.estimated is False and ev.charge_fen == 280
+    # 80 000 token ước tính mỗi lần gọi (không còn đoán sang model đắt nhất của slot); không lần gọi
+    # nào có usage thật nên dòng vẫn là ước tính (nhãn/basis "估算")
+    from app.services.billing.display import resolve_billing_basis
+
+    assert ev.model == "gpt-5.6-terra" and ev.estimated is True and ev.charge_fen == 280
+    assert resolve_billing_basis(estimated=ev.estimated, raw_usage_json=ev.raw_usage_json) == "estimate"
 
 
 async def test_calls_outside_scope_record_nothing(fake_llm) -> None:
@@ -116,3 +120,25 @@ async def test_closed_scope_undrained_calls_do_not_leak(fake_llm) -> None:
         # cố tình không gọi record_llm_chat_line / drain_llm_usage trước khi scope đóng
     async with billing_scope(2):
         assert drain_llm_usage() == []
+
+
+async def test_concurrent_scopes_do_not_cross_contaminate() -> None:
+    """Hai billing_scope chạy song song (hai task asyncio, hai người dùng) chỉ thấy lần gọi LLM của chính mình."""
+    a_noted, b_noted = asyncio.Event(), asyncio.Event()
+
+    async def worker(task_run_id: int, model: str, tokens: int, mine: asyncio.Event, other: asyncio.Event):
+        """Ghi hai lần gọi xen kẽ với scope kia rồi drain."""
+        async with billing_scope(task_run_id):
+            note_llm_usage(model, {"total_tokens": tokens})
+            mine.set()
+            await other.wait()  # buộc hai scope đan xen trước khi drain
+            note_llm_usage(model, {"total_tokens": tokens})
+            await asyncio.sleep(0)
+            return drain_llm_usage()
+
+    got_a, got_b = await asyncio.gather(
+        worker(101, "model-a", 11, a_noted, b_noted),
+        worker(202, "model-b", 22, b_noted, a_noted),
+    )
+    assert [(c["model"], c["total_tokens"]) for c in got_a] == [("model-a", 11)] * 2
+    assert [(c["model"], c["total_tokens"]) for c in got_b] == [("model-b", 22)] * 2

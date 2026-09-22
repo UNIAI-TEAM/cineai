@@ -131,3 +131,38 @@ async def test_billing_basis_sql_filter_cost(db_session: AsyncSession) -> None:
     assert token_only.items[0].billing_basis == "upstream_usage"
 
     assert billing_basis_sql_filter("invalid") is None
+
+
+async def _basis_items(db: AsyncSession, admin, basis: str) -> list:
+    """以管理端列表接口按计费依据筛选当前用户的用量行。"""
+    from app.api.admin.usage import list_usage_events
+
+    out = await list_usage_events(
+        user_id=admin.id, task_run_id=None, project_id=None, drama_project_id=None, domain=None,
+        billing_key=None, capability=None, estimated=None, billing_basis=basis, created_from=None,
+        created_to=None, page=1, page_size=20, _admin=admin, db=db,
+    )
+    return list(out.items)
+
+
+@pytest.mark.asyncio
+async def test_billing_basis_sql_filter_matches_label_for_captured_llm(db_session: AsyncSession) -> None:
+    """带 llm_calls 的 LLM 汇总行标签为 实测(token)，SQL 筛选也必须归入 upstream_usage 而非 upstream_cost。"""
+    user = await make_user(db_session)
+    user.role = "admin"
+    await db_session.flush()
+    llm_raw = {"model": "gpt-5.6-terra", "llm_calls": 2, "usage": {"total_tokens": 1500, "cost_fen": 6}}
+    db_session.add_all([
+        UsageEvent(user_id=user.id, domain="drama", capability="video", billing_key="seedance", model="m",
+                   charge_fen=10, estimated=False, raw_usage_json=json.dumps({"usage": {"cost_fen": 88}})),
+        UsageEvent(user_id=user.id, domain="drama", capability="llm", billing_key="llm_chat", model="m",
+                   charge_fen=6, estimated=False, raw_usage_json=json.dumps(llm_raw)),
+    ])
+    await db_session.commit()
+
+    cost_items = await _basis_items(db_session, user, "upstream_cost")
+    usage_items = await _basis_items(db_session, user, "upstream_usage")
+    assert [i.billing_key for i in cost_items] == ["seedance"]
+    assert [i.billing_key for i in usage_items] == ["llm_chat"]
+    assert all(i.billing_basis == "upstream_cost" for i in cost_items)
+    assert all(i.billing_basis == "upstream_usage" for i in usage_items)

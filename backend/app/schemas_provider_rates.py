@@ -11,10 +11,10 @@ class ProviderRateRow(BaseModel):
     """Một dòng giá admin xem/gửi; ràng buộc ngữ nghĩa kiểm ở service để trả thông điệp tiếng Việt."""
 
     pattern: str = Field(default="")
-    unit: str = Field(default="", max_length=32)
+    unit: str = Field(default="")
     usd: float | None = None
     usd_out: float | None = None
-    note: str = Field(default="", max_length=200)
+    note: str = Field(default="")  # service cắt còn 200 ký tự
 
 
 class ProviderRateUnit(BaseModel):
