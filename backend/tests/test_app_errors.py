@@ -13,7 +13,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from app.errors import ERRORS, AppError, register_app_error_handler
-from app.services.billing.http import http_exception_for_value_error
+from app.services.billing.http import (
+    http_exception_for_billed_value_error,
+    http_exception_for_value_error,
+)
 
 CODE_RE = re.compile(r"^[a-z_]+\.[a-z_]+$")
 MONEY_FIELDS = {"need", "available", "pending"}
@@ -79,6 +82,16 @@ def test_app_error_is_copy_and_pickle_safe() -> None:
     assert restored.detail == original.detail
 
 
+def test_subclass_survives_clone_copy_and_pickle() -> None:
+    """clone / copy / pickle 不把 AppError 子类降级成 AppError。"""
+    from app.services.profile import ProfileError
+
+    original = ProfileError("auth.username_too_long", max=64)
+    for restored in (original.clone(), copy.copy(original), pickle.loads(pickle.dumps(original))):
+        assert type(restored) is ProfileError
+        assert restored.params == {"max": 64}
+
+
 def test_money_detail_has_no_yuan_sign() -> None:
     exc = AppError("billing.insufficient_balance", need_fen=1200, available_fen=300)
     assert exc.status == 402
@@ -113,6 +126,36 @@ def test_http_helper_plain_value_error_is_400() -> None:
     out = http_exception_for_value_error(ValueError("余额不足：老格式"))
     assert isinstance(out, HTTPException)
     assert out.status_code == 400
+
+
+def test_billed_helper_keeps_app_error_status() -> None:
+    """计费入口：校验类 AppError 保持 400 与 code，不再被统一改成 402。"""
+    out = http_exception_for_billed_value_error(AppError("tool.unknown"))
+    assert isinstance(out, AppError)
+    assert out.status == 400
+    assert out.code == "tool.unknown"
+
+
+def test_billed_helper_plain_value_error_stays_402() -> None:
+    out = http_exception_for_billed_value_error(ValueError("余额不足：老格式"))
+    assert isinstance(out, HTTPException)
+    assert out.status_code == 402
+
+
+def test_task_target_not_found_keeps_legacy_400() -> None:
+    assert AppError("task.target_not_found", target="shot").status == 400
+
+
+async def test_mock_delay_out_of_range_has_bounds() -> None:
+    from types import SimpleNamespace
+
+    from app.services.tasks.handlers import _run_tools_mock_delay
+
+    task = SimpleNamespace(payload={"delay_seconds": 9999})
+    with pytest.raises(AppError) as exc_info:
+        await _run_tools_mock_delay(task)
+    assert exc_info.value.code == "task.payload_out_of_range"
+    assert exc_info.value.params == {"field": "delay_seconds", "min": 1, "max": 600}
 
 
 def test_task_payload_missing_field_has_code() -> None:

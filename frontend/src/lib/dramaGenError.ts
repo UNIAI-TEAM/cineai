@@ -110,7 +110,7 @@ export function formatDramaGenError(raw: string | null | undefined): DramaGenErr
   if (isBillingError(text)) {
     return {
       title: '余额不足',
-      message: /余额不足|请先充值/.test(text) ? text : '当前余额不足，无法继续生成。',
+      message: text || '当前余额不足，无法继续生成。',
       suggestion: '请先充值后再重试该任务。',
       billingBlocked: true,
     }

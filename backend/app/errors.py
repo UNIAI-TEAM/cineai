@@ -53,9 +53,10 @@ ERRORS: dict[str, tuple[int, str]] = {
     "task.not_found": (404, "任务不存在"),
     "task.mock_limit": (429, "模拟延时任务最多同时运行 {max} 个"),
     "task.type_not_supported": (400, "当前任务类型尚未接入任务平台"),
-    "task.target_not_found": (404, "任务目标不存在或无权限"),
+    "task.target_not_found": (400, "任务目标不存在或无权限"),
     "task.target_mismatch": (400, "任务目标不匹配"),
     "task.invalid_payload": (400, "任务参数无效：{field}"),
+    "task.payload_out_of_range": (400, "任务参数 {field} 须在 {min}-{max} 之间"),
     "task.cancel_not_supported": (400, "任务不支持取消"),
     "task.already_finished": (400, "任务已结束，不能取消"),
     # 工具中心
@@ -140,16 +141,18 @@ class AppError(ValueError):
 
     def clone(self) -> "AppError":
         """复制一份，供 `raise ... from exc` 时避免异常以自身为 cause。"""
-        return AppError(self.code, status=self.status, **self.params)
+        return type(self)(self.code, status=self.status, **self.params)
 
     def __reduce__(self):
         """支持 copy / pickle：按 code / status / params 重建。"""
-        return (_rebuild_app_error, (self.code, self.status, self.params))
+        return (_rebuild_app_error, (type(self), self.code, self.status, self.params))
 
 
-def _rebuild_app_error(code: str, status: int | None, params: dict[str, Any]) -> AppError:
-    """__reduce__ 的重建函数：copy.copy / pickle.loads 都按此还原 AppError。"""
-    return AppError(code, status=status, **params)
+def _rebuild_app_error(
+    cls: type[AppError], code: str, status: int | None, params: dict[str, Any]
+) -> AppError:
+    """__reduce__ 的重建函数：copy.copy / pickle.loads 都按此还原（保留子类）。"""
+    return cls(code, status=status, **params)
 
 
 def register_app_error_handler(app: FastAPI) -> None:

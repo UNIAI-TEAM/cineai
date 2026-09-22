@@ -34,6 +34,7 @@ export const zhErrors = {
     'task.target_not_found': '内容不存在或无权访问',
     'task.target_mismatch': '数据不匹配，请刷新页面',
     'task.invalid_payload': '任务参数无效：{field}',
+    'task.payload_out_of_range': '任务参数 {field} 须在 {min}-{max} 之间',
     'task.cancel_not_supported': '任务不支持取消',
     'task.already_finished': '任务已结束，不能取消',
     'tool.unknown': '未知工具',

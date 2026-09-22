@@ -28,7 +28,10 @@ from app.services.drama.agents import (
     count_completed_episodes,
     resolve_episode_target,
 )
-from app.services.billing.http import http_exception_for_value_error
+from app.services.billing.http import (
+    http_exception_for_billed_value_error,
+    http_exception_for_value_error,
+)
 from app.services.drama.jobs import dispatch_episode_scripts_job, dispatch_script_summary_job
 from app.services.drama.llm import DramaLlmUnavailableError, drama_chat_text
 
@@ -471,5 +474,5 @@ async def ai_chat(
             commit=True,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=402, detail=str(exc)) from exc
+        raise http_exception_for_billed_value_error(exc) from exc
     return {"reply": reply, "task_id": task.id}

@@ -2,7 +2,7 @@ import { formatFenActive } from '../currency/store'
 import { getActiveLocale } from '../i18n/detect'
 import { interpolate, type TVars } from '../i18n/lookup'
 import { messages } from '../i18n/messages'
-import { markBillingMessage, notifyBillingErrorIfNeeded } from './billingError'
+import { isInsufficientBalanceCode, markBillingMessage, notifyBillingErrorIfNeeded } from './billingError'
 
 type CommonKey = keyof (typeof messages)['zh']['common']
 type ErrorParams = Record<string, unknown>
@@ -25,11 +25,6 @@ export class ApiError extends Error {
 /** 按当前界面语言取通用报错兜底文案（供非 React 的 api 层使用） */
 export function apiErrorText(key: CommonKey): string {
   return messages[getActiveLocale()].common[key]
-}
-
-/** 是否为余额不足类错误码（billing.insufficient_balance*） */
-export function isInsufficientBalanceCode(code?: string): boolean {
-  return Boolean(code && code.startsWith('billing.insufficient_balance'))
 }
 
 // 后端 params → 插值变量：*_fen 按当前展示货币格式化并去掉后缀

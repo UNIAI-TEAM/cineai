@@ -230,7 +230,7 @@ async def _run_tools_mock_delay(task: TaskRun) -> dict[str, Any] | None:
     payload = task.payload or {}
     delay_seconds = int(payload.get("delay_seconds") or 10)
     if delay_seconds < 1 or delay_seconds > 600:
-        raise AppError("task.invalid_payload", field="delay_seconds")
+        raise AppError("task.payload_out_of_range", field="delay_seconds", min=1, max=600)
     await asyncio.sleep(delay_seconds)
     succeed = payload.get("succeed", True)
     if not isinstance(succeed, bool):

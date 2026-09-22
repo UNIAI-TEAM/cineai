@@ -34,6 +34,7 @@ export const enErrors = {
     'task.target_not_found': 'Not found, or you don’t have access',
     'task.target_mismatch': 'Data doesn’t match. Please reload the page',
     'task.invalid_payload': 'Invalid parameter: {field}',
+    'task.payload_out_of_range': '{field} must be between {min} and {max}',
     'task.cancel_not_supported': 'This can’t be cancelled',
     'task.already_finished': 'Already finished, can’t cancel',
     'tool.unknown': 'Unknown tool',

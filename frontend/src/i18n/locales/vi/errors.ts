@@ -34,6 +34,7 @@ export const viErrors = {
     'task.target_not_found': 'Không tìm thấy nội dung, hoặc bạn không có quyền truy cập',
     'task.target_mismatch': 'Dữ liệu không khớp, vui lòng tải lại trang',
     'task.invalid_payload': 'Tham số không hợp lệ: {field}',
+    'task.payload_out_of_range': 'Tham số {field} phải nằm trong khoảng {min}–{max}',
     'task.cancel_not_supported': 'Không thể huỷ mục này',
     'task.already_finished': 'Đã chạy xong, không thể huỷ',
     'tool.unknown': 'Công cụ không tồn tại',

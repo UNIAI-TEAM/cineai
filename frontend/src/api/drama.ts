@@ -1,4 +1,4 @@
-import { throwApiError } from '../lib/apiError'
+import { apiErrorText, throwApiError } from '../lib/apiError'
 
 function defaultApiBase() {
   if (typeof window !== 'undefined' && window.location?.hostname) {
@@ -59,7 +59,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throwApiError(res.status, err, '请求失败')
+    throwApiError(res.status, err, apiErrorText('requestFailed'))
   }
   return res.json()
 }

@@ -23,6 +23,7 @@ from app.services.billing import (
     run_billed_ephemeral_deferred,
     settle_deferred_video_poll,
 )
+from app.services.billing.http import http_exception_for_billed_value_error
 from app.services.drama.billing_util import record_seedream_image_usage
 from app.services.studio_tools import poll_video_task, ratio_to_size
 from app.services import storage
@@ -95,7 +96,7 @@ async def generate_image(
             commit=True,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=402, detail=str(exc)) from exc
+        raise http_exception_for_billed_value_error(exc) from exc
 
     return V1GenerationOut(
         status="succeeded",
@@ -139,7 +140,7 @@ async def generate_video(
             commit=True,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=402, detail=str(exc)) from exc
+        raise http_exception_for_billed_value_error(exc) from exc
 
     return V1GenerationOut(
         status="queued",
@@ -193,7 +194,7 @@ async def forward_seedance(
             commit=True,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=402, detail=str(exc)) from exc
+        raise http_exception_for_billed_value_error(exc) from exc
 
     return V1GenerationOut(status="queued", kind="video", task_id=upstream_id, urls=[])
 
