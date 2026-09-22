@@ -1,5 +1,8 @@
 /** Shared helpers for drama project workspace steps. */
 import type { DramaEpisodeBody, DramaProject, DramaScript } from '../../api/drama'
+import { getActiveLocale } from '../../i18n/detect'
+import { interpolate } from '../../i18n/lookup'
+import { messages } from '../../i18n/messages'
 
 /** 与后端 MIN_EPISODE_CONTENT_CHARS 对齐：过短正文视为未完成 */
 export const MIN_EPISODE_BODY_CHARS = 500
@@ -87,7 +90,7 @@ export function buildOutlineDirectory(
     const ep = byNumber.get(episodeNumber)
     return {
       episodeNumber,
-      title: ep?.title || `第 ${episodeNumber} 集`,
+      title: ep?.title || interpolate(messages[getActiveLocale()].dramaProject.episodeNo, { n: episodeNumber }),
       creative: ep?.creative,
       summary: ep?.summary,
       body: ep?.body,

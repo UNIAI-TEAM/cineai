@@ -1,6 +1,10 @@
 /** 漫剧分集左侧目录（大纲 / 分集页 / 分镜页共用） */
 import type { ReactNode } from 'react'
 import type { DramaEpisode } from '../../api/drama'
+import { useI18n } from '../../i18n/context'
+import { getActiveLocale } from '../../i18n/detect'
+import { interpolate } from '../../i18n/lookup'
+import { messages } from '../../i18n/messages'
 
 export type DramaEpisodeDirItem = {
   id: number
@@ -26,35 +30,40 @@ export function buildEpisodeDirItems(episodes: DramaEpisode[]): DramaEpisodeDirI
     if (an !== bn) return an - bn
     return a.id - b.id
   })
+  const l = messages[getActiveLocale()].dramaProject
   return sorted.map((ep) => {
     const epNo = Number(ep.params?.episodeNumber) || 0
     const fragCount = (ep.fragments || []).length
     return {
       id: ep.id,
-      label: epNo >= 1 ? `第 ${epNo} 集` : `未编号 · ${ep.id}`,
-      title: ep.name || `分集 ${ep.id}`,
-      meta: fragCount > 0 ? `${fragCount} 镜` : undefined,
+      label:
+        epNo >= 1
+          ? interpolate(l.episodeNo, { n: epNo })
+          : interpolate(l.dir.unnumbered, { id: ep.id }),
+      title: ep.name || interpolate(l.episodeFallback, { id: ep.id }),
+      meta: fragCount > 0 ? interpolate(l.dir.shots, { n: fragCount }) : undefined,
     }
   })
 }
 
 // 左侧分集目录
 export function DramaEpisodeDir({
-  title = '分集目录',
+  title,
   items,
   activeId,
   onSelect,
   footer,
-  emptyText = '暂无分集',
+  emptyText,
 }: DramaEpisodeDirProps) {
+  const { t } = useI18n()
   return (
     <aside className="drama-episode-dir">
       <div className="drama-episode-dir-head">
-        <h3>{title}</h3>
+        <h3>{title ?? t('dramaProject.episodeDir')}</h3>
         {footer}
       </div>
       {items.length === 0 ? (
-        <p className="drama-episode-dir-empty">{emptyText}</p>
+        <p className="drama-episode-dir-empty">{emptyText ?? t('dramaProject.dir.empty')}</p>
       ) : (
         <ul>
           {items.map((item) => (

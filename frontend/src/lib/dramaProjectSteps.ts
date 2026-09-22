@@ -1,4 +1,6 @@
 /** Drama project workflow steps: 剧情大纲 → 分镜 → 生成视频 */
+import { getActiveLocale } from '../i18n/detect'
+import { messages } from '../i18n/messages'
 
 export type ProjectStepKey = 'outline' | 'storyboard' | 'video'
 export type WorkspaceViewKey = ProjectStepKey | 'assets' | 'episodes'
@@ -15,18 +17,11 @@ export type WorkspaceLocationState = {
 }
 
 // 有剧本走大纲；无剧本直接分镜（分集列表）
+// 步骤名按当前界面语言取
 export function buildProjectSteps(hasScript: boolean): ProjectStepItem[] {
-  const steps: Array<{ key: ProjectStepKey; label: string }> = hasScript
-    ? [
-        { key: 'outline', label: '剧情大纲' },
-        { key: 'storyboard', label: '分镜' },
-        { key: 'video', label: '生成视频' },
-      ]
-    : [
-        { key: 'storyboard', label: '分镜' },
-        { key: 'video', label: '生成视频' },
-      ]
-  return steps.map((step, index) => ({ ...step, order: index + 1 }))
+  const labels = messages[getActiveLocale()].dramaProject.steps
+  const keys: ProjectStepKey[] = hasScript ? ['outline', 'storyboard', 'video'] : ['storyboard', 'video']
+  return keys.map((key, index) => ({ key, label: labels[key], order: index + 1 }))
 }
 
 export function getInitialProjectStep(hasScript: boolean): ProjectStepKey {

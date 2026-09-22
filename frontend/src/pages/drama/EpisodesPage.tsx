@@ -5,6 +5,7 @@ import AppShell from '../../components/layout/AppShell'
 import { isCanvasWorkflow } from '../../lib/dramaWorkflow'
 import { resolveStoryboardPath } from '../../lib/dramaStoryboardNav'
 import { dramaApi } from '../../api/drama'
+import { useI18n } from '../../i18n/context'
 import RequireAuth from './RequireAuth'
 import './drama.css'
 
@@ -21,6 +22,7 @@ function EpisodesRedirect() {
   const { projectId } = useParams()
   const pid = Number(projectId)
   const navigate = useNavigate()
+  const { t } = useI18n()
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -37,18 +39,18 @@ function EpisodesRedirect() {
         const path = await resolveStoryboardPath(pid)
         if (!cancelled) navigate(path, { replace: true })
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : '无法进入分镜')
+        if (!cancelled) setError(err instanceof Error ? err.message : t('dramaProject.enterFailed'))
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [pid, navigate])
+  }, [pid, navigate, t])
 
   return (
     <AppShell active="drama" flush>
       <div className="drama-workspace-status">
-        {error || '正在进入分镜…'}
+        {error || t('dramaProject.workspace.enteringStoryboard')}
       </div>
     </AppShell>
   )

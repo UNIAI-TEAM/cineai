@@ -2,6 +2,7 @@
 import { useRef, useState, type MouseEvent } from 'react'
 import { Download, Eye, X } from 'lucide-react'
 import type { AgentSkill } from '../../api/agentSkills'
+import { useI18n } from '../../i18n/context'
 import { triggerBlobDownload } from '../../lib/clientDownload'
 
 type AgentSkillPickerProps = {
@@ -56,9 +57,10 @@ export function AgentSkillPicker({
   onUpload,
   uploading = false,
   uploadError = '',
-  emptyText = '暂无可用 Skill',
+  emptyText,
   compact = false,
 }: AgentSkillPickerProps) {
+  const { t } = useI18n()
   const selected = new Set(selectedIds)
   const rootClass = compact ? 'fc-skill-picker' : 'pf-skill-picker'
   const fileRef = useRef<HTMLInputElement>(null)
@@ -84,12 +86,12 @@ export function AgentSkillPicker({
       <div className={`${rootClass}-toolbar`}>
         {onSelectAll ? (
           <button type="button" className={`${rootClass}-link`} onClick={onSelectAll}>
-            全选
+            {t('dramaProject.skill.selectAll')}
           </button>
         ) : null}
         {onSelectNone ? (
           <button type="button" className={`${rootClass}-link`} onClick={onSelectNone}>
-            不使用
+            {t('dramaProject.skill.selectNone')}
           </button>
         ) : null}
         {onUpload ? (
@@ -99,12 +101,12 @@ export function AgentSkillPicker({
             disabled={uploading}
             onClick={() => fileRef.current?.click()}
           >
-            {uploading ? '上传中…' : '上传 .md'}
+            {uploading ? t('dramaProject.skill.uploading') : t('dramaProject.skill.upload')}
           </button>
         ) : null}
       </div>
       {skills.length === 0 ? (
-        <p className={`${rootClass}-empty`}>{emptyText}</p>
+        <p className={`${rootClass}-empty`}>{emptyText ?? t('dramaProject.skill.empty')}</p>
       ) : (
         <ul className={`${rootClass}-list`}>
           {skills.map((skill) => {
@@ -126,8 +128,8 @@ export function AgentSkillPicker({
                   <button
                     type="button"
                     className={`${rootClass}-action`}
-                    title="预览"
-                    aria-label={`预览 ${skill.name}`}
+                    title={t('common.preview')}
+                    aria-label={t('dramaProject.skill.previewAria', { name: skill.name })}
                     onClick={(event) => handlePreview(skill, event)}
                   >
                     <Eye size={14} strokeWidth={1.8} />
@@ -135,8 +137,8 @@ export function AgentSkillPicker({
                   <button
                     type="button"
                     className={`${rootClass}-action`}
-                    title="下载 .md"
-                    aria-label={`下载 ${skill.name}`}
+                    title={t('dramaProject.skill.download')}
+                    aria-label={t('dramaProject.skill.downloadAria', { name: skill.name })}
                     onClick={(event) => handleDownload(skill, event)}
                   >
                     <Download size={14} strokeWidth={1.8} />
@@ -163,7 +165,7 @@ export function AgentSkillPicker({
       {uploadError ? <p className={`${rootClass}-error`}>{uploadError}</p> : null}
 
       {previewSkill ? (
-        <div className={`${rootClass}-preview`} role="dialog" aria-label={`预览 ${previewSkill.name}`}>
+        <div className={`${rootClass}-preview`} role="dialog" aria-label={t('dramaProject.skill.previewAria', { name: previewSkill.name })}>
           <div className={`${rootClass}-preview-head`}>
             <div>
               <strong>{previewSkill.name}</strong>
@@ -175,12 +177,12 @@ export function AgentSkillPicker({
                 className={`${rootClass}-link`}
                 onClick={(event) => handleDownload(previewSkill, event)}
               >
-                下载 .md
+                {t('dramaProject.skill.download')}
               </button>
               <button
                 type="button"
                 className={`${rootClass}-action`}
-                aria-label="关闭预览"
+                aria-label={t('dramaProject.skill.closePreview')}
                 onClick={() => setPreviewSkill(null)}
               >
                 <X size={16} />
