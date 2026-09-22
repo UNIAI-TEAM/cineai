@@ -361,6 +361,26 @@ async def seed_templates() -> None:
         await db.commit()
 
 
+_HEALTH_CAPS = ("text", "image", "video", "audio")
+
+
+def _health_models() -> dict:
+    """Trạng thái từng slot năng lực theo routing snapshot (ready / unavailable / not_configured); lỗi thì unknown."""
+    try:
+        from app.services.model_settings import _build_readiness, get_routing_snapshot
+
+        snap = get_routing_snapshot()
+        out: dict = {}
+        for item in _build_readiness(snap.function_bindings, snap.channels):
+            assigned = bool(snap.function_bindings.slots.get(item.capability))
+            status = "ready" if item.ready else ("unavailable" if assigned else "not_configured")
+            out[item.capability] = {"status": status, "model": item.model or ""}
+        return out
+    except Exception:  # noqa: BLE001
+        logger.warning("health: không đọc được trạng thái model", exc_info=True)
+        return {cap: {"status": "unknown", "model": ""} for cap in _HEALTH_CAPS}
+
+
 @app.get("/api/health")
 async def health() -> dict:
     from app.config import reload_settings
@@ -375,12 +395,7 @@ async def health() -> dict:
         "ark_mock": s.ark_mock,
         "db_pool": pool_status(),
         "task_runtime": runtime,
-        "models": {
-            "llm": s.model_llm,
-            "image": s.model_image,
-            "video": s.model_video,
-            "audio": s.model_audio,
-        },
+        "models": _health_models(),
         "quality": {
             "image_size": s.ark_image_size,
             "video_resolution": s.ark_video_resolution,

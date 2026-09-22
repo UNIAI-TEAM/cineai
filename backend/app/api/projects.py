@@ -565,6 +565,19 @@ async def get_project(
     return await _get_owned_project(db, project_id, user)
 
 
+def _validate_project_media_models(project: Project, data: dict) -> None:
+    """Kiểm tra image_model/video_model gửi lên có được admin gán không; giá trị trùng giá trị đang lưu (kể cả id cũ) thì bỏ qua."""
+    from app.services.media_catalog import is_valid_project_media_model
+
+    for field, kind, code in (("image_model", "image", "project.invalid_image_model"),
+                              ("video_model", "video", "project.invalid_video_model")):
+        value = data.get(field)
+        if not value or value == (getattr(project, field, "") or "").strip():
+            continue
+        if not is_valid_project_media_model(value, kind):
+            raise AppError(code)
+
+
 @router.patch("/projects/{project_id}", response_model=ProjectOut)
 async def update_project(
     project_id: int,
@@ -604,16 +617,7 @@ async def update_project(
     for key in ("style_prompt", "character_prompt", "extra_prompt", "image_model", "video_model"):
         if key in data:
             data[key] = str(data[key] or "").strip()
-    if "image_model" in data and data["image_model"]:
-        from app.services.media_catalog import is_valid_project_media_model
-
-        if not is_valid_project_media_model(data["image_model"], "image"):
-            raise AppError("project.invalid_image_model")
-    if "video_model" in data and data["video_model"]:
-        from app.services.media_catalog import is_valid_project_media_model
-
-        if not is_valid_project_media_model(data["video_model"], "video"):
-            raise AppError("project.invalid_video_model")
+    _validate_project_media_models(project, data)
     if "bgm_lock" in data:
         data["bgm_lock"] = str(data["bgm_lock"] or "").strip()
     if "subtitle_preset" in data:

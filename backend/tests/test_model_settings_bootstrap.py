@@ -1,4 +1,6 @@
 """Seed provider từ env, readiness theo slot, migration bỏ tokenfree/logical_models."""
+import pytest
+
 from app.config import Settings
 from app.schemas_routing import FunctionBindings, ModelBinding, SystemModelChannel
 from app.services import model_settings as ms
@@ -79,3 +81,23 @@ def test_bootstrap_bindings_put_volc_first_when_volc_configured():
     audio = ms._bootstrap_bindings_from_env(s, chans).slots["audio"]
     assert audio[0].channel_id == "volc_tts"
     assert [b.channel_id for b in audio] == ["volc_tts", "openai"]
+
+
+@pytest.mark.parametrize("placeholder", ["replace-me", "CHANGEME", "your-openai-api-key", "sk-xxxxxxxx", "<your key>", "change-me"])
+def test_bootstrap_treats_placeholder_keys_as_empty(placeholder):
+    """I-5: key giữ chỗ trong .env mẫu không được seed thành provider (để còn rơi về mock)."""
+    s = Settings(openai_api_key=placeholder, openai_base_url="https://api.openai.com/v1", ark_api_key=placeholder,
+                 volc_tts_api_key=placeholder, volc_tts_app_id="", volc_tts_access_key="")
+    assert ms._bootstrap_channels_from_env(s) == []
+
+
+def test_env_examples_have_no_placeholder_provider_keys():
+    """I-5: file .env mẫu để trống key provider thay vì 'replace-me'."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    for rel in ("backend/.env.example", "deploy/.env.docker.example", "deploy/.env.prod.example"):
+        for line in (root / rel).read_text(encoding="utf-8").splitlines():
+            key, _, value = line.partition("=")
+            if key.strip() in {"OPENAI_API_KEY", "ARK_API_KEY", "VOLC_TTS_API_KEY"}:
+                assert not ms._is_placeholder_secret(value) and value.strip() == "", f"{rel}: {line}"

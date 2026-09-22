@@ -111,6 +111,25 @@ def _refresh_routing_snapshot(channels: list[SystemModelChannel], function_bindi
     _routing_snapshot = RoutingSnapshot(channels=channels, function_bindings=function_bindings)
 
 
+# Giá trị giữ chỗ hay gặp trong .env mẫu — coi như chưa điền key
+_PLACEHOLDER_SECRETS = {"replace-me", "replace_me", "changeme", "change-me", "change_me", "xxx", "todo"}
+
+
+def _is_placeholder_secret(value: str | None) -> bool:
+    """Key giữ chỗ (replace-me, changeme, your-*, sk-xxx*, <...>) — không phải key thật."""
+    v = (value or "").strip().lower()
+    if not v:
+        return False
+    return (v in _PLACEHOLDER_SECRETS or v.startswith(("your-", "your_", "sk-xxx"))
+            or (v.startswith("<") and v.endswith(">")))
+
+
+def _real_secret(value: str | None) -> str:
+    """Key đã strip; key giữ chỗ trả rỗng."""
+    v = (value or "").strip()
+    return "" if _is_placeholder_secret(v) else v
+
+
 # Seed provider từ .env lần đầu (chỉ khi DB chưa có provider nào)
 def _bootstrap_channels_from_env(settings: Settings | None = None) -> list[SystemModelChannel]:
     """Suy ra 0..3 provider (openai/byteplus/volc_tts) từ các key .env đang có."""
@@ -121,18 +140,18 @@ def _bootstrap_channels_from_env(settings: Settings | None = None) -> list[Syste
     src = settings or get_settings()
     env_models = [m for m in (src.model_llm, src.model_image, src.model_image_45, src.model_video, src.model_video_2, src.model_audio) if (m or "").strip()]
     out: list[SystemModelChannel] = []
-    okey = (src.openai_api_key or "").strip()
+    okey = _real_secret(src.openai_api_key)
     if okey:
         models = [m for m in env_models if infer_model_capability(m) in ("text", "audio")]
         out.append(SystemModelChannel(id="openai", name="OpenAI", base_url=(src.openai_base_url or OPENAI_DEFAULT_BASE_URL).rstrip("/"),
                                       api_key=okey, has_api_key=True, protocol="openai", api_format="openai", models=models, enabled=True, sort_order=0))
-    akey = (src.ark_api_key or "").strip()
+    akey = _real_secret(src.ark_api_key)
     if akey:
         models = [m for m in env_models if infer_model_capability(m) in ("image", "video")]
         out.append(SystemModelChannel(id="byteplus", name="BytePlus ModelArk", base_url=(src.ark_base_url or ARK_DEFAULT_BASE_URL).rstrip("/"),
                                       api_key=akey, has_api_key=True, protocol="ark", api_format="ark", models=models, enabled=True, sort_order=1))
-    vkey = (src.volc_tts_api_key or "").strip()
-    if vkey or (src.volc_tts_app_id and src.volc_tts_access_key):
+    vkey = _real_secret(src.volc_tts_api_key)
+    if vkey or (_real_secret(src.volc_tts_app_id) and _real_secret(src.volc_tts_access_key)):
         out.append(SystemModelChannel(id="volc_tts", name="BytePlus Seed Speech", base_url=(src.volc_tts_url or "").rstrip("/"),
                                       api_key=vkey, has_api_key=bool(vkey), protocol="volc_tts", api_format="openai",
                                       models=[src.volc_tts_resource_id or "seed-tts-2.0"], enabled=True, sort_order=2))
