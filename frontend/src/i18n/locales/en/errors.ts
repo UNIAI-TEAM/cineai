@@ -192,6 +192,8 @@ export const enErrors = {
     'api.content_required': 'content must not be empty',
     'api.task_id_required': 'task_id is required',
     'api.upstream_failed': 'The model provider couldn\'t generate this. Please try again later',
+    // --- Project content language (Việc P) ---
+    'common.invalid_content_lang': 'This content language isn\'t supported',
   },
   dramaGenError: {
     slot: {

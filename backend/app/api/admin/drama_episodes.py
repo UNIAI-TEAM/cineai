@@ -13,6 +13,7 @@ from app.deps import get_current_admin
 from app.models import User
 from app.models_drama import DramaEpisode, DramaEpisodeFragment, DramaProject
 from app.schemas import PageMeta
+from app.services.admin.stored_errors import AdminStoredErrorOut, generation_error, param_error
 
 router = APIRouter()
 
@@ -25,6 +26,7 @@ class AdminDramaFragmentBriefOut(BaseModel):
     video: str = ""
     duration_sec: int | None = None
     generation_status: str | None = None
+    generation_error: AdminStoredErrorOut | None = None
     asset_ref_count: int = 0
 
 
@@ -44,6 +46,9 @@ class AdminDramaEpisodeOut(BaseModel):
 
 
 class AdminDramaEpisodeDetailOut(AdminDramaEpisodeOut):
+    # 分镜规划 / AI 优化剧本的落库错误（带错误码时管理端按码翻译）
+    fragment_plan_error: AdminStoredErrorOut | None = None
+    episode_optimize_error: AdminStoredErrorOut | None = None
     fragments: list[AdminDramaFragmentBriefOut] = Field(default_factory=list)
 
 
@@ -162,6 +167,8 @@ async def get_drama_episode(
         name=episode.name or f"Tập #{episode.id}",
         fragment_count=len(fragments),
         fragment_plan_status=_episode_plan_status(episode),
+        fragment_plan_error=param_error(episode.params, "fragment_plan_error"),
+        episode_optimize_error=param_error(episode.params, "episode_optimize_error"),
         created_at=episode.created_at,
         updated_at=episode.updated_at,
         fragments=[
@@ -173,6 +180,7 @@ async def get_drama_episode(
                 video=f.video or "",
                 duration_sec=f.duration_sec,
                 generation_status=_fragment_generation_status(f),
+                generation_error=generation_error(f.params),
                 asset_ref_count=len(f.asset_references or []),
             )
             for f in fragments

@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { api, type AdminTaskDetail } from "@/api/client";
 import { AdminEntityLink } from "@/components/admin/AdminEntityLink";
 import { AdminModal } from "@/components/admin/AdminModal";
+import { StoredErrorText } from "@/components/admin/StoredErrorText";
 import { Button } from "@/components/ui/button";
 import { billingBasisLabel, taskDomainLabel, taskStatusLabel, taskTypeLabel } from "@/lib/statusLabels";
 import { hasJsonContent, prettyJson } from "@/lib/jsonPreview";
@@ -268,9 +269,12 @@ export function TaskDetailDialog({ taskId, open, onOpenChange, onCancelled }: Ta
                     </p>
                   ) : null}
                   {task.error_code || task.error_message ? (
-                    <pre className="task-detail-error">
-                      {[task.error_code, task.error_message].filter(Boolean).join(" · ")}
-                    </pre>
+                    <StoredErrorText
+                      className="task-detail-error"
+                      message={task.error_message}
+                      code={task.error_code}
+                      params={task.error_params}
+                    />
                   ) : null}
                 </section>
 
@@ -485,8 +489,12 @@ export function TaskDetailDialog({ taskId, open, onOpenChange, onCancelled }: Ta
                             {step.provider_name ?? "—"}
                             {step.provider_task_id ? ` · ${step.provider_task_id}` : ""}
                           </td>
-                          <td className="max-w-[200px] truncate text-[11px] text-[#f56c6c]" title={step.error_message ?? ""}>
-                            {step.error_message ?? "—"}
+                          <td>
+                            {step.error_code || step.error_message ? (
+                              <StoredErrorText compact message={step.error_message} code={step.error_code} />
+                            ) : (
+                              <span className="text-[11px]">—</span>
+                            )}
                           </td>
                           <td className="text-[11px] text-[#909399]">
                             <div>Bắt đầu {fmtTime(step.started_at)}</div>

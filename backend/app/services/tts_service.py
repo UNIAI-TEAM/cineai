@@ -11,10 +11,12 @@ from app.config import Settings
 from app.errors import AppRuntimeError
 from app.services import storage
 from app.services.ffmpeg_compose import is_near_silent_audio
+from app.services.content_lang import guess_text_lang, normalize_lang
 from app.services.function_router import resolve_function_candidates
 from app.services.providers.base import TtsRequest
 from app.services.providers.registry import get_adapter
 from app.services.providers.volc_tts_adapter import is_volc_speaker, resolve_volc_speaker
+from app.services.voice_lang import voice_for_lang
 from app.services.voices import edge_tts_voice_for_text
 
 logger = logging.getLogger(__name__)
@@ -45,23 +47,30 @@ class TtsService:
         project_id=None,
         shot_no=None,
         emotion_hint=None,
+        lang=None,
     ) -> str:
-        """Sinh lời bình: mock trả file mock; thật thì thử từng model trong slot rồi mới edge-tts."""
+        """Sinh lời bình: mock trả file mock; thật thì thử từng model trong slot rồi mới edge-tts.
+
+        lang: ngôn ngữ nội dung zh|vi|en (không truyền thì đoán theo văn bản); giọng không đọc được
+        ngôn ngữ đó sẽ được đổi sang giọng mặc định của ngôn ngữ (voice_lang.voice_for_lang).
+        """
         clean = (text or "").strip() or "这一幕。"
+        lang = normalize_lang(lang) or guess_text_lang(clean)
         # Alias giọng đọc (narrator_calm…) phải quy đổi trước khi gửi adapter hoặc edge-tts
         speaker = resolve_volc_speaker((voice or "").strip(), self.settings.volc_tts_speaker or "")
+        speaker = voice_for_lang(speaker, lang) if speaker else speaker
         if self.mock:
             digest = hashlib.md5(f"{speaker}:{clean}".encode()).hexdigest()[:8]
             dest = Path(__file__).resolve().parents[2] / "static" / "mock" / f"audio_{digest}.mp3"
             dest.parent.mkdir(parents=True, exist_ok=True)
             if not dest.exists() or dest.stat().st_size < 1000:
-                await self._tts_edge(clean, dest, voice_hint=speaker)
+                await self._tts_edge(clean, dest, voice_hint=speaker, lang=lang)
             return f"/static/mock/audio_{digest}.mp3"
 
         dest = storage.project_dir(project_id or 0) / f"shot_{(shot_no or 0):03d}_tts.mp3"
         req = TtsRequest(text=clean, voice=speaker, emotion_hint=emotion_hint)
         # Giọng clone S_* / giọng Volc do caller chỉ định: đưa provider volc_tts lên đầu để giữ đúng giọng nhân vật
-        requested = resolve_volc_speaker((voice or "").strip(), "")
+        requested = voice_for_lang(resolve_volc_speaker((voice or "").strip(), ""), lang)
         for route in _prefer_volc_for_speaker(resolve_function_candidates(function_id), requested):
             adapter = get_adapter(route.protocol)
             try:
@@ -74,7 +83,7 @@ class TtsService:
                 if url:
                     return url
         try:
-            await self._tts_edge(clean, dest, voice_hint=speaker)
+            await self._tts_edge(clean, dest, voice_hint=speaker, lang=lang)
             url = await self._accept_if_audible(dest, "edge-tts")
             if url:
                 return url
@@ -93,14 +102,14 @@ class TtsService:
             return None
         return storage.publish_local(dest)
 
-    async def _tts_edge(self, text: str, dest: Path, voice_hint: str = "") -> None:
+    async def _tts_edge(self, text: str, dest: Path, voice_hint: str = "", lang: str | None = None) -> None:
         """微软 edge-tts 兜底。国内连 api.msedgeservices.com 常超过默认 10s，拉长握手并重试。
 
-        音色按 voice_hint（豆包 speaker）推性别；旁白非中文时换越南语 neural。
+        音色按 voice_hint（豆包 speaker）推性别；越南语 / 英语内容换对应语种 neural（lang 缺省按文本推断）。
         """
         import edge_tts
 
-        voice = edge_tts_voice_for_text(voice_hint, text)
+        voice = edge_tts_voice_for_text(voice_hint, text, lang)
         dest.parent.mkdir(parents=True, exist_ok=True)
         last_err: Exception | None = None
         for attempt in range(3):

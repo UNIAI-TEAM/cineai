@@ -11,6 +11,7 @@ import {
 import { AdminEntityLink } from "@/components/admin/AdminEntityLink";
 import { AdminFilterBar } from "@/components/admin/AdminFilterBar";
 import { AdminModal } from "@/components/admin/AdminModal";
+import { StoredErrorText } from "@/components/admin/StoredErrorText";
 import { AdminUserSearchSelect } from "@/components/admin/AdminUserSearchSelect";
 import { PaginationBar } from "@/components/PaginationBar";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
@@ -224,8 +225,13 @@ export function ProjectsPage() {
                   { label: "Giọng đọc", value: detail.voice_id || "—", full: true },
                 ]}
               />
-              <AdminDetailNote empty={!detail.error_msg} className="mt-3">
-                {detail.error_msg || "Không có lỗi"}
+              <AdminDetailNote empty={!detail.error_msg && !detail.error_code} className="mt-3">
+                <StoredErrorText
+                  message={detail.error_msg}
+                  code={detail.error_code}
+                  params={detail.error_params}
+                  emptyText="Không có lỗi"
+                />
               </AdminDetailNote>
             </AdminDetailSection>
 
@@ -325,7 +331,16 @@ export function ProjectsPage() {
                               </div>
                             ) : null}
                           </td>
-                          <td>{taskStatusLabel(t.status)}</td>
+                          <td>
+                            {taskStatusLabel(t.status)}
+                            <StoredErrorText
+                              compact
+                              className="mt-1"
+                              message={t.error_message}
+                              code={t.error_code}
+                              params={t.error_params}
+                            />
+                          </td>
                           <td>
                             {format(t.billing_charged_fen)} / {format(t.billing_estimate_fen)}
                           </td>

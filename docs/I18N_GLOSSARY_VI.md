@@ -69,6 +69,10 @@
 | 可核验 / verifiable | có thật | **kiểm chứng được** |
 | 线索 / leads | số khách | **khách hàng tiềm năng** |
 | 分镜待确认 | đã có phân cảnh | **Chờ xác nhận phân cảnh** |
+| 空镜 / empty shot | cảnh không người | **cảnh trống** (nhãn “Cảnh trống: …” trong kịch bản, cùng tên với mục trong danh sách cỡ cảnh) |
+| 场 (trong kịch bản, “### 场1-2”) | cảnh (trùng với 镜头) | **phân đoạn** (“### Phân đoạn 1-2”; khi gõ tay viết “Cảnh 1-2” vẫn nhận) |
+| 出场人物 | — | **Nhân vật xuất hiện** (gõ tay “Nhân vật:” vẫn nhận) |
+| 内景 / 外景 | trong nhà / ngoài trời | **Nội cảnh / Ngoại cảnh**; dòng thời gian – bối cảnh viết “Ngày · Nội cảnh · Lớp học” |
 
 ## Kiểm tra nghĩa
 

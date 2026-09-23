@@ -5,6 +5,7 @@ import Modal from '../../components/ui/Modal'
 import { useI18n, type TFunction } from '../../i18n/context'
 import { messages } from '../../i18n/messages'
 import { localizeScriptActionLine, localizeScriptMetaLine } from '../../lib/dramaScriptLabels'
+import { displayScriptSpeaker, toCanonicalScript, toDisplayScript } from '../../lib/dramaScriptLocalize'
 
 export type OutlineSceneBlock = {
   /** 原始整段（含场头行），写回时原样拼接 */
@@ -249,7 +250,7 @@ function ScriptLines({ text }: { text: string }) {
           return (
             <p key={i} className="drama-outline-script-dialogue">
               <span className="drama-outline-script-speaker" style={{ color: speakerColor(line.speaker) }}>
-                {line.speaker}
+                {displayScriptSpeaker(line.speaker, locale)}
                 {line.paren ? `（${line.paren}）` : ''}
               </span>
               <span className="drama-outline-script-colon">：</span>
@@ -305,7 +306,7 @@ export function OutlineScriptPreview({
   shotStats,
   onSaveScenes,
 }: OutlineScriptPreviewProps) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const blocks = useMemo(() => parseOutlineSceneBlocks(text), [text])
   const blockStats = useMemo(
     () => blocks.map((b) => summarizeOutlineScene(b.body)),
@@ -321,9 +322,10 @@ export function OutlineScriptPreview({
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // 进入分段编辑：结构标签换成界面语言
   function startEdit(index: number) {
     setEditingIndex(index)
-    setDraft(blocks[index]?.raw || '')
+    setDraft(toDisplayScript(blocks[index]?.raw || '', locale))
   }
 
   async function saveEdit() {
@@ -331,7 +333,8 @@ export function OutlineScriptPreview({
     setSaving(true)
     try {
       const next = blocks.map((b, i) =>
-        i === editingIndex ? { ...b, raw: draft.trim() } : b,
+        // 保存前换回规范中文标签（后端解析依赖）
+        i === editingIndex ? { ...b, raw: toCanonicalScript(draft, locale).trim() } : b,
       )
       await onSaveScenes(joinOutlineSceneBlocks(next))
       setEditingIndex(null)

@@ -8,6 +8,7 @@ import Stepper from '../../components/ui/Stepper'
 import PillTabs from '../../components/ui/PillTabs'
 import { IconChevronLeft, IconRefresh, IconSparkles } from '../../components/ui/Icons'
 import { CATEGORY_ORDER } from '../../lib/categories'
+import { contentLangOptions, defaultContentLang, type ContentLang } from '../../lib/contentLang'
 import { kepuStepIndex, kepuSteps } from '../../lib/status'
 import { templateDescription, templateName } from '../../lib/templateI18n'
 import { useI18n } from '../../i18n'
@@ -50,10 +51,11 @@ function deriveTitle(text: string, untitled: string) {
 export default function CreateProjectPage() {
   const nav = useNavigate()
   const [params] = useSearchParams()
-  const { t, m } = useI18n()
+  const { t, m, locale } = useI18n()
   /*
    * untitled 当前语言的默认作品名
    * inspirationPool 当前语言的灵感示例
+   * contentLang AI 旁白 / 字幕所用语言（默认跟随界面语言，创建后锁定为显式选择）
    */
   const untitled = t('studioCreate.untitled')
   const inspirationPool: readonly Inspiration[] = m.studioCreate.inspirations
@@ -62,6 +64,7 @@ export default function CreateProjectPage() {
   const [category, setCategory] = useState(CAT_ALL)
   const [q, setQ] = useState('')
   const [inputTab, setInputTab] = useState<InputTab>('theme')
+  const [contentLang, setContentLang] = useState<ContentLang>(() => defaultContentLang(locale))
   const [sourceText, setSourceText] = useState(() => inspirationPool[0].theme)
   const [title, setTitle] = useState(() => inspirationPool[0].title)
   const [titleTouched, setTitleTouched] = useState(false)
@@ -144,7 +147,7 @@ export default function CreateProjectPage() {
     setError('')
     try {
       const mode = sourceType === 'script' ? 'script' : 'theme'
-      const result = await api.expandContent(seed, mode)
+      const result = await api.expandContent(seed, mode, contentLang)
       setSourceText(result.content.slice(0, mode === 'theme' ? 100 : 8000))
       if (!titleTouched || isDefaultTitle(title, untitled)) {
         setTitle(result.title.slice(0, 24))
@@ -180,6 +183,7 @@ export default function CreateProjectPage() {
         pipeline_mode,
         output_ratio: d?.output_ratio || '16:9',
         voice_id: d?.voice_id,
+        content_lang: contentLang,
       })
       nav(`/studio/${project.id}/style`)
     } catch (err) {
@@ -270,6 +274,35 @@ export default function CreateProjectPage() {
               placeholder={t('studioCreate.projectNamePlaceholder')}
             />
           </label>
+
+          <div className="pf-field">
+            <span className="pf-field-label" id="studio-content-lang-label">
+              {t('contentLang.label')}
+            </span>
+            <div
+              className="pf-input-tabs"
+              role="radiogroup"
+              aria-labelledby="studio-content-lang-label"
+              style={{ marginBottom: '0.35rem' }}
+            >
+              {contentLangOptions(contentLang).map((lang) => (
+                <button
+                  key={lang}
+                  type="button"
+                  role="radio"
+                  aria-checked={contentLang === lang}
+                  className={['pf-pill', contentLang === lang ? 'lime active' : ''].join(' ')}
+                  disabled={busy || aiBusy}
+                  onClick={() => setContentLang(lang)}
+                >
+                  {t(`contentLang.names.${lang}`)}
+                </button>
+              ))}
+            </div>
+            <span className="pf-muted" style={{ fontSize: '0.75rem' }}>
+              {t('contentLang.createHint')}
+            </span>
+          </div>
 
           <div className="pf-textarea-wrap">
             <div className="pf-textarea-toolbar">
@@ -377,7 +410,7 @@ export default function CreateProjectPage() {
           </div>
           <div className="pf-summary-row">
             <span>{t('studioCreate.language')}</span>
-            <span>{t('studioCreate.languageValue')}</span>
+            <span>{t(`contentLang.names.${contentLang}`)}</span>
           </div>
           <div className="pf-summary-row">
             <span>{t('studioCreate.inputMethod')}</span>

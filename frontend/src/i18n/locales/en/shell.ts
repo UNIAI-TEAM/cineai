@@ -153,7 +153,7 @@ export const enShell = {
     saveFailed: 'Save failed',
     requestDelete: 'Delete account',
     language: 'Interface language',
-    languageHint: 'Follows the browser until you pick a language. Chinese, English, and Vietnamese for now.',
+    languageHint: 'Follows the browser until you pick a language. Vietnamese and English for now.',
     languageAuto: 'Follow browser',
     dramaLead: 'Your AI drama projects and episode progress',
     allProjects: 'All projects',
@@ -214,5 +214,17 @@ export const enShell = {
     GENERATING: 'Generating',
     WAIT_IMAGE: 'Need image',
     WAIT_VIDEO: 'Need clip',
+  },
+  // 项目内容语言（新建 / 项目设置共用，Việc P）
+  contentLang: {
+    label: 'Content language',
+    names: {
+      vi: 'Vietnamese',
+      en: 'English',
+      zh: 'Chinese (中文)',
+    },
+    createHint: 'AI writes the script, dialogue, narration and subtitles in this language.',
+    changeHint: 'Only applies to content AI generates from now on. Existing content won’t be translated.',
+    saveFailed: 'Couldn’t change the content language',
   },
 } as const

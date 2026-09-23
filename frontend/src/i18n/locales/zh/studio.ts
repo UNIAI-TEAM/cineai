@@ -44,7 +44,6 @@ export const zhStudio = {
     estDuration: '预估时长',
     estDurationValue: '~1–3 分钟',
     language: '语言',
-    languageValue: '中文（普通话）',
     inputMethod: '输入方式',
     creating: '创建中…',
     nextStyle: '下一步：风格配置',
@@ -227,6 +226,9 @@ export const zhStudio = {
     playing: '播放中',
     preview: '试听',
     currentVoice: '当前：{name} · 成片用该音色整片配音；点击「试听」可听约 5 秒样例',
+    // 音色按项目内容语言筛选（Việc T）
+    voiceLangHint: '内容语言：{lang} · 仅显示能朗读该语言的音色',
+    voiceLangs: { zh: '中文', vi: '越南语', en: '英语' },
     outputTitle: '成片方式',
     outputHint: '任意模板都可选择是否生成 AI 视频，与画幅无关。',
     imageModel: '图片模型',

@@ -119,6 +119,71 @@ def spoken_text_lang(content: str) -> str:
     return guess_text_lang(_MARKER_RE.sub(" ", content or "")) or "zh"
 
 
+# 非中文口播：按 docs/SEEDANCE_2_5.md §4.3「先声明语种，再写 {台词}」改写提交给 Seedance 的对白/旁白行
+SPOKEN_LANG_NAMES = {"vi": "越南语", "en": "英语"}
+_SPOKEN_VOICE_LINE_RE = re.compile(
+    r"^(?P<lead>\s*(?:\d{2}:\d{2}-\d{2}:\d{2}\s*)?)"
+    r"(?P<cue>【(?:对白|旁白|内心独白)[^】]*】)\s*(?P<body>.*?)\s*$"
+)
+# 「说话人：台词」的说话人段（≤40 字，不含换行 / 花括号）
+_SPOKEN_SPEAKER_RE = re.compile(r"^(?P<head>[^：:\n{}]{1,40}?)\s*[：:]\s*(?P<text>.+)$")
+_PAREN_RE = re.compile(r"[（(][^）)]*[）)]")
+_VO_PAREN_RE = re.compile(r"[（(]\s*(?:vo|os|旁白)", re.IGNORECASE)
+
+
+def _split_spoken_speaker(cue: str, body: str) -> tuple[str, str]:
+    """把口播行拆成（说话人段, 台词）；旁白行只有旁白名 / 带 vo·os 括号时才拆，避免把句中冒号当说话人。"""
+    m = _SPOKEN_SPEAKER_RE.match(body)
+    if not m:
+        return "", body
+    head = m.group("head").strip()
+    base = _PAREN_RE.sub("", head).strip()
+    # 说话人名里不会有句读；括号内（情绪/vo）允许逗号
+    if not base or re.search(r"[，,。.!！?？;；]", base):
+        return "", body
+    if cue.startswith("【旁白") and not (
+        base.lower() in GENERIC_NARRATOR_NAMES or _VO_PAREN_RE.search(head)
+    ):
+        return "", body
+    return head, m.group("text").strip()
+
+
+def declare_spoken_language(script: str, lang: str | None) -> str:
+    """越南语 / 英语项目：对白、旁白、内心独白行改成「说话人用越南语说：{台词}」；zh / 未知语言原样返回。
+
+    只改【对白…】【旁白…】【内心独白…】开头（可带 00:00-00:04 时间段）的行；已声明过的行不重复处理。
+    """
+    name = SPOKEN_LANG_NAMES.get(lang or "")
+    if not name or not script:
+        return script
+    marker = f"用{name}说："
+    out: list[str] = []
+    for raw in script.replace("\r\n", "\n").split("\n"):
+        m = _SPOKEN_VOICE_LINE_RE.match(raw)
+        body = m.group("body") if m else ""
+        if not m or not body or marker in body:
+            out.append(raw)
+            continue
+        speaker, text = _split_spoken_speaker(m.group("cue"), body)
+        text = text.replace("{", "").replace("}", "").strip()
+        if not text:
+            out.append(raw)
+            continue
+        out.append(f"{m.group('lead')}{m.group('cue')}{speaker}{marker}{{{text}}}")
+    return "\n".join(out)
+
+
+def spoken_language_rule(lang: str | None) -> str | None:
+    """强制约束里的口播语言条目（不带序号）；zh / 未知语言返回 None。"""
+    name = SPOKEN_LANG_NAMES.get(lang or "")
+    if not name:
+        return None
+    return (
+        f"口播语言：所有旁白、对白、内心独白一律用{name}朗读，即「用{name}说：{{…}}」花括号内的原文，"
+        f"发音标准自然、逐字照读；禁止改说中文或其他语言，禁止翻译或改写台词。"
+    )
+
+
 def drama_subtitle_cue(lang: str | None) -> str:
     """漫剧字幕 cue：按内容语言选（未知语言用中文 cue）。"""
     return DRAMA_SUBTITLE_CUES_BY_LANG.get(lang or "zh", DRAMA_SUBTITLE_CUE)
@@ -475,12 +540,14 @@ def build_seedance_production_section(
     ambient_only: bool = False,
     burn_subtitles: bool = True,
     character_intro: bool = True,
+    spoken_lang: str | None = None,
 ) -> str:
     """组装 Seedance 音频/字幕/BGM 强制约束（科普旁白 / 漫剧画面+对白混排）。
 
     ambient_only：科普后期 TTS 模式——模型只出操作环境音，禁止口播与 BGM。
     burn_subtitles=False：成片后再烧 SRT——保留口播，禁止画面内字幕。
     character_intro=False：禁止人物介绍叠字/字卡（与字幕开关独立）。
+    spoken_lang：项目内容语言 zh|vi|en；vi / en 追加「口播语言」条目，字幕语言也按它（缺省按文字推断）。
     """
     if ambient_only:
         lines = [
@@ -496,7 +563,10 @@ def build_seedance_production_section(
     has_dialogue = script_has_dialogue_cue(segment_script)
     drama_mixed = script_is_drama_mixed(segment_script)
     # 烧录字幕语言跟随口播文字（越南语 / 英文项目不要让模型烧中文字幕）
-    sub_lang = _SUBTITLE_LANG_NAMES.get(spoken_text_lang(segment_script), "简体中文")
+    sub_lang = _SUBTITLE_LANG_NAMES.get(
+        spoken_lang if spoken_lang in _SUBTITLE_LANG_NAMES else spoken_text_lang(segment_script), "简体中文"
+    )
+    lang_rule = spoken_language_rule(spoken_lang)
     bgm_mood = script_bgm_mood(segment_script)
 
     if "音量低于人声" not in bgm_mood:
@@ -560,6 +630,8 @@ def build_seedance_production_section(
             lines.append(
                 "7. 人物介绍：本镜禁止任何人物介绍叠字/字卡；身份信息不写入画面。"
             )
+        if lang_rule:
+            lines.append(f"{len(lines) + 1}. {lang_rule}")
         return f"{SEEDANCE_PRODUCTION_SECTION_HEADER}\n" + "\n".join(lines)
 
     # 科普旁白模式：整镜以旁白段为主（语速自然偏快，避免拖沓）
@@ -593,6 +665,8 @@ def build_seedance_production_section(
     lines.append(
         "5. 音效：环境音与动作音效与画面同步，层次低于人声。"
     )
+    if lang_rule:
+        lines.append(f"6. {lang_rule}")
     return f"{SEEDANCE_PRODUCTION_SECTION_HEADER}\n" + "\n".join(lines)
 
 

@@ -214,4 +214,16 @@ export const zhShell = {
     WAIT_IMAGE: '待出图',
     WAIT_VIDEO: '待出视频',
   },
+  // 项目内容语言（新建 / 项目设置共用，Việc P）
+  contentLang: {
+    label: '内容语言',
+    names: {
+      vi: '越南语',
+      en: '英语',
+      zh: '中文',
+    },
+    createHint: 'AI 会用该语言撰写剧本、台词、旁白与字幕。',
+    changeHint: '只对之后 AI 生成的内容生效，已有内容不会自动翻译。',
+    saveFailed: '内容语言修改失败',
+  },
 } as const

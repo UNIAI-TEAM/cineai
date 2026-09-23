@@ -37,7 +37,7 @@ async def test_slot_adapter_ok_no_edge(monkeypatch, tmp_path, audio_snapshot):
     adapter = SimpleNamespace(tts=AsyncMock(return_value=MP3), is_transient_error=lambda e: False)
     svc = _svc(monkeypatch, tmp_path, adapter)
     edge = AsyncMock(); monkeypatch.setattr(svc, "_tts_edge", edge)
-    url = await svc.synthesize("xin chào", "narrator_calm", function_id="kepu.tts", project_id=1, shot_no=3)
+    url = await svc.synthesize("大家好", "narrator_calm", function_id="kepu.tts", project_id=1, shot_no=3)
     assert url == "/static/shot_003_tts.mp3" and edge.await_count == 0
     req = adapter.tts.await_args.args[1]
     # Alias giọng đọc được quy đổi trước khi dựng TtsRequest
@@ -47,7 +47,7 @@ async def test_slot_adapter_ok_no_edge(monkeypatch, tmp_path, audio_snapshot):
 async def test_adapter_error_falls_back_to_edge(monkeypatch, tmp_path, audio_snapshot):
     adapter = SimpleNamespace(tts=AsyncMock(side_effect=RuntimeError("boom")), is_transient_error=lambda e: False)
     svc = _svc(monkeypatch, tmp_path, adapter)
-    async def edge(text, dest: Path, voice_hint=""): dest.write_bytes(MP3)
+    async def edge(text, dest: Path, voice_hint="", lang=None): dest.write_bytes(MP3)
     monkeypatch.setattr(svc, "_tts_edge", edge)
     assert (await svc.synthesize("a", "v", project_id=1, shot_no=1)).endswith("shot_001_tts.mp3")
 
@@ -56,7 +56,7 @@ async def test_no_audio_slot_goes_straight_to_edge(monkeypatch, tmp_path):
     prev = get_routing_snapshot(); _refresh_routing_snapshot([], FunctionBindings())
     try:
         svc = _svc(monkeypatch, tmp_path, SimpleNamespace(tts=AsyncMock()))
-        async def edge(text, dest: Path, voice_hint=""): dest.write_bytes(MP3)
+        async def edge(text, dest: Path, voice_hint="", lang=None): dest.write_bytes(MP3)
         monkeypatch.setattr(svc, "_tts_edge", edge)
         assert await svc.synthesize("a", "v", project_id=1, shot_no=1)
     finally:

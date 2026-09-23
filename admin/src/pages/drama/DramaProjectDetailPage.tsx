@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { api, type AdminDramaProject } from "@/api/client";
+import { api, type AdminDramaProject, type AdminStoredError } from "@/api/client";
 import {
   AdminDetailMeta,
   AdminDetailSection,
@@ -10,6 +10,7 @@ import {
   AdminDetailTableWrap,
 } from "@/components/admin/AdminDetailLayout";
 import { AdminEntityLink } from "@/components/admin/AdminEntityLink";
+import { StoredErrorText } from "@/components/admin/StoredErrorText";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { dramaAssetTypeLabel, formatDramaGenerationStatus } from "@/lib/dramaLabels";
@@ -60,6 +61,14 @@ export function DramaProjectDetailPage() {
   }
 
   const usage = detail?.usage;
+  // 概览「Lỗi gần nhất」：剧本摘要 / 分集剧本 / 资产抽取的落库错误（成功后后端会清除）
+  const projectErrors = detail
+    ? [
+        { label: "Tóm tắt kịch bản", error: detail.summary_error },
+        { label: "Kịch bản các tập", error: detail.episode_content_error },
+        { label: "Trích xuất tư liệu", error: detail.assets_seed_error },
+      ].filter((row): row is { label: string; error: AdminStoredError } => Boolean(row.error))
+    : [];
 
   if (loading && !detail) {
     return <div className="admin-detail-page-loading">Đang tải…</div>;
@@ -132,6 +141,18 @@ export function DramaProjectDetailPage() {
             />
           </AdminDetailSection>
 
+          {projectErrors.length > 0 ? (
+            <AdminDetailSection title="Lỗi gần nhất">
+              <AdminDetailMeta
+                items={projectErrors.map(({ label, error }) => ({
+                  label,
+                  value: <StoredErrorText error={error} className="text-[#f56c6c]" />,
+                  full: true,
+                }))}
+              />
+            </AdminDetailSection>
+          ) : null}
+
           <AdminDetailSection title="Tổng chi phí">
             <AdminDetailStatGrid
               items={[
@@ -173,7 +194,10 @@ export function DramaProjectDetailPage() {
                         <td>{ep.id}</td>
                         <td>{ep.name}</td>
                         <td>{ep.fragment_count}</td>
-                        <td>{ep.fragment_plan_status || "—"}</td>
+                        <td>
+                          {ep.fragment_plan_status || "—"}
+                          <StoredErrorText compact className="mt-1" error={ep.fragment_plan_error} />
+                        </td>
                         <td>
                           <Button size="sm" variant="outline" asChild>
                             <Link to={`/drama-episodes/${ep.id}`}>Xem</Link>
@@ -216,7 +240,10 @@ export function DramaProjectDetailPage() {
                         <td>{dramaAssetTypeLabel(a.type)}</td>
                         <td className="max-w-[160px] truncate">{a.name || "—"}</td>
                         <td>{a.has_cover ? "Có ảnh tham chiếu" : "—"}</td>
-                        <td>{formatDramaGenerationStatus(a.generation_status)}</td>
+                        <td>
+                          {formatDramaGenerationStatus(a.generation_status)}
+                          <StoredErrorText compact className="mt-1" error={a.generation_error} />
+                        </td>
                         <td>
                           <Button size="sm" variant="outline" asChild>
                             <Link to={`/drama-assets/${a.id}`}>Xem</Link>
@@ -264,7 +291,16 @@ export function DramaProjectDetailPage() {
                             </div>
                           ) : null}
                         </td>
-                        <td>{taskStatusLabel(t.status)}</td>
+                        <td>
+                          {taskStatusLabel(t.status)}
+                          <StoredErrorText
+                            compact
+                            className="mt-1"
+                            message={t.error_message}
+                            code={t.error_code}
+                            params={t.error_params}
+                          />
+                        </td>
                         <td>
                           {format(t.billing_charged_fen)} / {format(t.billing_estimate_fen)}
                         </td>

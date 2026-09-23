@@ -380,6 +380,34 @@
   margin: 0 2px;
 }
 
+/* 新建漫剧：内容语言下拉（外观沿用 opt-trigger 胶囊） */
+.drama-agent-lang {
+  position: relative;
+  cursor: pointer;
+}
+
+.drama-agent-lang select {
+  appearance: none;
+  min-width: 0;
+  max-width: 120px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+  text-overflow: ellipsis;
+}
+
+.drama-agent-lang:focus-within {
+  border-color: color-mix(in srgb, var(--drama-lime) 70%, var(--drama-ink));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--drama-lime) 22%, transparent);
+}
+
+.drama-agent-lang select:disabled {
+  cursor: not-allowed;
+}
+
 .drama-style-modal .pf-modal-body {
   padding-top: 0.5rem;
 }

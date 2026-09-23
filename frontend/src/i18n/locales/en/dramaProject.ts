@@ -147,7 +147,7 @@ export const enDramaProject = {
       empty: 'No script yet',
       // 剧本结构标签的展示名（数据仍是中文标签，仅预览时替换）
       castLabel: 'Cast',
-      establishing: 'Establishing shot',
+      establishing: 'Empty shot',
       sceneTime: {
         day: 'Day',
         night: 'Night',

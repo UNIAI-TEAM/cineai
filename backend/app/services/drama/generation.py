@@ -47,6 +47,7 @@ from app.services.drama.seedream_options import (
 )
 from app.services.drama.visual_prompt import resolve_visual_prompt_for_asset
 from app.services.content_lang import project_content_lang
+from app.services.seedance_segments import declare_spoken_language
 from app.services.drama.job_errors import gen_progress, with_error_code
 from app.services.drama.naming import default_asset_name
 from app.services.drama.voice_synthesis import build_voice_sample_text, synthesize_voice_asset
@@ -1618,6 +1619,8 @@ async def prepare_fragment_video_for_submit(
                 "character_intro": resolve_episode_character_intro(
                     episode.params if episode else None
                 ),
+                # 越南语 / 英语项目：口播行先声明语种（Seedance 原生配音）
+                "spoken_lang": project_content_lang(project),
             }
         )
         return FragmentVideoPrepared(
@@ -1658,7 +1661,8 @@ async def prepare_fragment_video_for_submit(
     return FragmentVideoPrepared(
         submit_mode="i2v",
         image_url=image_url,
-        prompt=prompt,
+        # i2v 直接提交分镜正文：越南语 / 英语项目的口播行同样先声明语种
+        prompt=declare_spoken_language(prompt, project_content_lang(project)),
         duration=duration,
         ratio=ratio,
         resolution=resolution,

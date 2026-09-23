@@ -150,6 +150,8 @@ class ProjectCreate(BaseModel):
     image_model: str | None = Field(default=None, max_length=128)
     video_model: str | None = Field(default=None, max_length=128)
     ref_image_url: str | None = None
+    # 用户显式选的内容语言 zh|en|vi；不传则用界面语言 + 文本推断（非法值 → common.invalid_content_lang）
+    content_lang: str | None = Field(default=None, max_length=16)
 
 
 class ProjectUpdate(BaseModel):
@@ -174,6 +176,8 @@ class ProjectUpdate(BaseModel):
     subtitle_preset: str | None = Field(default=None, max_length=32)
     ref_image_url: str | None = None
     cover_url: str | None = Field(default=None, max_length=1024)
+    # 修改内容语言（只影响之后 AI 生成的内容）；非法值 → common.invalid_content_lang
+    content_lang: str | None = Field(default=None, max_length=16)
 
 
 class ProjectOut(BaseModel):
@@ -197,7 +201,11 @@ class ProjectOut(BaseModel):
     character_bible: str = ""
     bgm_lock: str = ""
     subtitle_preset: str = ""
+    # 创建时界面语言或用户显式所选（content_lang_locked=True）
     content_lang: str = ""
+    content_lang_locked: bool | None = False
+    # 实际生效的内容语言 zh|en|vi（Project.effective_content_lang）
+    effective_content_lang: str = ""
     style_prompt: str = ""
     character_prompt: str = ""
     extra_prompt: str = ""
@@ -240,6 +248,8 @@ class ProjectDownloadRequest(BaseModel):
 class ContentExpandRequest(BaseModel):
     topic: str = Field(default="", max_length=2000)
     mode: str = Field(default="theme", pattern="^(theme|script)$")
+    # 创建页选的内容语言；不传则按主题文本 / 界面语言推断
+    content_lang: str | None = Field(default=None, max_length=16)
 
 
 class ContentExpandOut(BaseModel):
@@ -372,6 +382,9 @@ class AdminTaskBriefOut(BaseModel):
     billing_estimate_fen: int = 0
     provider_channel_id: str | None = None
     error_message: str | None = None
+    # error_message 的错误码与参数：管理端按码翻译成越南语，无码时显示原文
+    error_code: str | None = None
+    error_params: dict | None = None
     created_at: datetime | None = None
     finished_at: datetime | None = None
 
@@ -532,6 +545,9 @@ class AdminProjectOut(BaseModel):
     status: str
     progress: int
     error_msg: str | None
+    # error_msg 的错误码与参数：管理端按码翻译成越南语，无码时显示原文
+    error_code: str | None = None
+    error_params: dict | None = None
     cover_url: str | None
     final_video_url: str | None
     pipeline_mode: str

@@ -52,7 +52,13 @@ from app.services.tasks.service import (
     create_task,
     list_active_tasks_for_owner,
 )
-from app.services.content_lang import is_zh, kepu_content_lang, request_lang
+from app.services.content_lang import (
+    is_zh,
+    kepu_content_lang,
+    parse_content_lang,
+    project_kepu_lang,
+    request_lang,
+)
 from app.services.voices import ensure_voice_preview, list_voices
 from app.services.kepu_stages import resolve_kepu_billing_phase
 from app.services.project_errors import clear_project_error, set_project_cancelled
@@ -125,10 +131,12 @@ async def expand_content(
     topic = (body.topic or "").strip()
     if not topic:
         raise AppError("project.topic_required")
+    # 创建页显式选了内容语言就按它扩写，否则按主题文本 / 界面语言推断
+    explicit_lang = parse_content_lang(body.content_lang)
 
     async def _do_expand() -> dict[str, str]:
         try:
-            lang = kepu_content_lang(topic, request_lang(request))
+            lang = explicit_lang or kepu_content_lang(topic, request_lang(request))
             result = await get_ark().expand_content(topic, body.mode, lang=lang)
         except Exception as exc:  # noqa: BLE001
             logger.exception("ai generate failed")
@@ -334,6 +342,8 @@ async def create_project(
     tpl = await db.get(Template, body.template_id)
     if not tpl or not tpl.is_active:
         raise AppError("project.invalid_template")
+    # 显式选择的内容语言优先（锁定，不再按文本推断）；未选则记录界面语言作兜底
+    explicit_lang = parse_content_lang(body.content_lang)
     project = Project(
         user_id=user.id,
         template_id=body.template_id,
@@ -351,8 +361,9 @@ async def create_project(
         image_model=(body.image_model or "").strip(),
         video_model=(body.video_model or "").strip(),
         ref_image_url=body.ref_image_url,
-        # 界面语言：主题过短 / 无法判断语言时，拆镜输出跟随它（见 content_lang.kepu_content_lang）
-        content_lang=request_lang(request),
+        # 未显式选择时记录界面语言：主题过短 / 无法判断语言时，拆镜输出跟随它（见 content_lang.kepu_content_lang）
+        content_lang=explicit_lang or request_lang(request),
+        content_lang_locked=explicit_lang is not None,
         status=ProjectStatus.DRAFT,
     )
     db.add(project)
@@ -648,6 +659,12 @@ async def update_project(
         raise AppError("project.locked_while_generating")
 
     data = body.model_dump(exclude_unset=True)
+    # 内容语言：只影响之后 AI 生成的内容；null / 空串视为不修改
+    if "content_lang" in data:
+        lang = parse_content_lang(data.pop("content_lang"))
+        if lang:
+            data["content_lang"] = lang
+            data["content_lang_locked"] = True
     if "template_id" in data:
         from app.models import Template
 
@@ -902,7 +919,7 @@ async def project_events(
 
 def _new_shot_title(project: Project, shot_no: int) -> str:
     """新增空白镜的叠字标题（越南语 / 英文）。"""
-    lang = kepu_content_lang(project.source_text, getattr(project, "content_lang", ""))
+    lang = project_kepu_lang(project)
     return f"Scene {shot_no:02d}" if lang == "en" else f"Cảnh {shot_no:02d}"
 
 
@@ -920,7 +937,7 @@ async def create_shot(
     from app.services.seedance_segments import SegmentBeat, build_segment_script
 
     bgm = clip_shot_bgm(getattr(project, "bgm_lock", None))
-    zh = is_zh(kepu_content_lang(project.source_text, getattr(project, "content_lang", "")))
+    zh = is_zh(project_kepu_lang(project))
     # 画面提示词：中文项目用中文，其余用英文（生图/视频模型对英文理解更好）
     visual = "画面轻微动态，保持主体稳定" if zh else "Subtle motion, keep the main subject stable"
     script = build_segment_script(

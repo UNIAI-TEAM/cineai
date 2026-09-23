@@ -45,7 +45,6 @@ export const enStudio = {
     estDuration: 'Est. length',
     estDurationValue: '~1–3 min',
     language: 'Language',
-    languageValue: 'Chinese (Mandarin)',
     inputMethod: 'Input',
     creating: 'Creating…',
     nextStyle: 'Next: style settings',
@@ -228,6 +227,9 @@ export const enStudio = {
     playing: 'Playing',
     preview: 'Preview',
     currentVoice: 'Current: {name} · used for the whole film. Click “Preview” for a 5-second sample',
+    // 音色按项目内容语言筛选（Việc T）
+    voiceLangHint: 'Content language: {lang} · showing voices that can read it',
+    voiceLangs: { zh: 'Chinese', vi: 'Vietnamese', en: 'English' },
     outputTitle: 'Output mode',
     outputHint: 'Any template can generate AI video or not, regardless of aspect ratio.',
     imageModel: 'Image model',

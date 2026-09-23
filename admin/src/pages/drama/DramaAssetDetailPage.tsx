@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { api, type AdminDramaAsset } from "@/api/client";
 import { AdminDetailMeta, AdminDetailSection } from "@/components/admin/AdminDetailLayout";
 import { AdminEntityLink } from "@/components/admin/AdminEntityLink";
+import { StoredErrorText } from "@/components/admin/StoredErrorText";
 import { Button } from "@/components/ui/button";
 import { dramaAssetTypeLabel, formatDramaGenerationStatus } from "@/lib/dramaLabels";
 
@@ -94,6 +95,15 @@ export function DramaAssetDetailPage() {
               value: <AdminEntityLink kind="drama" id={detail.project_id} label={detail.project_title ?? undefined} />,
             },
             { label: "Trạng thái tạo", value: formatDramaGenerationStatus(detail.generation_status) },
+            ...(detail.generation_error
+              ? [
+                  {
+                    label: "Lỗi tạo",
+                    value: <StoredErrorText error={detail.generation_error} className="text-[#f56c6c]" />,
+                    full: true,
+                  },
+                ]
+              : []),
             {
               label: "Tạo lúc",
               value: detail.created_at ? new Date(detail.created_at).toLocaleString("vi-VN") : "—",

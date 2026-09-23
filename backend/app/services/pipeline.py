@@ -16,7 +16,7 @@ from app.database import AsyncSessionLocal
 from app.errors import AppError, AppRuntimeError
 from app.models import PipelineJob, Project, ProjectStatus, Shot, ShotStatus
 from app.services.ark import get_ark
-from app.services.content_lang import kepu_content_lang
+from app.services.content_lang import project_kepu_lang
 from app.services.ffmpeg_compose import (
     ComposeOptions,
     FfmpegInterrupted,
@@ -221,10 +221,14 @@ def _project_output_ratio(project: Project) -> str:
 
 
 def _project_voice(project: Project) -> str:
+    """旁白音色：项目所选 / 模板预设 → speaker；不支持项目内容语言时换该语言默认音色（voice_lang）。"""
+    from app.services.voice_lang import voice_for_lang
+
     tpl_preset = ""
     if project.template and project.template.audio_config:
         tpl_preset = str(project.template.audio_config.get("voice_preset") or "")
-    return resolve_speaker(getattr(project, "voice_id", None) or "", template_preset=tpl_preset)
+    speaker = resolve_speaker(getattr(project, "voice_id", None) or "", template_preset=tpl_preset)
+    return voice_for_lang(speaker, project_kepu_lang(project))
 
 
 def clamp_shot_duration(duration: float, *, pipeline_mode: str, tpl_min: int, tpl_max: int) -> float:
@@ -717,7 +721,7 @@ async def _script_stage(project_id: int) -> None:
             output_ratio=_project_output_ratio(project),
             shot_range_override=template_shot_range(tpl),
             allow_source_names=template_allow_source_names(tpl),
-            lang=kepu_content_lang(project.source_text, getattr(project, "content_lang", "")),
+            lang=project_kepu_lang(project),
         )
         plans = plans_result.shots
         project.character_bible = resolve_script_character_bible(

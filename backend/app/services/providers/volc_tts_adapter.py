@@ -37,7 +37,7 @@ def resolve_volc_speaker(voice: str, default: str) -> str:
 
 
 # Speaker id kiểu Volc/BytePlus: zh_/en_/ja_/multi_… (vd. zh_female_cancan_uranus_bigtts)
-_VOLC_SPEAKER_RE = re.compile(r"^(zh|en|ja|es|id|pt|multi)_[a-z0-9]+_")
+_VOLC_SPEAKER_RE = re.compile(r"^(zh|en|vi|ja|es|id|pt|multi)_[a-z0-9]+_")
 
 
 def is_volc_speaker(speaker: str) -> bool:

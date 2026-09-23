@@ -39,6 +39,22 @@ def normalize_lang(value: Any) -> ContentLang | None:
     return None
 
 
+def parse_content_lang(value: Any) -> ContentLang | None:
+    """用户显式选择的内容语言（创建 / PATCH 请求体）。
+
+    返回：None / 空串 → None（未指定，调用方走默认规则）；可识别 → zh|en|vi
+    异常：非空但无法识别 → AppError("common.invalid_content_lang")
+    """
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    lang = normalize_lang(value)
+    if lang is None:
+        from app.errors import AppError  # 延迟导入：保持本模块无 FastAPI 依赖
+
+        raise AppError("common.invalid_content_lang")
+    return lang
+
+
 def _from_accept_language(header: str | None) -> ContentLang | None:
     """按 Accept-Language 顺序取第一个可识别的语言（忽略 q 权重排序，浏览器已按偏好排列）。"""
     for part in (header or "").split(","):
@@ -236,3 +252,16 @@ def kepu_content_lang(source_text: str | None, stored: str | None = None) -> Con
     if guessed in ("zh", "vi"):
         return guessed  # type: ignore[return-value]
     return normalize_lang(stored) or guessed or DEFAULT_LANG
+
+
+def project_kepu_lang(project: Any) -> ContentLang:
+    """科普项目的实际内容语言：用户显式选过（content_lang_locked）→ 用所选；否则按 kepu_content_lang 推断。
+
+    说明：显式选择优先于文本推断（例如越南语主题 + 选英文 → 英文成片）。
+    """
+    stored = getattr(project, "content_lang", "") or ""
+    if getattr(project, "content_lang_locked", False):
+        lang = normalize_lang(stored)
+        if lang:
+            return lang
+    return kepu_content_lang(getattr(project, "source_text", "") or "", stored)

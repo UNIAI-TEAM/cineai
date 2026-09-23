@@ -1,4 +1,8 @@
-/** 分集脚本 contentEditable：时长/资产 chip + @ 弹层 */
+/**
+ * 分集脚本 contentEditable：时长/资产 chip + @ 弹层。
+ * content / onContentChange 始终是规范正文（中文结构标签）；编辑框内显示当前界面语言的标签，
+ * 仅在「刷到 DOM」与「回写父级」两处转换，打字过程中不重绘 DOM，光标不受影响。
+ */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { resolveDramaMediaUrl, type DramaAsset } from '../../api/drama'
 import {
@@ -19,6 +23,7 @@ import {
 import type { AssetScope } from './dramaEpisodeEditUtils'
 import { EpisodeEditMentionPopover } from './EpisodeEditMentionPopover'
 import { useI18n } from '../../i18n/context'
+import { toCanonicalScript, toDisplayScript } from '../../lib/dramaScriptLocalize'
 
 type Props = {
   content: string
@@ -40,7 +45,7 @@ export function EpisodeEditPromptEditor({
   onContentChange,
   onOpenAsset,
 }: Props) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const placeholder = placeholderProp ?? t('dramaEpisode.editor.placeholder')
   const editorRef = useRef<HTMLDivElement>(null)
   const lastEmittedRef = useRef(content)
@@ -72,14 +77,14 @@ export function EpisodeEditPromptEditor({
     mentionTriggerRangeRef.current = null
   }, [])
 
-  // 把 content 刷到编辑器 DOM
+  // 把 content 刷到编辑器 DOM（结构标签换成界面语言）
   const paint = useCallback(
     (next: string) => {
       const editor = editorRef.current
       if (!editor) return
-      renderPromptEditorContent(editor, next, resolveChip)
+      renderPromptEditorContent(editor, toDisplayScript(next, locale), resolveChip)
     },
-    [resolveChip],
+    [locale, resolveChip],
   )
 
   // 外部 content 变化时同步到 DOM（编辑中忽略本编辑器回写）
@@ -124,14 +129,14 @@ export function EpisodeEditPromptEditor({
     setMentionActiveIndex(0)
   }, [closeMentionPopover, editing])
 
-  // 把编辑器内容回写到父级
+  // 把编辑器内容回写到父级（显示标签换回规范中文标签）
   const emitContent = useCallback(() => {
     const editor = editorRef.current
     if (!editor) return
-    const next = serializePromptEditorContent(editor)
+    const next = toCanonicalScript(serializePromptEditorContent(editor), locale)
     lastEmittedRef.current = next
     onContentChange(next)
-  }, [onContentChange])
+  }, [locale, onContentChange])
 
   // 选择资产插入 chip
   const handleSelectAsset = useCallback(
@@ -170,13 +175,14 @@ export function EpisodeEditPromptEditor({
       const editor = editorRef.current
       const triggerRange = mentionTriggerRangeRef.current
       if (!editor || !triggerRange || !text) return
-      insertPlainTextAtRange(triggerRange, text)
+      // 词库 insert 是中文协议前缀，编辑框里按界面语言显示，保存时再换回
+      insertPlainTextAtRange(triggerRange, toDisplayScript(text, locale))
       mentionTriggerRangeRef.current = null
       closeMentionPopover()
       emitContent()
       editor.focus()
     },
-    [closeMentionPopover, emitContent],
+    [closeMentionPopover, emitContent, locale],
   )
 
   const contentDurationTotal = sumContentDurationSeconds(

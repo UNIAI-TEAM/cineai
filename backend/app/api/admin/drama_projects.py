@@ -15,6 +15,7 @@ from app.models_drama import DramaAsset, DramaEpisode, DramaProject, DramaScript
 from app.models_tasks import TaskRun
 from app.schemas import AdminProjectUsageOut, AdminTaskBriefOut, PageMeta
 from app.services.admin.stats import aggregate_usage_summary
+from app.services.admin.stored_errors import AdminStoredErrorOut, generation_error, param_error
 
 router = APIRouter()
 
@@ -24,6 +25,7 @@ class AdminDramaEpisodeBriefOut(BaseModel):
     name: str
     fragment_count: int = 0
     fragment_plan_status: str | None = None
+    fragment_plan_error: AdminStoredErrorOut | None = None
 
 
 class AdminDramaAssetBriefOut(BaseModel):
@@ -32,6 +34,7 @@ class AdminDramaAssetBriefOut(BaseModel):
     name: str | None = None
     has_cover: bool = False
     generation_status: str | None = None
+    generation_error: AdminStoredErrorOut | None = None
 
 
 class AdminDramaProjectOut(BaseModel):
@@ -59,6 +62,10 @@ class AdminDramaProjectListOut(BaseModel):
 class AdminDramaProjectDetailOut(AdminDramaProjectOut):
     fragment_count: int = 0
     episode_content_status: str | None = None
+    # 剧本摘要 / 分集剧本 / 资产抽取的落库错误（带错误码时管理端按码翻译）
+    summary_error: AdminStoredErrorOut | None = None
+    episode_content_error: AdminStoredErrorOut | None = None
+    assets_seed_error: AdminStoredErrorOut | None = None
     usage: AdminProjectUsageOut = Field(default_factory=AdminProjectUsageOut)
     episodes: list[AdminDramaEpisodeBriefOut] = Field(default_factory=list)
     assets: list[AdminDramaAssetBriefOut] = Field(default_factory=list)
@@ -207,6 +214,10 @@ async def get_drama_project(
     data.summary_status = _script_status(project, "summary_status")
     data.episode_content_status = _script_status(project, "episode_content_status")
     data.assets_seed_status = _project_param_status(project, "assets_seed_status")
+    script_params = project.script.params if project.script else None
+    data.summary_error = param_error(script_params, "summary_error")
+    data.episode_content_error = param_error(script_params, "episode_content_error")
+    data.assets_seed_error = param_error(project.params, "assets_seed_error")
     data.usage = AdminProjectUsageOut(**usage)
     data.episodes = [
         AdminDramaEpisodeBriefOut(
@@ -218,6 +229,7 @@ async def get_drama_project(
                 if isinstance(ep.params, dict) and (ep.params or {}).get("fragment_plan_status")
                 else None
             ),
+            fragment_plan_error=param_error(ep.params, "fragment_plan_error"),
         )
         for ep in episodes
     ]
@@ -228,6 +240,7 @@ async def get_drama_project(
             name=a.name,
             has_cover=bool(a.cover or a.url),
             generation_status=_asset_generation_status(a),
+            generation_error=generation_error(a.params),
         )
         for a in assets
     ]
@@ -255,6 +268,8 @@ async def get_drama_project(
             billing_estimate_fen=int(t.billing_estimate_fen or 0),
             provider_channel_id=t.provider_channel_id,
             error_message=t.error_message,
+            error_code=t.error_code,
+            error_params=t.error_params if isinstance(t.error_params, dict) else None,
             created_at=t.created_at,
             finished_at=t.finished_at,
         )

@@ -8,6 +8,7 @@ import {
   AdminDetailSection,
 } from "@/components/admin/AdminDetailLayout";
 import { AdminEntityLink } from "@/components/admin/AdminEntityLink";
+import { StoredErrorText } from "@/components/admin/StoredErrorText";
 import { Button } from "@/components/ui/button";
 import { formatDramaGenerationStatus } from "@/lib/dramaLabels";
 
@@ -92,6 +93,15 @@ export function DramaFragmentDetailPage() {
             },
             { label: "Thời lượng", value: detail.duration_sec != null ? `${detail.duration_sec}s` : "—" },
             { label: "Trạng thái tạo", value: formatDramaGenerationStatus(detail.generation_status) },
+            ...(detail.generation_error
+              ? [
+                  {
+                    label: "Lỗi tạo",
+                    value: <StoredErrorText error={detail.generation_error} className="text-[#f56c6c]" />,
+                    full: true,
+                  },
+                ]
+              : []),
             { label: "Số tư liệu dùng", value: detail.asset_ref_count },
             { label: "Nội dung kịch bản", value: detail.content || "—", full: true },
           ]}

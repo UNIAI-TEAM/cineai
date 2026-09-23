@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FolderOpen,
+  Languages,
   LayoutGrid,
   Library,
   PenLine,
@@ -16,6 +17,7 @@ import Button from '../../components/ui/Button'
 import PillFilter, { type PillOption } from '../../components/ui/PillFilter'
 import { dramaApi, resolveDramaMediaUrl, type DramaProjectListItem } from '../../api/drama'
 import { dialog } from '../../lib/dialog'
+import { contentLangOptions, defaultContentLang, type ContentLang } from '../../lib/contentLang'
 import { type ImageStyleId } from '../../lib/dramaImageStyles'
 import { formatDramaUsageBrief } from '../../lib/dramaUsage'
 import {
@@ -75,7 +77,7 @@ export default function DramaListPage() {
 // 渲染 Agent 首页内容
 function DramaListInner() {
   const navigate = useNavigate()
-  const { t, m } = useI18n()
+  const { t, m, locale } = useI18n()
   const filterOptions = useMemo<PillOption<ProjectFilter>[]>(
     () =>
       FILTER_KEYS.map((value) => ({
@@ -88,6 +90,7 @@ function DramaListInner() {
    * storyText AI 创意输入
    * episodeCount 目标集数
    * imageStyleId 画面风格
+   * contentLang AI 生成内容语言（默认跟随界面语言）
    * items 我的项目列表
    * loading 列表加载中
    * busy 创建中
@@ -102,6 +105,7 @@ function DramaListInner() {
   const [storyText, setStoryText] = useState('')
   const [episodeCount, setEpisodeCount] = useState(12)
   const [imageStyleId, setImageStyleId] = useState<ImageStyleId | ''>('')
+  const [contentLang, setContentLang] = useState<ContentLang>(() => defaultContentLang(locale))
   const [items, setItems] = useState<DramaProjectListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -151,6 +155,7 @@ function DramaListInner() {
         episode_count: episodeCount,
         image_style_id: imageStyleId || undefined,
         title: source.slice(0, 40),
+        content_lang: contentLang,
       })
       navigate(`/drama/projects/${project.id}`, { state: { activeStep: 'outline' } })
     } catch (err) {
@@ -400,6 +405,22 @@ function DramaListInner() {
                   <DramaImageStyleModal value={imageStyleId} onChange={setImageStyleId} disabled={busy} />
                   <span className="drama-agent-opt-divider" aria-hidden />
                   <DramaEpisodeCountPopover value={episodeCount} onChange={setEpisodeCount} disabled={busy} />
+                  <span className="drama-agent-opt-divider" aria-hidden />
+                  <label className="drama-agent-opt-trigger drama-agent-lang" title={t('contentLang.createHint')}>
+                    <Languages size={14} strokeWidth={1.9} aria-hidden />
+                    <select
+                      value={contentLang}
+                      disabled={busy}
+                      aria-label={t('contentLang.label')}
+                      onChange={(e) => setContentLang(e.target.value as ContentLang)}
+                    >
+                      {contentLangOptions(contentLang).map((lang) => (
+                        <option key={lang} value={lang}>
+                          {t(`contentLang.names.${lang}`)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
                 <Button
                   variant="lime"

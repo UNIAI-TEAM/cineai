@@ -13,6 +13,7 @@ import { handleBillingError } from '../../lib/billingError'
 import { reconcileCatalogModel } from '../../lib/mediaModelChoice'
 import { kepuStepIndex, kepuSteps } from '../../lib/status'
 import { localizedLabel, templateName } from '../../lib/templateI18n'
+import { voiceKeyForLang, voicesForLang } from '../../lib/voiceLang'
 import { useI18n } from '../../i18n'
 
 /** 成片方式选项：id 与后端 pipeline_mode 一致，名称/说明走 studioStyle.modes.<id> */
@@ -128,6 +129,20 @@ export default function StyleConfigPage() {
   }
 
   const selectedVoice = voices.find((v) => voiceKey(v) === voiceId || v.id === voiceId)
+  /** 项目实际内容语言（后端 project_kepu_lang）：音色卡片只列能朗读它的音色 */
+  const contentLang = project?.effective_content_lang || ''
+  const langVoices = useMemo(() => voicesForLang(voices, contentLang), [voices, contentLang])
+
+  useEffect(() => {
+    // 已选 / 模板默认音色读不了项目语言时，换成该语言同性别的默认音色（后端合成时也会同样替换）
+    const next = voiceKeyForLang(voices, voiceId, contentLang)
+    if (next) setVoiceId(next)
+  }, [voices, voiceId, contentLang])
+
+  // 音色语言小标签：zh|vi|en → 当前界面语言名称
+  function voiceLangTags(v: VoicePreset): string {
+    return (v.languages || []).map((l) => t(`studioStyle.voiceLangs.${l}`)).join(' · ')
+  }
 
   useEffect(() => {
     if (!project || !currentTpl) return
@@ -357,8 +372,13 @@ export default function StyleConfigPage() {
                 {t('studioStyle.moreVoices')} <ComingSoon />
               </button>
             </h3>
+            {['vi', 'en', 'zh'].includes(contentLang) ? (
+              <p className="pf-muted" style={{ fontSize: '0.78rem', margin: '0 0 0.55rem' }}>
+                {t('studioStyle.voiceLangHint', { lang: t(`studioStyle.voiceLangs.${contentLang}`) })}
+              </p>
+            ) : null}
             <div className="pf-voice-row">
-              {voices.map((v) => {
+              {langVoices.map((v) => {
                 const vid = voiceKey(v)
                 const selected = voiceId === vid
                 const loading = previewBusy === vid
@@ -380,6 +400,7 @@ export default function StyleConfigPage() {
                     <strong className="pf-voice-name">{localizedLabel(v)}</strong>
                     <span className="pf-voice-meta">
                       {v.gender === 'female' ? t('studioStyle.female') : v.gender === 'male' ? t('studioStyle.male') : v.gender}
+                      {v.languages?.length ? ` · ${voiceLangTags(v)}` : null}
                     </span>
                     <button
                       type="button"

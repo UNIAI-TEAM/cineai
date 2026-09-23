@@ -34,6 +34,7 @@ import {
 import { sumFragmentContentDuration } from './dramaEpisodeEditUtils'
 import { OutlineScriptParseModal, OutlineScriptPreview } from './outlineScriptPreview'
 import { storedJobError } from '../../lib/dramaJobError'
+import { toCanonicalScript, toDisplayScript } from '../../lib/dramaScriptLocalize'
 
 type SectionKey = 'creative' | 'summary' | 'body'
 
@@ -210,7 +211,7 @@ export function OutlineEpisodePanel({
   children,
 }: OutlineEpisodePanelProps) {
   const navigate = useNavigate()
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const [activeEpisodeNumber, setActiveEpisodeNumber] = useState(1)
   const [openSections, setOpenSections] = useState<Set<SectionKey>>(
     () => new Set(['creative', 'summary', 'body']),
@@ -382,7 +383,8 @@ export function OutlineEpisodePanel({
         if (ep.episodeNumber !== num) return ep
         if (section === 'creative') return { ...ep, creative: sectionDraft, title: titleDraft || ep.title }
         if (section === 'summary') return { ...ep, summary: sectionDraft, title: titleDraft || ep.title }
-        return { ...ep, body: sectionDraft, title: titleDraft || ep.title }
+        // 剧本正文：编辑框里是界面语言标签，保存前换回规范中文标签
+        return { ...ep, body: toCanonicalScript(sectionDraft, locale), title: titleDraft || ep.title }
       })
       await saveBodies(next)
       setEditingSection(null)
@@ -557,7 +559,7 @@ export function OutlineEpisodePanel({
         ? selected.creative || ''
         : section === 'summary'
           ? selected.summary || ''
-          : selected.body || '',
+          : toDisplayScript(selected.body || '', locale),
     )
     setOpenSections((prev) => new Set(prev).add(section))
   }
@@ -855,7 +857,7 @@ export function OutlineEpisodePanel({
           onSave={() => void handleSaveSection('body')}
           onDraftChange={setSectionDraft}
           onRegenerate={() => void handleGenerate('body')}
-          onCopy={() => void copyText(selected.body || '')}
+          onCopy={() => void copyText(toDisplayScript(selected.body || '', locale))}
           scriptPreview={
             <OutlineScriptPreview
               text={selected.body || ''}

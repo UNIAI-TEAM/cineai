@@ -13,6 +13,7 @@ from app.deps import get_current_admin
 from app.models import User
 from app.models_drama import DramaAsset, DramaProject
 from app.schemas import PageMeta
+from app.services.admin.stored_errors import AdminStoredErrorOut, generation_error
 
 router = APIRouter()
 
@@ -39,6 +40,8 @@ class AdminDramaAssetOut(BaseModel):
 
 class AdminDramaAssetDetailOut(AdminDramaAssetOut):
     params: dict | None = None
+    # 生图失败（params.generation，带错误码时管理端按码翻译）
+    generation_error: AdminStoredErrorOut | None = None
 
 
 class AdminDramaAssetListOut(BaseModel):
@@ -172,4 +175,8 @@ async def get_drama_asset(
         user_id=project.user_id,
         user_email=email,
     )
-    return AdminDramaAssetDetailOut(**base.model_dump(), params=asset.params if isinstance(asset.params, dict) else None)
+    return AdminDramaAssetDetailOut(
+        **base.model_dump(),
+        params=asset.params if isinstance(asset.params, dict) else None,
+        generation_error=generation_error(asset.params),
+    )

@@ -6,6 +6,7 @@ import { AdminEntityLink } from "@/components/admin/AdminEntityLink";
 import { AdminSearchInput } from "@/components/admin/AdminSearchInput";
 import { AdminUserSearchSelect } from "@/components/admin/AdminUserSearchSelect";
 import { StatCard } from "@/components/admin/StatCard";
+import { StoredErrorText } from "@/components/admin/StoredErrorText";
 import { PageSection } from "@/components/admin/PageSection";
 import { TaskDetailDialog } from "@/components/tasks/TaskDetailDialog";
 import { PageHeader, Toolbar } from "@/components/ui/page";
@@ -460,11 +461,13 @@ export function QueuesPage() {
                           <span className={`admin-status-pill ${statusClass(task.status)}`}>
                             {taskStatusLabel(task.status)}
                           </span>
-                          {task.error_message ? (
-                            <div className="mt-1 max-w-[200px] truncate text-[11px] text-[#f56c6c]" title={task.error_message}>
-                              {task.error_message}
-                            </div>
-                          ) : null}
+                          <StoredErrorText
+                            compact
+                            className="mt-1"
+                            message={task.error_message}
+                            code={task.error_code}
+                            params={task.error_params}
+                          />
                         </td>
                         <td className="text-xs">{task.progress_percent}%</td>
                         <td className="text-xs">

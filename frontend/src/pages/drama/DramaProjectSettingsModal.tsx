@@ -1,4 +1,4 @@
-/** 大纲「项目设置」：画幅/画风/字幕/人物介绍/尾帧衔接（全局可改；分镜页只读） */
+/** 大纲「项目设置」：内容语言/画幅/画风/字幕/人物介绍/尾帧衔接（全局可改；分镜页只读） */
 import { useState } from 'react'
 import Modal from '../../components/ui/Modal'
 import { useI18n } from '../../i18n/context'
@@ -22,6 +22,7 @@ import {
   subtitleModeUsesModelOutput,
   type DramaSubtitleMode,
 } from '../../lib/dramaSubtitleBoard'
+import { contentLangOptions, normalizeContentLang, type ContentLang } from '../../lib/contentLang'
 import type { DramaProject, DramaScript } from '../../api/drama'
 import { dramaApi } from '../../api/drama'
 
@@ -100,6 +101,9 @@ export function DramaProjectSettingsModal({
   const subtitleMode = readEpisodeSubtitleMode(projectParams)
   const characterIntroMode = readEpisodeCharacterIntroMode(projectParams)
   const linkLastFrame = coerceLinkLastFrame(projectParams)
+  // 内容语言：后端返回的 content_lang 已含老项目推断；zh 只在项目本就是中文时可选
+  const contentLang: ContentLang =
+    normalizeContentLang(project.content_lang) || normalizeContentLang(projectParams.content_lang) || 'vi'
 
   async function patchProjectParams(patch: Record<string, unknown>) {
     setSaving(true)
@@ -109,6 +113,20 @@ export function DramaProjectSettingsModal({
       onProjectChange(updated)
     } catch (err) {
       onError(err instanceof Error ? err.message : t('dramaProject.settings.saveFailed'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 修改内容语言：只影响之后 AI 生成的内容（后端 PATCH content_lang，非法值报 common.invalid_content_lang）
+  async function handleContentLangChange(lang: ContentLang) {
+    if (lang === contentLang) return
+    setSaving(true)
+    try {
+      const updated = await dramaApi.updateProject(projectId, { content_lang: lang })
+      onProjectChange(updated)
+    } catch (err) {
+      onError(err instanceof Error ? err.message : t('contentLang.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -147,6 +165,22 @@ export function DramaProjectSettingsModal({
         <p className="drama-muted drama-project-settings-lead">
           {t('dramaProject.settings.lead')}
         </p>
+
+        <section className="drama-project-settings-section">
+          <div className="drama-project-settings-head">
+            <h4>{t('contentLang.label')}</h4>
+          </div>
+          <SettingsChoiceRow
+            value={contentLang}
+            disabled={saving}
+            options={contentLangOptions(contentLang).map((lang) => ({
+              value: lang,
+              label: t(`contentLang.names.${lang}`),
+            }))}
+            onChange={(lang) => void handleContentLangChange(lang)}
+          />
+          <p className="drama-muted">{t('contentLang.changeHint')}</p>
+        </section>
 
         <section className="drama-project-settings-section">
           <div className="drama-project-settings-head">

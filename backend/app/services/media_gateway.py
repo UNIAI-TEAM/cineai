@@ -757,8 +757,12 @@ class MediaGateway:
         shot_no: int | None = None,
         duration_hint: float = 4.0,
         emotion_hint: str | None = None,
+        lang: str | None = None,
     ) -> str:
-        """Sinh lời bình theo route của chức năng: uỷ quyền cho TtsService (cascade slot → edge-tts)."""
+        """Sinh lời bình theo route của chức năng: uỷ quyền cho TtsService (cascade slot → edge-tts).
+
+        lang: ngôn ngữ nội dung zh|vi|en; không truyền thì TtsService đoán theo văn bản.
+        """
         from app.services.tts_service import TtsService
 
         return await TtsService(self.settings, mock=self.mock).synthesize(
@@ -768,6 +772,7 @@ class MediaGateway:
             project_id=project_id,
             shot_no=shot_no,
             emotion_hint=emotion_hint,
+            lang=lang,
         )
 
     async def chat_storyboard(self, *args: Any, **kwargs: Any) -> kepu_text.StoryboardResult:

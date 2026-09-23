@@ -45,7 +45,6 @@ export const viStudio = {
     estDuration: 'Thời lượng ước tính',
     estDurationValue: '~1–3 phút',
     language: 'Ngôn ngữ',
-    languageValue: 'Tiếng Trung (Phổ thông)',
     inputMethod: 'Cách nhập',
     creating: 'Đang tạo…',
     nextStyle: 'Tiếp: thiết lập phong cách',
@@ -229,6 +228,9 @@ export const viStudio = {
     playing: 'Đang phát',
     preview: 'Nghe thử',
     currentVoice: 'Đang chọn: {name} · dùng cho cả video. Bấm “Nghe thử” để nghe mẫu khoảng 5 giây',
+    // 音色按项目内容语言筛选（Việc T）
+    voiceLangHint: 'Ngôn ngữ nội dung: {lang} · chỉ hiện giọng đọc được ngôn ngữ này',
+    voiceLangs: { zh: 'Tiếng Trung', vi: 'Tiếng Việt', en: 'Tiếng Anh' },
     outputTitle: 'Kiểu video',
     outputHint: 'Mẫu nào cũng chọn được có tạo video AI hay không, không phụ thuộc tỷ lệ khung hình.',
     imageModel: 'Mô hình tạo ảnh',

@@ -192,6 +192,8 @@ export const zhErrors = {
     'api.content_required': 'content 不能为空',
     'api.task_id_required': '缺少 task_id',
     'api.upstream_failed': '上游生成失败，请稍后重试',
+    // --- 项目内容语言（Việc P）---
+    'common.invalid_content_lang': '不支持的内容语言',
   },
   dramaGenError: {
     slot: {

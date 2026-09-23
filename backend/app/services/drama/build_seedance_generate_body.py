@@ -20,6 +20,7 @@ from app.services.seedance_segments import (
     VOICE_CUE_PREFIX_RE,
     build_seedance_production_section,
     classify_voice_body,
+    declare_spoken_language,
     is_production_meta_line,
     rewrite_misclassified_visual_voice_lines,
     script_has_narration_cue,
@@ -76,6 +77,8 @@ class BuildSeedanceGenerateBodyInput(TypedDict, total=False):
     burn_subtitles: bool
     # True=角色身旁人物介绍叠字；False=禁止人物介绍字卡
     character_intro: bool
+    # 项目内容语言 zh|vi|en：vi / en 时口播行声明语种（SEEDANCE_2_5.md §4.3），zh / 缺省不变
+    spoken_lang: str | None
 
 
 # 兼容历史布尔 / 字符串，解析分集 params 开关
@@ -527,6 +530,7 @@ def build_seedance_prompt_text(
     burn_subtitles: bool = True,
     character_intro: bool = True,
     has_style_board: bool = False,
+    spoken_lang: str | None = None,
 ) -> str:
     # 提交前拆分对白舞台指示并纠正空镜误标，保证强制约束与正文一致
     normalized = rewrite_dialogue_action_lines(content or "")
@@ -543,6 +547,7 @@ def build_seedance_prompt_text(
             normalized,
             burn_subtitles=burn_subtitles,
             character_intro=character_intro,
+            spoken_lang=spoken_lang,
         ),
         *(
             [
@@ -590,7 +595,9 @@ def build_seedance_prompt_text(
             "参考图",
             resolve_other_asset_prompt_name,
         ),
-        build_seedance_body_text(normalized, reference, resolved_catalog),
+        declare_spoken_language(
+            build_seedance_body_text(normalized, reference, resolved_catalog), spoken_lang
+        ),
     ]
     return "\n\n".join(section for section in sections if section)
 
@@ -605,6 +612,7 @@ def build_seedance_content_items(
     burn_subtitles: bool = True,
     character_intro: bool = True,
     style_board_url: str | None = None,
+    spoken_lang: str | None = None,
 ) -> list[dict[str, Any]]:
     catalog = build_seedance_reference_catalog(reference, script=content)
     # 无角色/场景图时不挂画风板，避免板子变成唯一画面参考
@@ -617,6 +625,7 @@ def build_seedance_content_items(
         burn_subtitles=burn_subtitles,
         character_intro=character_intro,
         has_style_board=bool(board),
+        spoken_lang=spoken_lang,
     )
     items: list[dict[str, Any]] = []
 
@@ -723,6 +732,7 @@ def build_seedance_generate_body(input_params: BuildSeedanceGenerateBodyInput) -
             burn_subtitles=bool(burn_subtitles),
             character_intro=bool(character_intro),
             style_board_url=style_board_url,
+            spoken_lang=input_params.get("spoken_lang"),
         ),
         "duration": resolve_seedance_duration_from_content(content, fallback=fallback),
         "resolution": resolve_seedance_resolution(input_params.get("resolution")),

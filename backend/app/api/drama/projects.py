@@ -21,7 +21,12 @@ from app.schemas_drama import (
     DramaProjectUsageStats,
     DramaScriptOut,
 )
-from app.services.content_lang import normalize_lang, project_content_lang, request_lang
+from app.services.content_lang import (
+    normalize_lang,
+    parse_content_lang,
+    project_content_lang,
+    request_lang,
+)
 from app.services.drama.access import get_owned_drama_project
 from app.services.drama.generation import project_link_last_frame_enabled
 from app.services.drama.project_cover import resolve_drama_project_cover
@@ -124,10 +129,12 @@ async def create_project(
         image_style_id=body.image_style_id,
         extra=body.params,
     )
-    # 内容语言：显式传入优先，否则取界面语言；后台任务只读这里
-    project_params["content_lang"] = normalize_lang(
-        (body.params or {}).get("content_lang")
-    ) or request_lang(request)
+    # 内容语言：body.content_lang（非法值报错）→ params.content_lang → 界面语言；后台任务只读这里
+    project_params["content_lang"] = (
+        parse_content_lang(body.content_lang)
+        or normalize_lang((body.params or {}).get("content_lang"))
+        or request_lang(request)
+    )
     project = DramaProject(
         user_id=user.id,
         title=title or ("自由画布项目" if workflow == "canvas" else "未命名漫剧"),
@@ -176,6 +183,8 @@ async def update_project(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> DramaProjectOut:
+    # 先校验内容语言，非法值直接拒绝（不做部分更新）
+    next_lang = parse_content_lang(body.content_lang)
     project = await get_owned_drama_project(db, project_id, user, with_script=True)
     prev_link = project_link_last_frame_enabled(project)
     if body.title is not None:
@@ -191,10 +200,9 @@ async def update_project(
         if not normalize_lang(next_params.get("content_lang")) and prev_lang:
             next_params["content_lang"] = prev_lang
         project.params = next_params
-    if body.content_lang is not None:
-        lang = normalize_lang(body.content_lang)
-        if lang:
-            project.params = {**(project.params or {}), "content_lang": lang}
+    # 只影响之后 AI 生成的内容，已有剧本 / 分镜不自动翻译
+    if next_lang:
+        project.params = {**(project.params or {}), "content_lang": next_lang}
     await db.commit()
 
     # 镜间衔接开关变化时，动态重排仍排队的分镜视频任务

@@ -222,6 +222,8 @@ ERRORS: dict[str, tuple[int, str]] = {
     "task.missing_provider_task": (500, "缺少上游任务 ID，无法查询进度"),
     "task.video_poll_timeout": (504, "视频生成等待超时，预扣已退回"),
     "task.upstream_failed": (502, "生成失败，请稍后重试"),
+    # --- 项目内容语言（Việc P）---
+    "common.invalid_content_lang": (400, "不支持的内容语言"),
 }
 
 

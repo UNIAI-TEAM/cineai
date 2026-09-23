@@ -4,6 +4,7 @@ import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import { Clapperboard, Plus } from 'lucide-react'
 import type { EpisodeFragmentNodeData } from './buildEpisodeFlow'
 import { useI18n } from '../../../i18n/context'
+import { useDisplayScriptDraft } from '../../../hooks/useDisplayScriptDraft'
 
 type Props = NodeProps<Node<EpisodeFragmentNodeData>> & {
   onPromptChange?: (fragmentId: number, content: string) => void
@@ -21,11 +22,18 @@ function EpisodeFragmentNodeComponent({
   const hasVideo = Boolean(data.videoUrl)
   const media = data.coverUrl || data.videoUrl
 
+  // 分镜正文：框内显示界面语言标签，回写父级时换回规范中文标签
+  const emitPrompt = useCallback(
+    (content: string) => onPromptChange?.(data.fragmentId, content),
+    [data.fragmentId, onPromptChange],
+  )
+  const [promptDraft, setPromptDraft] = useDisplayScriptDraft(data.content || '', emitPrompt)
+
   const handlePromptChange = useCallback(
     (event: ChangeEvent<HTMLTextAreaElement>) => {
-      onPromptChange?.(data.fragmentId, event.target.value)
+      setPromptDraft(event.target.value)
     },
-    [data.fragmentId, onPromptChange],
+    [setPromptDraft],
   )
 
   return (
@@ -73,14 +81,14 @@ function EpisodeFragmentNodeComponent({
         {selected ? (
           <textarea
             className="ep-frag-prompt-input nodrag nowheel"
-            value={data.content}
+            value={promptDraft}
             onChange={handlePromptChange}
             placeholder={t('dramaCanvas.episode.promptPlaceholder')}
             rows={5}
           />
         ) : (
           <p className="ep-frag-prompt-text">
-            {(data.content || '').trim() || t('dramaCanvas.episode.emptyPrompt')}
+            {promptDraft.trim() || t('dramaCanvas.episode.emptyPrompt')}
           </p>
         )}
       </div>

@@ -13,6 +13,7 @@ from app.deps import get_current_admin
 from app.models import User
 from app.models_drama import DramaEpisode, DramaEpisodeFragment, DramaFragmentAssetRef, DramaProject
 from app.schemas import PageMeta
+from app.services.admin.stored_errors import AdminStoredErrorOut, generation_error
 
 router = APIRouter()
 
@@ -40,6 +41,8 @@ class AdminDramaFragmentOut(BaseModel):
 
 class AdminDramaFragmentDetailOut(AdminDramaFragmentOut):
     params: dict | None = None
+    # 生视频失败（params.generation，带错误码时管理端按码翻译）
+    generation_error: AdminStoredErrorOut | None = None
     asset_ids: list[int] = []
 
 
@@ -186,5 +189,6 @@ async def get_drama_fragment(
         created_at=frag.created_at,
         updated_at=frag.updated_at,
         params=frag.params if isinstance(frag.params, dict) else None,
+        generation_error=generation_error(frag.params),
         asset_ids=asset_ids,
     )

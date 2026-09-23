@@ -162,6 +162,8 @@ async def get_project(
             billing_estimate_fen=int(t.billing_estimate_fen or 0),
             provider_channel_id=t.provider_channel_id,
             error_message=t.error_message,
+            error_code=t.error_code,
+            error_params=t.error_params if isinstance(t.error_params, dict) else None,
             created_at=t.created_at,
             finished_at=t.finished_at,
         )

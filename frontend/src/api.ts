@@ -118,10 +118,12 @@ export type Shot = {
 export type VoicePreset = {
   id: string
   label: string
-  /** 各语言展示名：{ en, vi }，缺省回落 label */
+  /** 各语言展示名：{ zh, en, vi }，缺省回落 label */
   label_i18n?: Record<string, string>
   gender: string
   speaker: string
+  /** 能正确朗读的内容语言 zh|vi|en（lib/voiceLang.ts 按项目语言过滤 / 自动替换） */
+  languages?: string[]
 }
 
 /** 项目 voice_id / 模板别名 → 与音色列表一致的 speaker id */
@@ -158,6 +160,11 @@ export type Project = {
   character_bible?: string
   bgm_lock?: string
   subtitle_preset?: string
+  /** 创建时界面语言或用户显式所选（content_lang_locked） */
+  content_lang?: string
+  content_lang_locked?: boolean | null
+  /** 实际生效的内容语言 vi|en|zh（AI 旁白 / 字幕用它） */
+  effective_content_lang?: string
   style_prompt?: string
   character_prompt?: string
   extra_prompt?: string
@@ -435,6 +442,8 @@ export const api = {
     style_prompt?: string
     character_prompt?: string
     extra_prompt?: string
+    /** 内容语言 vi|en|zh；不传则按界面语言 + 文本推断 */
+    content_lang?: string
   }) {
     return request<Project>('/api/projects', { method: 'POST', body: JSON.stringify(body) })
   },
@@ -457,6 +466,8 @@ export const api = {
       bgm_lock?: string
       subtitle_preset?: string
       cover_url?: string | null
+      /** 修改内容语言（只影响之后 AI 生成的内容） */
+      content_lang?: string
     },
   ) {
     return request<Project>(`/api/projects/${id}`, {
@@ -608,10 +619,10 @@ export const api = {
   compose(projectId: number) {
     return request<Project>(`/api/projects/${projectId}/compose`, { method: 'POST' })
   },
-  expandContent(topic: string, mode: 'theme' | 'script' = 'theme') {
+  expandContent(topic: string, mode: 'theme' | 'script' = 'theme', contentLang?: string) {
     return request<{ title: string; content: string }>('/api/content/expand', {
       method: 'POST',
-      body: JSON.stringify({ topic, mode }),
+      body: JSON.stringify({ topic, mode, content_lang: contentLang || undefined }),
     })
   },
   publish(projectId: number) {

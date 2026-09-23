@@ -131,6 +131,8 @@ class Project(Base):
     subtitle_preset: Mapped[str] = mapped_column(String(32), default="")
     # 创建时的界面语言 zh|en|vi；文本无法判断语言时拆镜输出跟随它（content_lang.kepu_content_lang）
     content_lang: Mapped[str] = mapped_column(String(8), default="")
+    # 用户在创建页 / 设置里显式选了内容语言：True 时 content_lang 优先于文本推断（content_lang.project_kepu_lang）
+    content_lang_locked: Mapped[bool] = mapped_column(Boolean, default=False)
     # User overrides from studio (optional)
     style_prompt: Mapped[str] = mapped_column(Text, default="")
     character_prompt: Mapped[str] = mapped_column(Text, default="")
@@ -152,6 +154,13 @@ class Project(Base):
         order_by="Shot.shot_no",
     )
     jobs: Mapped[list["PipelineJob"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+
+    @property
+    def effective_content_lang(self) -> str:
+        """实际内容语言 zh|en|vi（显式选择优先，否则按文本 / 创建时界面语言推断），供 ProjectOut 输出。"""
+        from app.services.content_lang import project_kepu_lang
+
+        return project_kepu_lang(self)
 
 
 class Shot(Base):

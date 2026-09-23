@@ -249,6 +249,51 @@ capability…) trả `HTTP 400` với message tiếng Việt từ `function_bind
 `GET /api/media-models?scope=<kepu|drama|tools>` (public, không cần admin) trả danh sách model đang khả
 dụng cho từng nhóm chức năng — dùng để hiển thị dropdown chọn model ở frontend, không dùng để cấu hình.
 
+### Giọng đọc theo ngôn ngữ (TTS)
+
+Danh mục giọng `services/voices.py` (`VOICE_PRESETS`, trả qua `GET /api/voices`) có trường `languages`
+(`zh`/`vi`/`en`) cho mỗi giọng. Tài liệu BytePlus ghi rõ mỗi giọng chỉ đọc được một số ngôn ngữ, dùng sai
+ngôn ngữ có thể **tổng hợp lỗi** — nên hệ thống tự đổi giọng theo ngôn ngữ nội dung:
+
+- Giọng mặc định của mỗi ngôn ngữ = giọng **đứng đầu** ngôn ngữ đó trong danh mục (cùng giới tính nếu có):
+  zh `zh_female_cancan_uranus_bigtts` / `zh_male_shaonianzixin_uranus_bigtts`,
+  vi `vi_female_ruan_uranus_bigtts` / `vi_male_wumg_uranus_bigtts`,
+  en `en_female_hayley_uranus_bigtts` / `en_male_tim_uranus_bigtts`.
+- `services/voice_lang.py`: `voice_for_lang()` đổi giọng không đọc được ngôn ngữ sang giọng mặc định (giữ
+  giới tính, có log). `TtsService.synthesize(lang=…)` luôn gọi hàm này (không truyền `lang` thì đoán theo văn
+  bản); video ngắn dùng `project_kepu_lang(project)`. Giọng clone `S_*` / id tự nhập không rõ ngôn ngữ → giữ nguyên.
+- Nghe thử: giọng không đọc được ngôn ngữ giao diện thì nghe câu mẫu bằng ngôn ngữ của giọng.
+- Frontend `StyleConfigPage` chỉ liệt kê giọng đọc được `project.effective_content_lang`
+  (`lib/voiceLang.ts`, cùng quy tắc).
+- Dự phòng edge-tts: zh → giọng `zh-CN-*` theo speaker; vi → `vi-VN-HoaiMyNeural` / `vi-VN-NamMinhNeural`;
+  en → `en-US-JennyNeural` / `en-US-GuyNeural` (theo giới tính). Truyền thẳng tên giọng edge
+  (`vi-VN-HoaiMyNeural`…) cũng được dùng nguyên.
+- OpenAI TTS: giọng dựng sẵn (`marin`/`cedar`/`alloy`…) đọc được nhiều ngôn ngữ (theo danh sách ngôn ngữ của
+  Whisper, có tiếng Việt); adapter chọn `marin`/`cedar` theo giới tính suy ra từ speaker (`vi_female_*`,
+  `en_male_*`… đều suy ra được).
+
+Giọng vi/en đã thêm — đều là giọng Seed Speech **TTS 2.0** (`*_uranus_bigtts`, resource `seed-tts-2.0`), chỉ
+có ở BytePlus (quốc tế); nếu nhà cung cấp `volc_tts` trỏ Volcengine Trung Quốc mà không có giọng này thì
+cascade rơi xuống OpenAI / edge-tts như trên:
+
+| Ngôn ngữ | Voice id |
+|---|---|
+| vi | `vi_female_ruan_uranus_bigtts`, `vi_male_wumg_uranus_bigtts`, `vi_female_ling_uranus_bigtts`, `vi_female_linh_uranus_bigtts`, `vi_female_wu_uranus_bigtts`, `vi_female_hong_uranus_bigtts`, `vi_female_partner_uranus_bigtts` |
+| en | `en_female_hayley_uranus_bigtts`, `en_male_tim_uranus_bigtts`, `en_female_skye_uranus_bigtts`, `en_female_jenny_uranus_bigtts`, `en_male_kevin_uranus_bigtts`, `en_male_marcus_uranus_bigtts` |
+
+Nguồn (kiểm tra 2026-09-23):
+
+- BytePlus Seed Speech — Voice List (TTS 2.0, cột Speaker ID / Language / Gender):
+  https://docs.byteplus.com/en/docs/byteplusvoice/tts-voice-list
+- OpenAI Text to speech (giọng dựng sẵn, ngôn ngữ hỗ trợ): https://developers.openai.com/api/docs/guides/text-to-speech
+- Giọng edge-tts = giọng neural của Azure Speech: https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-support?tabs=tts
+  (`en-US-JennyNeural`, `en-US-GuyNeural` có trong bảng; cả 4 giọng vi-VN / en-US đều có trong
+  `edge_tts.list_voices()` chạy ngày 2026-09-23).
+
+Lời thoại do Seedance tự đọc (phim ngắn, `generate_audio=true`) không dùng danh mục này: dự án vi/en được
+khai báo ngôn ngữ trước lời thoại theo `docs/SEEDANCE_2_5.md` §4.3 (`seedance_segments.declare_spoken_language`,
+chỉ ở bước gửi, dữ liệu phân cảnh không đổi).
+
 ## 4. Giới hạn cần biết
 
 - **OpenAI không có video.** `OpenAIAdapter.create_video`/`fetch_video` luôn raise

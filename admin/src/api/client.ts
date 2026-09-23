@@ -111,6 +111,8 @@ export type AdminTaskBrief = {
   billing_estimate_fen: number;
   provider_channel_id?: string | null;
   error_message?: string | null;
+  error_code?: string | null;
+  error_params?: Record<string, unknown> | null;
   created_at?: string | null;
   finished_at?: string | null;
 };
@@ -241,6 +243,8 @@ export type AdminProject = {
   status: string;
   progress: number;
   error_msg?: string | null;
+  error_code?: string | null;
+  error_params?: Record<string, unknown> | null;
   cover_url?: string | null;
   final_video_url?: string | null;
   pipeline_mode: string;
@@ -258,6 +262,13 @@ export type AdminProject = {
   recent_tasks?: AdminTaskBrief[];
 };
 
+/** Lỗi đã lưu của phim ngắn (params.*_error / params.generation): nguyên văn + mã để dịch */
+export type AdminStoredError = {
+  message: string;
+  code?: string | null;
+  params?: Record<string, unknown> | null;
+};
+
 export type AdminDramaProject = {
   id: number;
   user_id: number;
@@ -273,14 +284,24 @@ export type AdminDramaProject = {
   summary_status?: string | null;
   assets_seed_status?: string | null;
   episode_content_status?: string | null;
+  summary_error?: AdminStoredError | null;
+  episode_content_error?: AdminStoredError | null;
+  assets_seed_error?: AdminStoredError | null;
   usage?: AdminProjectUsage;
-  episodes?: { id: number; name: string; fragment_count: number; fragment_plan_status?: string | null }[];
+  episodes?: {
+    id: number;
+    name: string;
+    fragment_count: number;
+    fragment_plan_status?: string | null;
+    fragment_plan_error?: AdminStoredError | null;
+  }[];
   assets?: {
     id: number;
     type: string;
     name?: string | null;
     has_cover: boolean;
     generation_status?: string | null;
+    generation_error?: AdminStoredError | null;
   }[];
   recent_tasks?: AdminTaskBrief[];
 };
@@ -302,6 +323,7 @@ export type AdminDramaAsset = {
   created_at?: string | null;
   updated_at?: string | null;
   params?: Record<string, unknown> | null;
+  generation_error?: AdminStoredError | null;
 };
 
 export type AdminDramaEpisode = {
@@ -313,6 +335,8 @@ export type AdminDramaEpisode = {
   name: string;
   fragment_count: number;
   fragment_plan_status?: string | null;
+  fragment_plan_error?: AdminStoredError | null;
+  episode_optimize_error?: AdminStoredError | null;
   created_at?: string | null;
   updated_at?: string | null;
   fragments?: {
@@ -323,6 +347,7 @@ export type AdminDramaEpisode = {
     video: string;
     duration_sec?: number | null;
     generation_status?: string | null;
+    generation_error?: AdminStoredError | null;
     asset_ref_count: number;
   }[];
 };
@@ -345,6 +370,7 @@ export type AdminDramaFragment = {
   created_at?: string | null;
   updated_at?: string | null;
   params?: Record<string, unknown> | null;
+  generation_error?: AdminStoredError | null;
   asset_ids?: number[];
 };
 
@@ -412,6 +438,8 @@ export type AdminTaskRow = {
   /** Provider (channel id) đã nhận tác vụ video — dùng để poll đúng kênh */
   provider_channel_id?: string | null;
   error_message?: string | null;
+  error_code?: string | null;
+  error_params?: Record<string, unknown> | null;
   project_id?: number | null;
   drama_project_id?: number | null;
   episode_id?: number | null;
@@ -483,6 +511,7 @@ export type AdminTaskStep = {
   attempt_count: number;
   provider_name?: string | null;
   provider_task_id?: string | null;
+  error_code?: string | null;
   error_message?: string | null;
   started_at?: string | null;
   finished_at?: string | null;
@@ -506,7 +535,6 @@ export type AdminTaskDetail = AdminTaskRow & {
   scheduled_at?: string | null;
   next_action_at?: string | null;
   lease_until?: string | null;
-  error_code?: string | null;
   payload?: Record<string, unknown> | null;
   result_payload?: Record<string, unknown> | null;
   script_id?: number | null;

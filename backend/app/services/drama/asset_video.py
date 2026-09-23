@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.models import User
 from app.models_drama import DramaAsset, DramaProject
 from app.services.ark import get_ark
+from app.services.content_lang import project_content_lang
 from app.services.drama.billing_util import record_seedance_video_usage, seedance_billing_key
 from app.services.drama.build_seedance_generate_body import (
     build_seedance_generate_body,
@@ -114,6 +115,8 @@ async def generate_asset_video(
             "resolution": res,
             "duration_fallback": duration,
             "style_board_url": video_board_url or None,
+            # 越南语 / 英语项目：口播行先声明语种（Seedance 原生配音）
+            "spoken_lang": project_content_lang(project),
         }
     )
     local_video, local_last_frame, task_result = await ark.gen_and_wait_seedance_body(

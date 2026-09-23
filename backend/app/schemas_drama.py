@@ -19,6 +19,8 @@ class DramaProjectCreate(BaseModel):
     # script=大纲分集流程；canvas=自由画布
     workflow: str = Field(default="script", description="script | canvas")
     params: dict[str, Any] | None = None
+    # AI 生成内容语言 zh|en|vi；优先于 params.content_lang，都没有则取界面语言（非法值 → common.invalid_content_lang）
+    content_lang: str | None = Field(default=None, max_length=16)
 
 
 class DramaProjectUpdate(BaseModel):

@@ -93,6 +93,6 @@ test('script structure labels are shown in the UI language without changing data
   assert.equal(localizeScriptMetaLine('夜 外 Bến sông', vi), 'Đêm · Ngoại cảnh · Bến sông')
   assert.equal(localizeScriptMetaLine('清晨 内外 Nhà Minh', vi), 'Sáng sớm · Nội/ngoại cảnh · Nhà Minh')
   assert.equal(localizeScriptMetaLine('Thời gian: sáng', vi), 'Thời gian: sáng')
-  assert.equal(localizeScriptActionLine('【空镜：Sương trên sông】', vi), '【Cảnh không người: Sương trên sông】')
+  assert.equal(localizeScriptActionLine('【空镜：Sương trên sông】', vi), '【Cảnh trống: Sương trên sông】')
   assert.equal(localizeScriptActionLine('△ Minh bước vào', vi), '△ Minh bước vào')
 })

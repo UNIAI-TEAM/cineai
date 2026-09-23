@@ -133,6 +133,8 @@ export type DramaProject = {
   asset_count: number
   episode_count: number
   workflow?: 'script' | 'canvas'
+  /** AI 生成内容语言 vi|en|zh（params.content_lang，老项目按内容推断） */
+  content_lang?: string
   usage?: DramaProjectUsageStats
   active_tasks?: DramaTaskBrief[]
 }
@@ -260,10 +262,21 @@ export const dramaApi = {
     episode_count?: number
     image_style_id?: string
     workflow?: 'script' | 'canvas'
+    /** 内容语言 vi|en|zh；不传则取界面语言 */
+    content_lang?: string
   }) =>
     request<DramaProject>('/api/drama/projects', { method: 'POST', body: JSON.stringify(body) }),
   getProject: (id: number) => request<DramaProject>(`/api/drama/projects/${id}`),
-  updateProject: (id: number, body: { title?: string; description?: string; params?: Record<string, unknown> | null }) =>
+  updateProject: (
+    id: number,
+    body: {
+      title?: string
+      description?: string
+      params?: Record<string, unknown> | null
+      /** 修改内容语言（只影响之后 AI 生成的内容） */
+      content_lang?: string
+    },
+  ) =>
     request<DramaProject>(`/api/drama/projects/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteProject: (id: number) =>
     request<{ ok: boolean }>(`/api/drama/projects/${id}`, { method: 'DELETE' }),

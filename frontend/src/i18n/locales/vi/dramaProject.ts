@@ -147,7 +147,7 @@ export const viDramaProject = {
       empty: 'Chưa có kịch bản',
       // 剧本结构标签的展示名（数据仍是中文标签，仅预览时替换）
       castLabel: 'Nhân vật xuất hiện',
-      establishing: 'Cảnh không người',
+      establishing: 'Cảnh trống',
       sceneTime: {
         day: 'Ngày',
         night: 'Đêm',

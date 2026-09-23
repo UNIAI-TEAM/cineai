@@ -9,78 +9,129 @@ from typing import Any
 from app.services.text_lang import is_cjk_text
 
 # id used in API / project.voice_id; speaker is openspeech speaker id
-# label 为中文主值；label_i18n 提供 en / vi 界面展示译文，前端按语言取值，缺失回落 label
+# label 为中文主值；label_i18n 提供 zh / en / vi 界面展示名，前端按语言取值，缺失回落 label
+# languages：该音色能正确朗读的内容语言（zh|en|vi）；官方说明用不支持的语言合成可能失败或读错
 VOICE_PRESETS: list[dict[str, Any]] = [
     {
         "id": "zh_female_cancan_uranus_bigtts",
         "label": "灿灿 · 女声旁白",
-        "label_i18n": {"en": "Cancan · Female narration", "vi": "Cancan · giọng nữ đọc lời dẫn"},
+        "label_i18n": {"zh": "灿灿 · 女声旁白", "en": "Cancan · Female narration", "vi": "Cancan · giọng nữ đọc lời dẫn"},
+        "languages": ["zh"],
         "gender": "female",
         "speaker": "zh_female_cancan_uranus_bigtts",
     },
     {
         "id": "zh_female_tianmeixiaoyuan_uranus_bigtts",
         "label": "甜美女声 · 故事",
-        "label_i18n": {"en": "Sweet female · Story", "vi": "Giọng nữ ngọt ngào · kể chuyện"},
+        "label_i18n": {"zh": "甜美女声 · 故事", "en": "Sweet female · Story", "vi": "Giọng nữ ngọt ngào · kể chuyện"},
+        "languages": ["zh"],
         "gender": "female",
         "speaker": "zh_female_tianmeixiaoyuan_uranus_bigtts",
     },
     {
         "id": "zh_female_shuangkuaisisi_uranus_bigtts",
         "label": "爽快女声 · 都市",
-        "label_i18n": {"en": "Crisp female · Urban", "vi": "Giọng nữ nhanh gọn, thẳng thắn · chuyện đô thị"},
+        "label_i18n": {"zh": "爽快女声 · 都市", "en": "Crisp female · Urban", "vi": "Giọng nữ nhanh gọn, thẳng thắn · chuyện đô thị"},
+        "languages": ["zh"],
         "gender": "female",
         "speaker": "zh_female_shuangkuaisisi_uranus_bigtts",
     },
     {
         "id": "zh_female_vv_uranus_bigtts",
         "label": "Vivi · 国风女声",
-        "label_i18n": {"en": "Vivi · Classical female", "vi": "Vivi · giọng nữ cổ phong"},
+        "label_i18n": {"zh": "Vivi · 国风女声", "en": "Vivi · Classical female", "vi": "Vivi · giọng nữ cổ phong"},
+        "languages": ["zh"],
         "gender": "female",
         "speaker": "zh_female_vv_uranus_bigtts",
     },
     {
         "id": "zh_female_xiaohe_uranus_bigtts",
         "label": "小何 · 通用女声",
-        "label_i18n": {"en": "Xiaohe · General female", "vi": "Xiaohe · giọng nữ đa năng"},
+        "label_i18n": {"zh": "小何 · 通用女声", "en": "Xiaohe · General female", "vi": "Xiaohe · giọng nữ đa năng"},
+        "languages": ["zh"],
         "gender": "female",
         "speaker": "zh_female_xiaohe_uranus_bigtts",
     },
     {
         "id": "zh_male_shaonianzixin_uranus_bigtts",
         "label": "少年梓辛 · 男声",
-        "label_i18n": {"en": "Zixin · Youthful male", "vi": "Zixin · giọng nam thiếu niên"},
+        "label_i18n": {"zh": "少年梓辛 · 男声", "en": "Zixin · Youthful male", "vi": "Zixin · giọng nam thiếu niên"},
+        "languages": ["zh"],
         "gender": "male",
         "speaker": "zh_male_shaonianzixin_uranus_bigtts",
     },
     {
         "id": "zh_male_m191_uranus_bigtts",
         "label": "云舟 · 稳重男声",
-        "label_i18n": {"en": "Yunzhou · Steady male", "vi": "Yunzhou · giọng nam điềm đạm"},
+        "label_i18n": {"zh": "云舟 · 稳重男声", "en": "Yunzhou · Steady male", "vi": "Yunzhou · giọng nam điềm đạm"},
+        "languages": ["zh"],
         "gender": "male",
         "speaker": "zh_male_m191_uranus_bigtts",
     },
     {
         "id": "zh_male_taocheng_uranus_bigtts",
         "label": "小天 · 年轻男声",
-        "label_i18n": {"en": "Xiaotian · Young male", "vi": "Xiaotian · giọng nam trẻ trung"},
+        "label_i18n": {"zh": "小天 · 年轻男声", "en": "Xiaotian · Young male", "vi": "Xiaotian · giọng nam trẻ trung"},
+        "languages": ["zh"],
         "gender": "male",
         "speaker": "zh_male_taocheng_uranus_bigtts",
     },
     {
         "id": "zh_male_ruyayichen_uranus_bigtts",
         "label": "儒雅逸辰 · 男声",
-        "label_i18n": {"en": "Yichen · Refined male", "vi": "Yichen · giọng nam nho nhã"},
+        "label_i18n": {"zh": "儒雅逸辰 · 男声", "en": "Yichen · Refined male", "vi": "Yichen · giọng nam nho nhã"},
+        "languages": ["zh"],
         "gender": "male",
         "speaker": "zh_male_ruyayichen_uranus_bigtts",
     },
     {
         "id": "zh_male_baqiqingshu_uranus_bigtts",
         "label": "霸气青叔 · 男声",
-        "label_i18n": {"en": "Qingshu · Bold male", "vi": "Qingshu · giọng nam trung niên uy lực"},
+        "label_i18n": {"zh": "霸气青叔 · 男声", "en": "Qingshu · Bold male", "vi": "Qingshu · giọng nam trung niên uy lực"},
+        "languages": ["zh"],
         "gender": "male",
         "speaker": "zh_male_baqiqingshu_uranus_bigtts",
     },
+    # --- 越南语 / 英语：BytePlus Seed Speech TTS 2.0 官方音色（*_uranus_bigtts，见 docs/PROVIDERS.md 来源）---
+    # 每种语言排在最前的音色即该语言默认音色（voice_lang.default_voice_for_lang 与前端同一规则）
+    *[
+        {
+            "id": speaker,
+            "label": zh,
+            "label_i18n": {"zh": zh, "en": en, "vi": vi},
+            "languages": [lang],
+            "gender": gender,
+            "speaker": speaker,
+        }
+        for speaker, lang, gender, zh, en, vi in (
+            ("vi_female_ruan_uranus_bigtts", "vi", "female",
+             "Ruan · 越南语沉稳女声", "Ruan · Steady, poised female", "Ruan · giọng nữ điềm đạm, rõ ràng"),
+            ("vi_male_wumg_uranus_bigtts", "vi", "male",
+             "Wumg · 越南语稳重男声", "Wumg · Patient, measured male", "Wumg · giọng nam trẻ, từ tốn"),
+            ("vi_female_ling_uranus_bigtts", "vi", "female",
+             "Ling · 越南语温柔女声", "Ling · Gentle, kind female", "Ling · giọng nữ dịu dàng"),
+            ("vi_female_linh_uranus_bigtts", "vi", "female",
+             "Linh · 越南语爽利女声", "Linh · Crisp, energetic female", "Linh · giọng nữ trẻ, dứt khoát"),
+            ("vi_female_wu_uranus_bigtts", "vi", "female",
+             "Wu · 越南语开朗女声", "Wu · Outgoing, level-headed female", "Wu · giọng nữ cởi mở, mạch lạc"),
+            ("vi_female_hong_uranus_bigtts", "vi", "female",
+             "Hong · 越南语直爽女声", "Hong · Down-to-earth, frank female", "Hong · giọng nữ mộc mạc, thẳng thắn"),
+            ("vi_female_partner_uranus_bigtts", "vi", "female",
+             "Partner · 越南语饱满情绪女声", "Partner · Youthful, emotive female", "Partner · giọng nữ trẻ, giàu cảm xúc"),
+            ("en_female_hayley_uranus_bigtts", "en", "female",
+             "Hayley · 英语女声 · 故事", "Hayley · Lively female storyteller", "Hayley · giọng nữ kể chuyện sinh động"),
+            ("en_male_tim_uranus_bigtts", "en", "male",
+             "Tim · 英语清晰男声", "Tim · Clear, friendly male", "Tim · giọng nam rõ ràng, thân thiện"),
+            ("en_female_skye_uranus_bigtts", "en", "female",
+             "Skye · 英语真诚女声", "Skye · Clear, sincere female", "Skye · giọng nữ trong trẻo, chân thành"),
+            ("en_female_jenny_uranus_bigtts", "en", "female",
+             "Jenny · 英语温暖女声", "Jenny · Warm, cheerful female", "Jenny · giọng nữ ấm áp, vui tươi"),
+            ("en_male_kevin_uranus_bigtts", "en", "male",
+             "Kevin · 英语年轻男声", "Kevin · Young, articulate male", "Kevin · giọng nam trẻ, mạch lạc"),
+            ("en_male_marcus_uranus_bigtts", "en", "male",
+             "Marcus · 英语醇厚男声 · 故事", "Marcus · Deep, mellow storyteller", "Marcus · giọng nam trầm ấm, kể chuyện"),
+        )
+    ],
 ]
 
 # 漫剧角色音色：按关键词为不同角色匹配不同 speaker（避免全员同一声线）
@@ -189,6 +240,10 @@ def list_voices() -> list[dict[str, Any]]:
     return list(VOICE_PRESETS)
 
 
+# 形如 vi_female_ruan_uranus_bigtts / en_male_tim_uranus_bigtts 的语种音色 id
+_LANG_GENDER_SPEAKER_RE = re.compile(r"^[a-z]{2}_(female|male)_")
+
+
 def infer_speaker_gender(speaker: str) -> str | None:
     """openspeech speaker id → female | male（勿用子串 male，zh_female_* 会误判）。"""
     s = (speaker or "").strip().lower()
@@ -198,6 +253,10 @@ def infer_speaker_gender(speaker: str) -> str | None:
         return "female"
     if s.startswith("zh_male_") or s.startswith("saturn_male"):
         return "male"
+    # 其它语种官方音色：vi_female_* / en_male_* …（语种前缀 + 性别段）
+    m = _LANG_GENDER_SPEAKER_RE.match(s)
+    if m:
+        return m.group(1)
     return None
 
 
@@ -217,21 +276,39 @@ def edge_tts_voice_for_speaker(speaker: str) -> str:
     return "zh-CN-XiaoxiaoNeural"
 
 
-# edge-tts 越南语 neural（旁白非中文时使用）
+# edge-tts 越南语 / 英语 neural（旁白非中文时使用；Azure 官方 neural 音色，见 docs/PROVIDERS.md）
 EDGE_TTS_VI_FEMALE = "vi-VN-HoaiMyNeural"
 EDGE_TTS_VI_MALE = "vi-VN-NamMinhNeural"
+EDGE_TTS_EN_FEMALE = "en-US-JennyNeural"
+EDGE_TTS_EN_MALE = "en-US-GuyNeural"
+# 直接指定的 edge-tts 音色名（如 vi-VN-HoaiMyNeural），兜底时原样使用
+_EDGE_VOICE_NAME_RE = re.compile(r"^[a-z]{2,3}-[A-Z]{2}(?:-[a-z]+)?-[A-Za-z]+Neural$")
 
 
-def edge_tts_voice_for_text(speaker: str, text: str) -> str:
-    """edge-tts 兜底音色：中文旁白沿用 speaker→中文 neural；非中文旁白按性别换越南语 neural。
+def is_edge_voice_name(voice: str) -> bool:
+    """是否 edge-tts / Azure neural 音色名（xx-YY-NameNeural）。"""
+    return bool(_EDGE_VOICE_NAME_RE.match((voice or "").strip()))
 
-    参数：speaker 豆包 speaker id（用于推断性别）；text 待合成文本
+
+def edge_tts_voice_for_text(speaker: str, text: str, lang: str | None = None) -> str:
+    """edge-tts 兜底音色：中文沿用 speaker→中文 neural；越南语 / 英语按性别换对应语种 neural。
+
+    参数：speaker 豆包 speaker id（用于推断性别；本身是 edge 音色名时原样返回）；
+         text 待合成文本；lang 内容语言 zh|vi|en（缺省按文本推断，拉丁文无越南语字母视为英语）
     返回：edge-tts voice 名称
     """
-    if is_cjk_text(text):
+    if is_edge_voice_name(speaker):
+        return speaker.strip()
+    if lang is None:
+        from app.services.content_lang import guess_text_lang
+
+        lang = "zh" if is_cjk_text(text) else (guess_text_lang(text) or "vi")
+    if lang == "zh":
         return edge_tts_voice_for_speaker(speaker)
     zh_voice = edge_tts_voice_for_speaker(speaker)
     male = infer_speaker_gender(speaker) == "male" or zh_voice.startswith("zh-CN-Yun")
+    if lang == "en":
+        return EDGE_TTS_EN_MALE if male else EDGE_TTS_EN_FEMALE
     return EDGE_TTS_VI_MALE if male else EDGE_TTS_VI_FEMALE
 
 
@@ -315,15 +392,18 @@ def preview_text_for_lang(lang: str | None) -> str:
 async def ensure_voice_preview(voice_id: str, lang: str = "zh") -> str:
     """Generate (or reuse cached) short TTS sample; return public URL.
 
-    lang：试听句语言 zh|vi|en，缓存按 (voice, lang) 区分；zh 沿用旧缓存文件名。
+    lang：界面语言 zh|vi|en；音色不支持该语言时改用音色支持的语言试听（voice_lang.preview_lang_for_voice），
+    缓存按 (voice, 实际试听语言) 区分；zh 沿用旧缓存文件名。
     """
     import hashlib
     from pathlib import Path
 
     from app.services import storage
     from app.services.ark import get_ark
+    from app.services.voice_lang import preview_lang_for_voice
 
     speaker = resolve_speaker(voice_id)
+    lang = preview_lang_for_voice(speaker, lang)
     safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in speaker)[:80]
     cache_dir = Path(__file__).resolve().parents[2] / "static" / "voice_previews"
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -334,7 +414,9 @@ async def ensure_voice_preview(voice_id: str, lang: str = "zh") -> str:
 
     ark = get_ark()
     shot_no = int(hashlib.md5(speaker.encode()).hexdigest()[:4], 16) % 800 + 100
-    url = await ark.tts(preview_text_for_lang(lang), speaker, function_id="kepu.tts", project_id=0, shot_no=shot_no)
+    url = await ark.tts(
+        preview_text_for_lang(lang), speaker, function_id="kepu.tts", project_id=0, shot_no=shot_no, lang=lang
+    )
     src = storage.local_path_from_url(url)
     if src and src.exists():
         dest.write_bytes(src.read_bytes())

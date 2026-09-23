@@ -153,7 +153,7 @@ export const viShell = {
     saveFailed: 'Lưu thất bại',
     requestDelete: 'Yêu cầu xoá tài khoản',
     language: 'Ngôn ngữ giao diện',
-    languageHint: 'Mặc định theo ngôn ngữ trình duyệt cho đến khi bạn tự chọn. Hiện có tiếng Trung, tiếng Anh và tiếng Việt.',
+    languageHint: 'Mặc định theo ngôn ngữ trình duyệt cho đến khi bạn tự chọn. Hiện có tiếng Việt và tiếng Anh.',
     languageAuto: 'Theo trình duyệt',
     dramaLead: 'Dự án phim ngắn AI và tiến độ từng tập',
     allProjects: 'Tất cả dự án',
@@ -214,5 +214,17 @@ export const viShell = {
     GENERATING: 'Đang tạo',
     WAIT_IMAGE: 'Chưa có ảnh',
     WAIT_VIDEO: 'Chưa có video',
+  },
+  // 项目内容语言（新建 / 项目设置共用，Việc P）
+  contentLang: {
+    label: 'Ngôn ngữ nội dung',
+    names: {
+      vi: 'Tiếng Việt',
+      en: 'Tiếng Anh',
+      zh: 'Tiếng Trung (中文)',
+    },
+    createHint: 'AI viết kịch bản, lời thoại, lời dẫn và phụ đề bằng ngôn ngữ này.',
+    changeHint: 'Chỉ áp dụng cho nội dung AI tạo từ lần sau. Nội dung đã có sẽ không tự dịch.',
+    saveFailed: 'Không đổi được ngôn ngữ nội dung',
   },
 } as const

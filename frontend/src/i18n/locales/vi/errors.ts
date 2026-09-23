@@ -192,6 +192,8 @@ export const viErrors = {
     'api.content_required': 'content không được để trống',
     'api.task_id_required': 'Thiếu task_id',
     'api.upstream_failed': 'Nhà cung cấp mô hình chưa tạo được, vui lòng thử lại sau',
+    // --- Ngôn ngữ nội dung dự án (Việc P) ---
+    'common.invalid_content_lang': 'Ngôn ngữ nội dung này chưa được hỗ trợ',
   },
   dramaGenError: {
     slot: {

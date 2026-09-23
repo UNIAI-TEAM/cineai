@@ -9,6 +9,7 @@ import {
   AdminDetailTableWrap,
 } from "@/components/admin/AdminDetailLayout";
 import { AdminEntityLink } from "@/components/admin/AdminEntityLink";
+import { StoredErrorText } from "@/components/admin/StoredErrorText";
 import { Button } from "@/components/ui/button";
 import { formatDramaGenerationStatus } from "@/lib/dramaLabels";
 
@@ -84,6 +85,24 @@ export function DramaEpisodeDetailPage() {
             },
             { label: "Số phân cảnh", value: detail.fragment_count },
             { label: "Kế hoạch phân cảnh", value: detail.fragment_plan_status || "—" },
+            ...(detail.fragment_plan_error
+              ? [
+                  {
+                    label: "Lỗi chia phân cảnh",
+                    value: <StoredErrorText error={detail.fragment_plan_error} className="text-[#f56c6c]" />,
+                    full: true,
+                  },
+                ]
+              : []),
+            ...(detail.episode_optimize_error
+              ? [
+                  {
+                    label: "Lỗi AI chỉnh kịch bản",
+                    value: <StoredErrorText error={detail.episode_optimize_error} className="text-[#f56c6c]" />,
+                    full: true,
+                  },
+                ]
+              : []),
             {
               label: "Cập nhật lúc",
               value: detail.updated_at ? new Date(detail.updated_at).toLocaleString("vi-VN") : "—",
@@ -122,6 +141,7 @@ export function DramaEpisodeDetailPage() {
                     <td>{f.duration_sec != null ? `${f.duration_sec}s` : "—"}</td>
                     <td className="text-xs text-[var(--admin-muted)]">
                       {formatDramaGenerationStatus(f.generation_status)}
+                      <StoredErrorText compact className="mt-1" error={f.generation_error} />
                     </td>
                     <td>{f.asset_ref_count}</td>
                     <td>
