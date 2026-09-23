@@ -1,10 +1,10 @@
 /** 漫剧资产生图：提交后立刻轮询，成功后用新 URL 实时回显（不排队提交） */
 import { dramaApi, type DramaAsset } from '../api/drama'
 import type { ImageGenerationOptions } from './dramaGenerationOptions'
-import { syncImageJobToUnified } from './dramaGenQueue'
+import { registeredErrorCode, syncImageJobToUnified } from './dramaGenQueue'
 import { reconcileCatalogModel } from './mediaModelChoice'
 import { peekMediaModelsCatalog } from './mediaModelsCatalogStore'
-import { errorCodeFields, type ErrorCodeFields } from './apiError'
+import { ApiError, errorCodeFields, localizeStoredError, type ErrorCodeFields } from './apiError'
 import { getActiveLocale } from '../i18n/detect'
 import { messages } from '../i18n/messages'
 
@@ -228,8 +228,15 @@ async function waitForAssetImage(
     }
 
     if (status === 'failed' || status === 'cancelled') {
-      const gen = (latest.params || {}).generation as { error?: string } | undefined
+      const gen = (latest.params || {}).generation as
+        | { error?: string; error_code?: string; error_params?: Record<string, unknown> }
+        | undefined
       const raw = String(gen?.error || '').trim()
+      // 带已登记错误码：按界面语言翻译并保留码（队列按码分类），status 0 表示非接口错误
+      const code = registeredErrorCode(gen?.error_code, gen?.error_params)
+      if (code) {
+        throw new ApiError(localizeStoredError(raw, code, gen?.error_params), 0, code, gen?.error_params)
+      }
       // 兜底文案保持中文：dramaGenError 按「已取消」「^生图失败$」识别
       throw new Error(raw || (status === 'cancelled' ? '生图已取消' : '生图失败'))
     }

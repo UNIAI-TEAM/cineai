@@ -146,6 +146,9 @@ export type Project = {
   status: string
   progress: number
   error_msg: string | null
+  /** error_msg 的错误码与参数；展示用 localizeStoredError */
+  error_code?: string | null
+  error_params?: Record<string, unknown> | null
   cover_url: string | null
   final_video_url: string | null
   resolution_mode: string
@@ -294,9 +297,16 @@ export type UsageSummary = {
 export type UsageChargeRecord = {
   id: number
   billing_key: string
+  /** 旧版中文标签，仅兼容保留；界面用 capability 走 i18n */
   billing_label: string
+  /** 能力类别：llm | image | video | tts | other */
+  capability?: string
   model: string
+  /** 旧版中文拼接，仅兼容保留；界面用 context_kind / context_title / context_project_id */
   context: string
+  context_kind?: 'drama' | 'kepu' | 'tool'
+  context_title?: string | null
+  context_project_id?: number | null
   total_tokens: number
   charge_fen: number
   charge_yuan: number
@@ -505,6 +515,8 @@ export const api = {
         cover_url: string | null
         final_video_url?: string | null
         error_msg?: string | null
+        error_code?: string | null
+        error_params?: Record<string, unknown> | null
         pipeline_mode?: PipelineMode
         output_ratio?: string
         published?: boolean
@@ -664,6 +676,7 @@ export const api = {
         message: string
         milestone_fen: number
         milestone_yuan: number
+        total_charged_fen?: number | null
         created_at?: string | null
       }>
     }>('/api/billing/alerts/pending')

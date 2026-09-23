@@ -21,6 +21,7 @@ from app.services.providers.base import (
     ProviderNotSupported,
     TaskResult,
     TransientUpstreamError,
+    UpstreamError,
     TtsRequest,
     VideoRequest,
     bearer_headers,
@@ -109,7 +110,7 @@ def raise_seedream_http_error(status_code: int, body: str, *, model: str = "") -
     snippet = (body or "")[:800]
     if status_code == 403 and "AccountOverdueError" in snippet:
         logger.error("Seedream AccountOverdueError — upstream Ark account overdue: %s", snippet[:200])
-        raise RuntimeError(
+        raise UpstreamError(
             "上游 Seedream 账户欠费（AccountOverdueError），生图暂不可用，请联系管理员"
         )
     logger.warning(
@@ -119,12 +120,12 @@ def raise_seedream_http_error(status_code: int, body: str, *, model: str = "") -
         snippet[:200],
     )
     if "InputTextSensitive" in snippet or "InputTextSensitiveContentDetected" in snippet:
-        raise RuntimeError(
+        raise UpstreamError(
             "生图文案未通过内容审核（可能含敏感或历史名人相关表述），"
             "请修改提示词后重试。"
             f" 详情：{snippet[:240]}"
         )
-    raise RuntimeError(f"Seedream error {status_code}: {snippet}")
+    raise UpstreamError(f"Seedream error {status_code}: {snippet}")
 
 
 def sanitize_seedream_prompt(prompt: str) -> str:
@@ -459,7 +460,7 @@ class ArkAdapter:
         raw_usage = data.get("usage") if isinstance(data.get("usage"), dict) else None
         url = extract_image_url(data)
         if not url:
-            raise RuntimeError("出图未返回图片地址，请稍后重试")
+            raise UpstreamError("出图未返回图片地址，请稍后重试")
         return ImageOutput(url=url, size=size, raw_usage=raw_usage,
                            total_tokens=int(usage.get("total_tokens") or 0),
                            prompt_tokens=int(usage.get("prompt_tokens") or 0),
@@ -486,14 +487,14 @@ class ArkAdapter:
                 if resp.status_code >= 400:
                     raw_err = resp.text or ""
                     if is_seedance_input_privacy_error(raw_err):
-                        raise RuntimeError(format_seedance_create_error(resp.status_code, raw_err))
+                        raise UpstreamError(format_seedance_create_error(resp.status_code, raw_err))
                     if is_seedance_text_policy_error(raw_err):
                         cg_content = seedance_content_with_cg_style(body.get("content"))
                         if cg_content is not None:
                             body = {**body, "content": cg_content}
                             resp = await client.post(url, headers=headers, json=body)
                         if resp.status_code >= 400:
-                            raise RuntimeError(format_seedance_create_error(resp.status_code, resp.text))
+                            raise UpstreamError(format_seedance_create_error(resp.status_code, resp.text))
                 allow_fallback = req.allow_structure_fallback and not req.target_ratio
                 if resp.status_code >= 400 and allow_fallback:
                     err_text = resp.text or ""
@@ -506,13 +507,13 @@ class ArkAdapter:
                     body["ratio"] = "adaptive"
                     resp = await client.post(url, headers=headers, json=body)
                 if resp.status_code >= 400:
-                    raise RuntimeError(format_seedance_create_error(resp.status_code, resp.text, content_labels=req.content_labels))
+                    raise UpstreamError(format_seedance_create_error(resp.status_code, resp.text, content_labels=req.content_labels))
                 data = resp.json()
         except httpx.TimeoutException as exc:
             reraise_upstream_timeout(exc, kind="生视频", read_sec=VIDEO_CREATE_READ_SEC)
         task_id = extract_video_task_id(data)
         if not task_id:
-            raise RuntimeError(f"Seedance missing task id: {data}")
+            raise UpstreamError(f"Seedance missing task id: {data}")
         return task_id
 
     async def fetch_video(self, route, task_id: str) -> TaskResult:

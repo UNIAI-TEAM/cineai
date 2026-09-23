@@ -28,7 +28,8 @@ async def execute_task_run(task_id: int) -> None:
         handler = get_task_handler(task.domain, task.task_type)
         if handler is None:
             task.status = "failed"
-            task.error_code = "handler_missing"
+            task.error_code = "task.handler_missing"
+            task.error_params = {"domain": str(task.domain or ""), "task_type": str(task.task_type or "")}
             task.error_message = f"未注册任务处理器: {task.domain}/{task.task_type}"
             task.finished_at = datetime.now(UTC)
             # 未进入预扣，保持 none
@@ -66,7 +67,7 @@ async def execute_task_run(task_id: int) -> None:
                 db,
                 task,
                 step,
-                error_code=type(exc).__name__,
+                error_code="task.freeze_failed",
                 message=format_exception_message(exc, fallback="预扣失败", limit=500),
             )
             return
@@ -192,14 +193,19 @@ async def _fail_task_before_start(
 
 # 把任务收敛到失败态。
 async def _fail_task(db, task, exc: Exception) -> None:
-    from app.services.exc_format import format_exception_message
+    from app.services.exc_format import format_exception_message, stored_error_fields
 
     now = datetime.now(UTC)
     step = task.steps[0] if task.steps else None
     set_task_step_state(task, step, status="failed", now=now)
     task.status = "failed"
-    # AppError 存业务码与 params（前端按码翻译），其余存异常类名
-    task.error_code, task.error_params = error_code_fields(exc, type(exc).__name__)
+    # AppError 存业务码与 params（前端按码翻译）；上游异常归为 provider.*；其余 task.execution_failed
+    # 原文仍存 error_message（管理端 / 日志排查用）
+    # 漫剧任务保持旧规则（非 AppError 存异常类名）：前端 dramaGenError 靠原文归因，由漫剧侧自行分类
+    if (task.domain or "") == "drama":
+        task.error_code, task.error_params = error_code_fields(exc, type(exc).__name__)
+    else:
+        task.error_code, task.error_params = stored_error_fields(exc)
     task.error_message = format_exception_message(exc, fallback="任务执行失败", limit=500)
     task.finished_at = now
     await append_task_event(
@@ -212,6 +218,7 @@ async def _fail_task(db, task, exc: Exception) -> None:
     )
     # 资产生图/视频：同步写回 asset.params.generation，避免前端只看到空的「生图失败」
     await _fail_drama_asset_generation_if_needed(db, task, task.error_message or str(exc))
+    registered_code, registered_params = _registered_error_fields(task)
     if task.fragment_id:
         from app.models_drama import DramaEpisodeFragment
         from app.services.drama.generation import build_failed_generation_params
@@ -224,6 +231,8 @@ async def _fail_task(db, task, exc: Exception) -> None:
             params["generation"] = build_failed_generation_params(
                 prev_gen if isinstance(prev_gen, dict) else None,
                 task.error_message or str(exc),
+                error_code=registered_code,
+                error_params=registered_params,
             )
             frag.params = params
     if task.domain == "kepu" and task.project_id:
@@ -241,6 +250,8 @@ async def _fail_task(db, task, exc: Exception) -> None:
         if project and project.status in running:
             project.status = ProjectStatus.FAILED
             project.error_msg = (task.error_message or str(exc))[:2000]
+            project.error_code = task.error_code
+            project.error_params = task.error_params
     payload = task.payload if isinstance(task.payload, dict) else {}
     if payload.get("sequential") and task.batch_key:
         from app.services.tasks.service import fail_remaining_sequential_batch
@@ -294,8 +305,16 @@ async def _mark_cancelled(db, task) -> None:
     await db.commit()
 
 
+def _registered_error_fields(task) -> tuple[str | None, dict | None]:
+    """任务上已登记的业务错误码（漫剧非 AppError 存的是异常类名，不算），供前端按码翻译。"""
+    from app.errors import ERRORS
+
+    code = task.error_code if task.error_code in ERRORS else None
+    return code, (task.error_params if code else None)
+
+
 async def _fail_drama_asset_generation_if_needed(db, task, error: str) -> None:
-    """任务未开始执行时失败，同步更新漫剧资产 generation 状态。"""
+    """任务失败时同步更新漫剧资产 generation 状态；job 已写入带错误码的失败态则保留不覆盖。"""
     if (task.domain or "") != "drama" or not task.asset_id:
         return
     if (task.task_type or "") not in {"asset_image", "asset_video"}:
@@ -305,9 +324,18 @@ async def _fail_drama_asset_generation_if_needed(db, task, error: str) -> None:
     asset = await db.get(DramaAsset, int(task.asset_id))
     if not asset:
         return
-    msg = (error or "").strip() or "生成失败"
     params = dict(asset.params or {})
-    params["generation"] = {"status": "failed", "error": msg[:400]}
+    prev = params.get("generation") if isinstance(params.get("generation"), dict) else {}
+    if prev.get("status") == "failed" and prev.get("error_code"):
+        return
+    msg = (error or "").strip() or "生成失败"
+    gen: dict = {"status": "failed", "error": msg[:400]}
+    code, code_params = _registered_error_fields(task)
+    if code:
+        gen["error_code"] = code
+        if code_params:
+            gen["error_params"] = code_params
+    params["generation"] = gen
     asset.params = params
 
 

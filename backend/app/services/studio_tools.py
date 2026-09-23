@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.errors import AppError
+from app.errors import AppError, AppRuntimeError
 from app.models import ToolRun, User
 from app.models_tasks import TaskRun
 from app.services.ark import get_ark
@@ -21,7 +21,9 @@ from app.services.billing import record_line, run_billed_ephemeral
 from app.services.drama.billing_util import record_seedream_image_usage
 from app.services.billing.estimates import estimate_task_fen
 from app.services.billing.settlement import billing_active
+from app.services.exc_format import stored_error_fields
 from app.services.ffmpeg_compose import extract_video_poster_frame
+from app.services.providers.base import UpstreamError
 from app.services import storage
 
 logger = logging.getLogger("app.studio_tools")
@@ -120,7 +122,7 @@ def save_upload(user_id: int, data: bytes, filename: str) -> Path:
 def collage_images(paths: list[Path], dest: Path, *, vertical: bool) -> None:
     ffmpeg = shutil.which(get_settings().ffmpeg_path) or shutil.which("ffmpeg")
     if not ffmpeg:
-        raise RuntimeError("未找到 ffmpeg，无法拼接图片")
+        raise AppRuntimeError("tool.ffmpeg_missing")
     if len(paths) < 2:
         shutil.copy2(paths[0], dest)
         return
@@ -135,7 +137,8 @@ def collage_images(paths: list[Path], dest: Path, *, vertical: bool) -> None:
     cmd = [ffmpeg, "-y", *inputs, "-filter_complex", filt, "-map", "[out]", str(dest)]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0 or not dest.exists():
-        raise RuntimeError((proc.stderr or "拼接失败")[-800:])
+        logger.warning("collage ffmpeg failed rc=%s: %s", proc.returncode, (proc.stderr or "")[-800:])
+        raise AppRuntimeError("tool.collage_failed")
 
 
 # 文生图 / 图生图 / 图生产品 / 电商拼图：同步调用 Seedream 或 ffmpeg
@@ -289,6 +292,7 @@ async def execute_image_tool_run(run_id: int) -> dict:
         if not user:
             row.status = "failed"
             row.error = "用户不存在"
+            row.error_code, row.error_params = "common.user_not_found", None
             await db.commit()
             return {"ok": False, "error": row.error}
 
@@ -327,6 +331,7 @@ async def execute_image_tool_run(run_id: int) -> dict:
             row.urls = urls
             row.preview_url = urls[0] if urls else row.preview_url
             row.error = None
+            row.error_code, row.error_params = None, None
             params = dict(row.params or {})
             params["billing_task_id"] = billing_task.id
             row.params = params
@@ -335,6 +340,7 @@ async def execute_image_tool_run(run_id: int) -> dict:
         except Exception as exc:  # noqa: BLE001
             row.status = "failed"
             row.error = str(exc)[:512]
+            row.error_code, row.error_params = stored_error_fields(exc, "tool.run_failed")
             await db.commit()
             logger.exception("execute_image_tool_run failed run_id=%s", run_id)
             return {"ok": False, "run_id": run_id, "error": row.error}
@@ -345,7 +351,13 @@ async def poll_image_tool_task(db: AsyncSession, user: User, task_id: str) -> di
     stmt = select(ToolRun).where(ToolRun.user_id == user.id, ToolRun.task_id == task_id)
     row = (await db.execute(stmt)).scalar_one_or_none()
     if not row:
-        return {"status": "failed", "kind": "image", "urls": [], "error": "任务不存在"}
+        return {
+            "status": "failed",
+            "kind": "image",
+            "urls": [],
+            "error": "任务不存在",
+            "error_code": "task.not_found",
+        }
 
     if row.status == "succeeded":
         row = await hydrate_tool_run_urls(db, row)
@@ -356,6 +368,8 @@ async def poll_image_tool_task(db: AsyncSession, user: User, task_id: str) -> di
             "kind": "image",
             "urls": [],
             "error": row.error or "生成失败",
+            "error_code": row.error_code or "tool.run_failed",
+            "error_params": row.error_params,
         }
 
     return {"status": "running", "kind": "image", "urls": []}
@@ -444,6 +458,12 @@ async def start_video_tool(
     }
 
 
+# 视频任务失败的错误码：审核拦截单独归类，其余统一 tool.run_failed
+def _video_fail_code(error: str | None) -> str:
+    code, _ = stored_error_fields(UpstreamError(error or ""), "tool.run_failed")
+    return "provider.content_rejected" if code == "provider.content_rejected" else "tool.run_failed"
+
+
 # 单次查询视频任务；成功则下载并同步 OSS；channel_id 指定提交时锁定的上游渠道
 async def poll_video_task(user: User, task_id: str, *, channel_id: str | None = None) -> dict:
     ark = get_ark()
@@ -476,6 +496,8 @@ async def poll_video_task(user: User, task_id: str, *, channel_id: str | None = 
             "kind": "video",
             "urls": [],
             "error": result.error or "生成失败",
+            # 上游原文只进 error（记录 / 排查），前端按码翻译
+            "error_code": _video_fail_code(result.error),
             "usage": usage,
             "raw_usage": result.raw_usage,
             "upstream_cost_fen": result.upstream_cost_fen,
@@ -507,6 +529,8 @@ async def persist_tool_run(
         task_id=data.get("task_id"),
         params=params or None,
         error=data.get("error"),
+        error_code=data.get("error_code"),
+        error_params=data.get("error_params"),
     )
     db.add(row)
     await db.flush()
@@ -529,6 +553,8 @@ async def update_tool_run_task(db: AsyncSession, user_id: int, task_id: str, dat
             row.preview_url = ensure_public_url(row.preview_url)
     if data.get("error"):
         row.error = str(data["error"])[:512]
+        row.error_code = data.get("error_code") or "tool.run_failed"
+        row.error_params = data.get("error_params")
     await db.flush()
 
 

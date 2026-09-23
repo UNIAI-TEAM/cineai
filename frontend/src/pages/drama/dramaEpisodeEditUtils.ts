@@ -123,7 +123,15 @@ export function sumFragmentContentDuration(content: string): number {
 // 解析分镜生成状态（params.generation 优先于已有 video，支持重新生成）
 export function readFragmentGenerationStatus(
   frag: DramaFragment,
-): { status: string; error?: string; message?: string; phase?: string } {
+): {
+  status: string
+  error?: string
+  /** error 对应的业务错误码 / 参数（error 取自 root_error 时为空） */
+  errorCode?: string
+  errorParams?: Record<string, unknown>
+  message?: string
+  phase?: string
+} {
   const gen = frag.params?.generation
   if (gen && typeof gen === 'object') {
     const row = gen as Record<string, unknown>
@@ -131,15 +139,18 @@ export function readFragmentGenerationStatus(
     if (['queued', 'running', 'generating', 'failed', 'cancelled'].includes(status)) {
       const surface = typeof row.error === 'string' ? row.error : undefined
       const root = typeof row.root_error === 'string' ? row.root_error.trim() : ''
-      const error =
-        status === 'failed' &&
-        root &&
-        (!surface || /重试超过|超过重试/.test(surface))
-          ? root
-          : surface
+      const useRoot = status === 'failed' && root && (!surface || /重试超过|超过重试/.test(surface))
+      const error = useRoot ? root : surface
+      const code = !useRoot && typeof row.error_code === 'string' ? row.error_code : undefined
+      const errorParams =
+        code && row.error_params && typeof row.error_params === 'object'
+          ? (row.error_params as Record<string, unknown>)
+          : undefined
       return {
         status,
         error,
+        errorCode: code,
+        errorParams,
         message: typeof row.message === 'string' ? row.message : undefined,
         phase: typeof row.phase === 'string' ? row.phase : undefined,
       }

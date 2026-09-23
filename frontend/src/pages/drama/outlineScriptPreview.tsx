@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import { useI18n, type TFunction } from '../../i18n/context'
+import { messages } from '../../i18n/messages'
+import { localizeScriptActionLine, localizeScriptMetaLine } from '../../lib/dramaScriptLabels'
 
 export type OutlineSceneBlock = {
   /** 原始整段（含场头行），写回时原样拼接 */
@@ -215,12 +217,16 @@ function formatEstimateDuration(sec: number, t: TFunction): string {
   return t('dramaProject.preview.about', { dur: sec <= 0 ? '—' : formatClockDuration(sec, t) })
 }
 
-// 渲染解析后的剧本行
+// 渲染解析后的剧本行（非中文界面把结构标签换成当前语言，只改显示）
 function ScriptLines({ text }: { text: string }) {
+  const { locale } = useI18n()
   const lines = useMemo(
     () => text.split(/\r?\n/).map((line) => parseScriptLine(line)),
     [text],
   )
+  const labels = locale === 'zh' ? null : messages[locale].dramaProject.preview
+  const metaText = (raw: string) => (labels ? localizeScriptMetaLine(raw, labels) : raw)
+  const actionText = (raw: string) => (labels ? localizeScriptActionLine(raw, labels) : raw)
   return (
     <div className="drama-outline-script-lines">
       {lines.map((line, i) => {
@@ -228,14 +234,14 @@ function ScriptLines({ text }: { text: string }) {
         if (line.kind === 'meta') {
           return (
             <p key={i} className="drama-outline-script-meta">
-              {line.text}
+              {metaText(line.text)}
             </p>
           )
         }
         if (line.kind === 'action') {
           return (
             <p key={i} className="drama-outline-script-action">
-              {line.text}
+              {actionText(line.text)}
             </p>
           )
         }

@@ -20,6 +20,7 @@ import Modal from '../../components/ui/Modal'
 import { DramaImageStyleModal } from './DramaImageStyleModal'
 import { DramaProjectSettingsModal } from './DramaProjectSettingsModal'
 import { OutlineEpisodePanel } from './OutlineEpisodePanel'
+import { storedJobError } from '../../lib/dramaJobError'
 
 type MetaModalKey = 'source' | 'summary' | 'project'
 
@@ -124,7 +125,7 @@ export function OutlineStep({
       if (!finished) return null
       if (getSummaryStatus(finished) === 'failed') {
         const msg =
-          String((finished.params || {}).summary_error || '') || t('dramaProject.outline.summaryFailed')
+          storedJobError(finished.params, 'summary_error') || t('dramaProject.outline.summaryFailed')
         setSummaryError(msg)
         onError(msg)
         throw new Error(msg)
@@ -161,7 +162,7 @@ export function OutlineStep({
       if (!finished) return
       if (getEpisodeContentStatus(finished) === 'failed') {
         const msg =
-          String((finished.params || {}).episode_content_error || '') ||
+          storedJobError(finished.params, 'episode_content_error') ||
           t('dramaProject.outline.episodesFailed')
         setEpisodeError(msg)
         onError(msg)
@@ -212,7 +213,7 @@ export function OutlineStep({
             setSummaryGenerating(false)
             if (!current || getSummaryStatus(current) === 'failed') {
               const msg =
-                String((current?.params || {}).summary_error || '') || t('dramaProject.outline.summaryFailed')
+                storedJobError(current?.params, 'summary_error') || t('dramaProject.outline.summaryFailed')
               setSummaryError(msg)
               onError(msg)
               return
@@ -251,7 +252,7 @@ export function OutlineStep({
           if (!finished) return
           if (getEpisodeContentStatus(finished) === 'failed') {
             const msg =
-              String((finished.params || {}).episode_content_error || '') ||
+              storedJobError(finished.params, 'episode_content_error') ||
               t('dramaProject.outline.episodesFailed')
             setEpisodeError(msg)
             onError(msg)

@@ -432,7 +432,7 @@ async def seed_assets(
         project = await get_owned_drama_project(db, project_id, user, with_script=True)
         params = dict(project.params or {}) if isinstance(project.params, dict) else {}
         params["assets_seed_status"] = "failed"
-        set_seed_error(params, exc)
+        set_seed_error(params, exc, code="drama.asset_extract_failed")
         params.pop("assets_seed_generating_at", None)
         project.params = params
         await db.commit()
@@ -443,7 +443,7 @@ async def seed_assets(
         project = await get_owned_drama_project(db, project_id, user, with_script=True)
         params = dict(project.params or {}) if isinstance(project.params, dict) else {}
         params["assets_seed_status"] = "failed"
-        set_seed_error(params, exc)
+        set_seed_error(params, exc, code="drama.asset_extract_failed")
         params.pop("assets_seed_generating_at", None)
         project.params = params
         await db.commit()
@@ -464,5 +464,6 @@ async def seed_assets(
         prompts_refreshed=result.prompts_refreshed,
         props_updated=result.props_updated,
         llm_errors=result.llm_errors,
+        llm_error_items=result.llm_error_items,
         status="done",
     )

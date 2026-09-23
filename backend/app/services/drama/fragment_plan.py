@@ -6,6 +6,9 @@ import logging
 import re
 from typing import Any
 
+from app.errors import AppError
+from app.services.content_lang import is_zh
+from app.services.drama.naming import default_episode_title, is_default_episode_title
 from app.services.drama.build_fragments import (
     FRAGMENT_DURATION_MIN,
     FRAGMENT_SOFT_MAX,
@@ -187,16 +190,22 @@ def _build_opening_cue_lines(
     story_type: str | None,
     one_line_story: str | None,
     background_blurb: str | None,
+    lang: str | None = None,
 ) -> list[str]:
     # 开幕叠字：集号 / 集名 / 剧名 / 背景简介
+    # 【片头·…】是协议标记保持中文；标记后的叠字内容（集号）按项目内容语言，vi/en 为「Tập N」「Episode N」
     cues: list[str] = []
     ep_no = int(episode_number or 0)
     title = (episode_name or "").strip()
+    if lang and not is_zh(lang) and is_default_episode_title(title):
+        # 占位集名（如老数据「第3集」）不再重复叠在集号后
+        title = ""
     series = (project_title or "").strip()
+    ep_label = default_episode_title(ep_no, lang, compact=True)
     if ep_no > 0 and title:
-        cues.append(f"【片头·集号叠字】第{ep_no}集｜{title}")
+        cues.append(f"【片头·集号叠字】{ep_label}｜{title}")
     elif ep_no > 0:
-        cues.append(f"【片头·集号叠字】第{ep_no}集")
+        cues.append(f"【片头·集号叠字】{ep_label}")
     elif title:
         cues.append(f"【片头·集名叠字】{title}")
     if series:
@@ -283,9 +292,11 @@ def normalize_llm_fragment_items(
     allow_opening: bool = True,
     include_subtitles: bool = True,
     include_character_intro: bool = True,
+    lang: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     将 LLM fragments 转为落库草稿。
+    lang：项目内容语言，只影响开幕集号叠字内容（None / zh 保持「第N集」）。
     注入 @asset、字幕/BGM、开幕集号/背景、重要角色本剧首次出场介绍。
     already_introduced：更早分集已介绍过的角色名。
     summary：剧本摘要，stub 资产从此补人物介绍。
@@ -313,6 +324,7 @@ def normalize_llm_fragment_items(
             synopsis=synopsis,
             core_hook=core_hook,
         ),
+        lang=lang,
     )
 
     for index, item in enumerate(items):
@@ -626,7 +638,7 @@ async def plan_fragments_with_llm(
     elif isinstance(raw, list):
         items = raw
     if not isinstance(items, list) or not items:
-        raise RuntimeError("LLM 分镜结果为空")
+        raise AppError("drama.llm_empty_output")
 
     items = cap_llm_fragment_items(items)
 
@@ -647,9 +659,10 @@ async def plan_fragments_with_llm(
         allow_opening=not bool(locked),
         include_subtitles=include_subtitles,
         include_character_intro=include_character_intro,
+        lang=lang,
     )
     if not drafts:
-        raise RuntimeError("LLM 分镜规范化后为空")
+        raise AppError("drama.llm_empty_output")
     drafts = trim_episode_fragment_drafts(drafts)
     logger.info(
         "LLM 分镜完成 episode=%s ep_no=%s fragments=%s introduced_before=%s locked=%s",

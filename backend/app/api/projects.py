@@ -4,6 +4,7 @@ import json
 import logging
 import re
 import zipfile
+from dataclasses import dataclass
 from datetime import datetime
 
 from pathlib import Path
@@ -54,6 +55,7 @@ from app.services.tasks.service import (
 from app.services.content_lang import is_zh, kepu_content_lang, request_lang
 from app.services.voices import ensure_voice_preview, list_voices
 from app.services.kepu_stages import resolve_kepu_billing_phase
+from app.services.project_errors import clear_project_error, set_project_cancelled
 
 logger = logging.getLogger(__name__)
 
@@ -167,10 +169,12 @@ async def _get_owned_project(db: AsyncSession, project_id: int, user: User) -> P
     if not project:
         raise AppError("project.not_found")
     project.active_tasks = await list_active_tasks_for_owner(db, user.id, project_id=project.id)
-    runtime_status, runtime_progress, runtime_error = _project_runtime_view(project)
-    project.status = runtime_status
-    project.progress = runtime_progress
-    project.error_msg = runtime_error
+    runtime = _project_runtime_view(project)
+    project.status = runtime.status
+    project.progress = runtime.progress
+    project.error_msg = runtime.error_msg
+    project.error_code = runtime.error_code
+    project.error_params = runtime.error_params
     return project
 
 
@@ -222,11 +226,23 @@ async def _ensure_compose_allowed(db: AsyncSession, user: User, project: Project
     # COMPOSING / FAILED / VIDEO_READY / DONE 等均可重试拼接（无 active task）
 
 
+@dataclass
+class _RuntimeView:
+    """项目运行态投影：状态、进度与错误（原文 + 错误码 + 参数）。"""
+
+    status: str
+    progress: int
+    error_msg: str | None
+    error_code: str | None
+    error_params: dict | None
+
+
 # 用统一任务中心投影项目运行态，避免前端只依赖旧 Project.status。
-def _project_runtime_view(project: Project) -> tuple[str, int, str | None]:
+def _project_runtime_view(project: Project) -> _RuntimeView:
+    own_error = (project.error_msg, getattr(project, "error_code", None), getattr(project, "error_params", None))
     active_tasks = list(getattr(project, "active_tasks", []) or [])
     if not active_tasks:
-        return str(project.status), int(project.progress or 0), project.error_msg
+        return _RuntimeView(str(project.status), int(project.progress or 0), *own_error)
     task = active_tasks[0]
     task_type = str(getattr(task, "task_type", "") or "")
     status = str(getattr(task, "status", "") or "")
@@ -245,11 +261,16 @@ def _project_runtime_view(project: Project) -> tuple[str, int, str | None]:
         label = ProjectStatus.COMPOSING
     else:
         label = str(project.status)
+    task_error = (
+        getattr(task, "error_message", None),
+        getattr(task, "error_code", None),
+        getattr(task, "error_params", None),
+    )
     if status in {"failed", "cancelled"}:
-        return status.upper(), progress, getattr(task, "error_message", None) or project.error_msg
+        return _RuntimeView(status.upper(), progress, *(task_error if task_error[0] else own_error))
     if status in {"pending", "leased", "running", "awaiting_poll", "cancel_requested"}:
-        return label, max(progress, int(project.progress or 0)), getattr(task, "error_message", None)
-    return str(project.status), int(project.progress or 0), project.error_msg
+        return _RuntimeView(label, max(progress, int(project.progress or 0)), *task_error)
+    return _RuntimeView(str(project.status), int(project.progress or 0), *own_error)
 
 
 # 为科普项目/镜头创建统一任务，由平台调度器自动执行
@@ -432,16 +453,19 @@ async def list_projects(
         for project in rows:
             project.active_tasks = active_tasks.get(int(project.id), [])
 
+    views = {p.id: _project_runtime_view(p) for p in rows}
     items = [
         ProjectListItem(
             id=p.id,
             title=p.title,
             template_id=p.template_id,
-            status=_project_runtime_view(p)[0],
-            progress=_project_runtime_view(p)[1],
+            status=views[p.id].status,
+            progress=views[p.id].progress,
             cover_url=p.cover_url,
             final_video_url=p.final_video_url,
-            error_msg=_project_runtime_view(p)[2],
+            error_msg=views[p.id].error_msg,
+            error_code=views[p.id].error_code,
+            error_params=views[p.id].error_params,
             pipeline_mode=p.pipeline_mode or "full",
             output_ratio=p.output_ratio or "",
             published=p.id in published_ids,
@@ -488,20 +512,40 @@ async def list_projects(
     )
 
 
-def _safe_zip_name(title: str, project_id: int) -> str:
-    raw = (title or "未命名作品").strip() or "未命名作品"
+# 打包下载里给用户看的文字（按界面语言；zh 保留以便日后重新开放中文）
+_ZIP_TEXT = {
+    "untitled": {"zh": "未命名作品", "en": "Untitled", "vi": "Chưa đặt tên"},
+    "skipped": {
+        "zh": "以下项目未打包（未完成或缺少成片文件）：",
+        "en": "These projects were left out (not finished yet or the final video is missing):",
+        "vi": "Các dự án sau không có trong file tải về (chưa làm xong hoặc thiếu video hoàn chỉnh):",
+    },
+}
+
+
+def _zip_text(key: str, lang: str) -> str:
+    """取打包下载文案；未知语言按越南语。"""
+    table = _ZIP_TEXT[key]
+    return table.get(lang) or table["vi"]
+
+
+def _safe_zip_name(title: str, project_id: int, lang: str = "vi") -> str:
+    untitled = _zip_text("untitled", lang)
+    raw = (title or untitled).strip() or untitled
     cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", raw)
-    cleaned = cleaned.strip(" .")[:60] or "未命名作品"
+    cleaned = cleaned.strip(" .")[:60] or untitled
     return f"p{project_id}_{cleaned}.mp4"
 
 
 @router.post("/projects/download-zip")
 async def download_projects_zip(
     body: ProjectDownloadRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     """Zip final videos for selected owned projects (DONE with final_video_url)."""
+    lang = request_lang(request)
     ids = list(dict.fromkeys(int(i) for i in body.ids if int(i) > 0))
     if not ids:
         raise AppError("project.download_selection_required")
@@ -534,7 +578,7 @@ async def download_projects_zip(
         if not path or not path.exists():
             skipped.append(f"#{pid}")
             continue
-        entries.append((_safe_zip_name(p.title, p.id), path.read_bytes()))
+        entries.append((_safe_zip_name(p.title, p.id, lang), path.read_bytes()))
 
     if not entries:
         raise AppError("project.no_downloadable_video")
@@ -554,7 +598,7 @@ async def download_projects_zip(
         if skipped:
             zf.writestr(
                 "skipped.txt",
-                "以下项目未打包（未完成或缺少成片文件）：\n" + "\n".join(skipped),
+                _zip_text("skipped", lang) + "\n" + "\n".join(skipped),
             )
     buf.seek(0)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -720,7 +764,7 @@ async def generate_project(
         project.cover_url = None
 
     # Resume: clear error, keep existing shots/media (pipeline skips finished stages)
-    project.error_msg = None
+    clear_project_error(project)
     project.final_video_url = None
     shots = list(project.shots or [])
     phase = "script" if (restart or not shots) else resolve_kepu_billing_phase(project)
@@ -784,7 +828,7 @@ async def cancel_project(
     await cancel_tasks_for_scope(db, user.id, project_id=project_id)
     pipeline.cancel_pipeline(project_id)
     project.status = ProjectStatus.CANCELLED
-    project.error_msg = "用户取消"
+    set_project_cancelled(project)
     await db.commit()
     return await _get_owned_project(db, project_id, user)
 
@@ -1075,7 +1119,7 @@ async def regen_image(
     if not shot:
         raise AppError("project.shot_not_found")
     project.status = ProjectStatus.IMAGING
-    project.error_msg = None
+    clear_project_error(project)
     await db.commit()
     await _create_kepu_task(
         db,
@@ -1102,7 +1146,7 @@ async def regen_video(
     if not shot or not (shot.image_url or shot.image_ark_url):
         raise AppError("project.shot_image_required")
     project.status = ProjectStatus.VIDEOING
-    project.error_msg = None
+    clear_project_error(project)
     await db.commit()
     await _create_kepu_task(
         db,
@@ -1127,7 +1171,7 @@ async def regen_audio(
     if not shot:
         raise AppError("project.shot_not_found")
     project.status = ProjectStatus.AUDIOING
-    project.error_msg = None
+    clear_project_error(project)
     await db.commit()
     await _create_kepu_task(
         db,
@@ -1160,7 +1204,7 @@ async def regen_all_audio(
         raise AppError("project.no_shots")
     project.status = ProjectStatus.AUDIOING
     project.progress = 80
-    project.error_msg = None
+    clear_project_error(project)
     project.final_video_url = None
     await db.commit()
     await _create_kepu_task(
@@ -1187,7 +1231,7 @@ async def compose_only(
         raise AppError("project.compose_missing_media")
     project.status = ProjectStatus.COMPOSING
     project.progress = 90
-    project.error_msg = None
+    clear_project_error(project)
     await db.commit()
     await _create_kepu_task(
         db,

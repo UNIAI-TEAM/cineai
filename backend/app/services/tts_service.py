@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 
 from app.config import Settings
+from app.errors import AppRuntimeError
 from app.services import storage
 from app.services.ffmpeg_compose import is_near_silent_audio
 from app.services.function_router import resolve_function_candidates
@@ -80,7 +81,7 @@ class TtsService:
         except Exception as exc:  # noqa: BLE001
             logger.warning("edge-tts failed: %s", exc)
         dest.unlink(missing_ok=True)
-        raise RuntimeError("配音失败：语音服务暂不可用，请稍后重试")
+        raise AppRuntimeError("tts.unavailable")
 
     async def _accept_if_audible(self, dest: Path, label: str) -> str | None:
         """Từ chối file quá nhỏ hoặc gần im lặng; ngược lại publish và trả URL."""

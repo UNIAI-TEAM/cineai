@@ -13,7 +13,7 @@ from app.schemas_routing import ResolvedModelRoute
 from app.services.billing.pricing import parse_usage_dict
 from app.services.providers.base import (
     IMAGE_GEN_READ_SEC, ImageOutput, ImageRequest, ProviderNotSupported, TaskResult,
-    TransientUpstreamError, TtsRequest, VideoRequest, bearer_headers, is_failover_safe_error, is_transient_http_status,
+    TransientUpstreamError, TtsRequest, UpstreamError, VideoRequest, bearer_headers, is_failover_safe_error, is_transient_http_status,
     join_url, reraise_upstream_timeout, upstream_timeout,
 )
 
@@ -96,7 +96,7 @@ class OpenAIAdapter:
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.get(join_url(route.base_url, "/models"), headers=bearer_headers(route.api_key))
         if resp.status_code >= 400:
-            raise RuntimeError(f"Không tải được danh sách model (HTTP {resp.status_code}): {_error_text(resp)}")
+            raise UpstreamError(f"Không tải được danh sách model (HTTP {resp.status_code}): {_error_text(resp)}")
         out: list[dict[str, str]] = []
         for item in resp.json().get("data") or []:
             mid = str(item.get("id") or "").strip()
@@ -127,14 +127,14 @@ class OpenAIAdapter:
         if resp.status_code >= 400:
             if is_transient_http_status(resp.status_code):
                 raise TransientUpstreamError(f"OpenAI image HTTP {resp.status_code}")
-            raise RuntimeError(f"生图失败（{resp.status_code}）：{_error_text(resp)}")
+            raise UpstreamError(f"生图失败（{resp.status_code}）：{_error_text(resp)}")
         data = resp.json()
         first = (data.get("data") or [{}])[0]
         usage = parse_usage_dict(data)
         raw_usage = data.get("usage") if isinstance(data.get("usage"), dict) else None
         b64 = first.get("b64_json")
         if not b64 and not first.get("url"):
-            raise RuntimeError("出图未返回图片数据，请稍后重试")
+            raise UpstreamError("出图未返回图片数据，请稍后重试")
         return ImageOutput(url=first.get("url"), data=base64.b64decode(b64) if b64 else None, size=size, raw_usage=raw_usage,
                            total_tokens=int(usage.get("total_tokens") or 0), prompt_tokens=int(usage.get("prompt_tokens") or 0),
                            completion_tokens=int(usage.get("completion_tokens") or 0))
@@ -156,9 +156,9 @@ class OpenAIAdapter:
         async with httpx.AsyncClient(timeout=120.0) as client:
             resp = await client.post(join_url(route.base_url, "/audio/speech"), headers=bearer_headers(route.api_key), json=body)
         if resp.status_code >= 400:
-            raise RuntimeError(f"TTS HTTP {resp.status_code}: {_error_text(resp)}")
+            raise UpstreamError(f"TTS HTTP {resp.status_code}: {_error_text(resp)}")
         if len(resp.content) < 1000:
-            raise RuntimeError("TTS trả về âm thanh rỗng")
+            raise UpstreamError("TTS trả về âm thanh rỗng")
         return resp.content
 
     def cost_fen(self, model: str, raw_usage: dict[str, Any] | None) -> int | None:

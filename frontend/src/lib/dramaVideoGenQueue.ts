@@ -1,10 +1,10 @@
 /** 漫剧画布资产生视频队列：入队即提交 Seedance Worker，刷新后可从资产状态恢复 */
 import { dramaApi, type DramaAsset } from '../api/drama'
 import type { VideoGenerationOptions } from './dramaVideoGenerationOptions'
-import { syncAssetVideoJobToUnified } from './dramaGenQueue'
+import { registeredErrorCode, syncAssetVideoJobToUnified } from './dramaGenQueue'
 import { reconcileCatalogModel } from './mediaModelChoice'
 import { peekMediaModelsCatalog } from './mediaModelsCatalogStore'
-import { errorCodeFields, type ErrorCodeFields } from './apiError'
+import { ApiError, errorCodeFields, localizeStoredError, type ErrorCodeFields } from './apiError'
 import { getActiveLocale } from '../i18n/detect'
 import { messages } from '../i18n/messages'
 
@@ -163,8 +163,16 @@ async function waitForAssetVideo(projectId: number, assetId: number): Promise<Dr
     if (!latest) throw new Error(messages[getActiveLocale()].dramaGen.errors.assetNotFound)
     const status = readGenerationStatus(latest)
     if (status === 'failed') {
-      const gen = (latest.params || {}).generation as { error?: string } | undefined
-      throw new Error(String(gen?.error || messages[getActiveLocale()].dramaGen.errors.videoFailed))
+      const gen = (latest.params || {}).generation as
+        | { error?: string; error_code?: string; error_params?: Record<string, unknown> }
+        | undefined
+      const raw = String(gen?.error || '')
+      // 带已登记错误码：按界面语言翻译并保留码（队列按码分类）
+      const code = registeredErrorCode(gen?.error_code, gen?.error_params)
+      if (code) {
+        throw new ApiError(localizeStoredError(raw, code, gen?.error_params), 0, code, gen?.error_params)
+      }
+      throw new Error(raw || messages[getActiveLocale()].dramaGen.errors.videoFailed)
     }
     if (status === 'done' && latest.url) {
       return latest

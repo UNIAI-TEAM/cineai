@@ -142,6 +142,26 @@ export const zhDramaProject = {
       editScene: '编辑本场',
       savePart: '保存本段',
       empty: '暂无剧本内容',
+      // 剧本结构标签的展示名（数据仍是中文标签，仅预览时替换）
+      castLabel: '出场人物',
+      establishing: '空镜',
+      sceneTime: {
+        day: '日',
+        night: '夜',
+        dawn: '晨',
+        dusk: '黄昏',
+        evening: '傍晚',
+        beforeDawn: '凌晨',
+        earlyMorning: '清晨',
+        morning: '早',
+        noon: '午',
+        late: '晚',
+      },
+      scenePlace: {
+        interior: '内',
+        exterior: '外',
+        both: '内外',
+      },
     },
     episodes: {
       loadFailed: '分集加载失败',

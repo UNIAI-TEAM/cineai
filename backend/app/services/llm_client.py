@@ -9,7 +9,12 @@ from typing import Any
 import httpx
 
 from app.services.function_router import resolve_function_candidates
-from app.services.providers.base import TransientUpstreamError, is_failover_safe_error, is_transient_http_status
+from app.services.providers.base import (
+    TransientUpstreamError,
+    UpstreamError,
+    is_failover_safe_error,
+    is_transient_http_status,
+)
 from app.services.providers.openai_adapter import is_official_openai
 
 logger = logging.getLogger(__name__)
@@ -73,7 +78,7 @@ async def chat_completions(
             logger.warning("文字 LLM 渠道 %s 暂时不可用（%s），尝试下一个模型", route.channel_id, exc)
             last = exc
     else:
-        raise RuntimeError(str(last))
+        raise UpstreamError(str(last)) from last
     # Import lười: gói billing nạp nặng và import ngược các module drama/kepu đang dùng llm_client
     from app.services.billing.context import note_llm_usage
 
@@ -132,13 +137,13 @@ async def _post_chat(
         if is_transient_http_status(res.status_code):
             raise TransientUpstreamError(f"LLM error {res.status_code}: {res.text[:800]}")
         if res.status_code >= 400:
-            raise RuntimeError(f"LLM error {res.status_code}: {res.text[:800]}")
+            raise UpstreamError(f"LLM error {res.status_code}: {res.text[:800]}")
         body = (res.text or "").strip()
         if not body:
-            raise RuntimeError(f"LLM 返回空响应体 (HTTP {res.status_code})")
+            raise UpstreamError(f"LLM 返回空响应体 (HTTP {res.status_code})")
         lowered = body[:256].lower()
         if lowered.startswith("<!doctype") or lowered.startswith("<html"):
-            raise RuntimeError(
+            raise UpstreamError(
                 f"LLM 渠道 Base URL 配置错误（返回了网页 HTML 而非 API JSON）。"
                 f"当前 base={base}，请检查管理后台「模型渠道」的 Base URL 是否为 OpenAI 兼容 API 地址"
                 f"（如 https://api.deepseek.com 或 https://api.moonshot.cn/v1），而非网站首页。"
@@ -146,5 +151,5 @@ async def _post_chat(
         try:
             data = res.json()
         except json.JSONDecodeError as exc:
-            raise RuntimeError(f"LLM 响应不是合法 JSON: {body[:200]}") from exc
+            raise UpstreamError(f"LLM 响应不是合法 JSON: {body[:200]}") from exc
     return model, data

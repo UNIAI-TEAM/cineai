@@ -19,6 +19,9 @@ from app.schemas_drama import (
     DramaVoiceGenerateRequest,
     DramaVoicePromptRequest,
 )
+from app.services.drama.job_errors import gen_error_fields, gen_progress, with_error_code
+from app.services.content_lang import project_content_lang
+from app.services.drama.naming import default_voice_name
 from app.services.drama.access import get_owned_drama_project
 from app.services.drama.generation import generate_voice_asset_audio
 from app.services.billing import record_llm_chat_line, run_billed_ephemeral
@@ -49,7 +52,7 @@ async def generate_image(
         params["generation"] = {
             "status": "queued",
             "queued_at": datetime.now(timezone.utc).isoformat(),
-            "message": "已入队",
+            **gen_progress("queued", "已入队"),
         }
         asset.params = params
 
@@ -248,7 +251,7 @@ async def generate_voice(
             project_id=project.id,
             type="voice",
             asset_type="audio",
-            name=(body.name or "").strip() or "未命名音色",
+            name=(body.name or "").strip() or default_voice_name(project_content_lang(project)),
             params={"voicePrompt": prompt, "generation": {"status": "generating"}},
         )
         db.add(asset)
@@ -283,7 +286,12 @@ async def generate_voice(
         )
     except Exception as exc:  # noqa: BLE001
         params = dict(asset.params or {})
-        params["generation"] = {"status": "failed", "error": str(exc)[:500]}
+        err_code, err_params = gen_error_fields(exc)
+        params["generation"] = with_error_code(
+            {"status": "failed", "error": str(exc)[:500]},
+            err_code or "drama.voice_generate_failed",
+            err_params,
+        )
         asset.params = params
         await db.commit()
         logger.exception("音色合成失败 project_id=%s asset_id=%s", project.id, asset.id)

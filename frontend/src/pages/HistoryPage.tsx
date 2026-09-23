@@ -20,6 +20,7 @@ import {
   IconTrash,
 } from '../components/ui/Icons'
 import { dialog } from '../lib/dialog'
+import { localizeStoredError } from '../lib/apiError'
 import {
   downloadSingleVideo,
   triggerBlobDownload,
@@ -434,7 +435,11 @@ export default function HistoryPage() {
                         <i style={{ width: `${Math.min(100, p.progress)}%` }} />
                       </div>
                     ) : null}
-                    {p.error_msg ? <p className="pf-error pf-project-err">{p.error_msg}</p> : null}
+                    {p.error_msg ? (
+                      <p className="pf-error pf-project-err">
+                        {localizeStoredError(p.error_msg, p.error_code, p.error_params)}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="pf-project-ratio">{ratio}</div>
                   <div className="pf-project-actions">

@@ -1,11 +1,17 @@
-"""Câu lỗi ngắn cho job phim ngắn hiện ra giao diện: không lộ request id, JSON thô hay stack của nhà cung cấp.
+"""漫剧后台任务落库错误：短文案 + 错误码 / params（前端按界面语言翻译）。
 
-Lỗi đầy đủ vẫn ghi log phía server (logger.exception ở nơi gọi).
+- 剧本 / 分集 / 分镜规划等任务：`user_job_error` 把异常归类为业务码，`set_job_error` / `clear_job_error`
+  按 `<field>` + `<field>_code` + `<field>_params` 写入 params（与 seed.set_seed_error 同一模式）；
+- 生图 / 生视频：`gen_error_fields` 只给能确定的分类码，其余返回 None，前端继续按原文细分（审核、音频过短等）；
+- 生成进度文案：`gen_progress` 在中文 message 之外附带 message_key / message_params。
+
+原始上游报错只写服务端日志（logger.exception 在调用处），不回传请求 id / JSON / 堆栈。
 """
 
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from app.errors import AppError
 from app.services.exc_format import (
@@ -15,23 +21,19 @@ from app.services.exc_format import (
 )
 from app.services.llm_client import LlmUnavailableError
 
-# USER_ERROR_LIMIT: độ dài tối đa câu lỗi lưu cho người dùng
+# USER_ERROR_LIMIT: 落库文案最大长度
 USER_ERROR_LIMIT = 200
 
-_MSG_AUTH = "Nhà cung cấp mô hình từ chối API key, hãy liên hệ với chúng tôi"
-_MSG_RATE_LIMIT = "Nhà cung cấp mô hình đang quá tải, vui lòng thử lại sau"
-_MSG_SERVER = "Nhà cung cấp mô hình đang gặp sự cố, vui lòng thử lại sau"
-_MSG_REJECTED = "Nhà cung cấp mô hình từ chối yêu cầu, vui lòng thử lại sau"
-_MSG_NETWORK = "Không kết nối được nhà cung cấp mô hình, vui lòng thử lại sau"
+# 上游超时 / 网络类异常（含 providers 包装后的类名，按名字判断避免反向依赖）
+_TIMEOUT_NAMES = _READ_TIMEOUT_EXC_NAMES | _WRITE_TIMEOUT_EXC_NAMES | {"UpstreamTimeoutError"}
+_NETWORK_NAMES = _CONNECT_EXC_NAMES | {"UpstreamNetworkError"}
 
-# "LLM error 401: {...}" (llm_client) và các dạng "HTTP 401" / "status 401"
+# "LLM error 401: {...}" (llm_client) 和 "HTTP 401" / "status 401"
 _STATUS_RE = re.compile(r"(?:LLM error|HTTP|status(?:_code)?)[\s:=]*([1-5]\d\d)\b", re.IGNORECASE)
-# "Request id: xxx" / "request_id=xxx" / "x-request-id: xxx"
-_REQUEST_ID_RE = re.compile(r"\(?\b(?:x-)?request[\s_-]?id\b[\s:=]*[\w.-]*\)?\.?", re.IGNORECASE)
 
 
 def _upstream_status(exc: BaseException) -> int | None:
-    """Mã HTTP của lỗi nhà cung cấp: thuộc tính status_code / response.status_code, hoặc đọc từ câu lỗi."""
+    """上游 HTTP 状态码：status_code / response.status_code 属性，或从报错文案中读取。"""
     for obj in (exc, getattr(exc, "response", None)):
         code = getattr(obj, "status_code", None)
         if isinstance(code, int) and 100 <= code <= 599:
@@ -40,28 +42,116 @@ def _upstream_status(exc: BaseException) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def user_job_error(exc: BaseException) -> str:
-    """Đổi exception của job thành câu ngắn cho người dùng.
+def _exc_names(exc: BaseException) -> set[str]:
+    """异常及其 cause / context 链上的类名（防环，最多 8 层）。"""
+    names: set[str] = set()
+    seen: list[BaseException] = []
+    cur: BaseException | None = exc
+    while cur is not None and cur not in seen and len(seen) < 8:
+        seen.append(cur)
+        names.add(type(cur).__name__)
+        cur = cur.__cause__ or cur.__context__
+    return names
 
-    - Lỗi nghiệp vụ đã viết cho người dùng (AppError, chưa gán model) giữ nguyên
-    - Lỗi HTTP / mạng của nhà cung cấp → câu tiếng Việt theo loại lỗi
-    - Còn lại: bỏ request id và phần JSON thô, cắt còn USER_ERROR_LIMIT ký tự
+
+def _coded(code: str, **params: Any) -> tuple[str, str, dict[str, Any] | None]:
+    """按错误码生成 (中文文案, code, params)。"""
+    err = AppError(code, **params)
+    return err.detail[:USER_ERROR_LIMIT], code, (dict(params) or None)
+
+
+def user_job_error(exc: BaseException) -> tuple[str, str, dict[str, Any] | None]:
+    """把后台任务异常转成 (短文案, 错误码, params)。
+
+    - AppError：保留自身 code / params；
+    - 文字模型未配置：model.slot_not_configured；
+    - 上游网络 / 鉴权 / 限流 / 故障 / 拒绝：drama.upstream_*；
+    - 其余：drama.gen_failed（原始报错只进日志）。
     """
-    if isinstance(exc, (AppError, LlmUnavailableError)):
-        return str(exc).strip()[:USER_ERROR_LIMIT]
-    name = type(exc).__name__
-    if name in _CONNECT_EXC_NAMES or name in _READ_TIMEOUT_EXC_NAMES or name in _WRITE_TIMEOUT_EXC_NAMES:
-        return _MSG_NETWORK
+    if isinstance(exc, AppError):
+        return str(exc).strip()[:USER_ERROR_LIMIT], exc.code, (dict(exc.params) or None)
+    if isinstance(exc, LlmUnavailableError):
+        return _coded("model.slot_not_configured")
+    names = _exc_names(exc)
+    if names & (_NETWORK_NAMES | _TIMEOUT_NAMES):
+        return _coded("drama.upstream_network")
     status = _upstream_status(exc)
     if status in (401, 403):
-        return _MSG_AUTH
+        return _coded("drama.upstream_auth")
     if status == 429:
-        return _MSG_RATE_LIMIT
+        return _coded("drama.upstream_rate_limit")
     if status is not None and status >= 500:
-        return _MSG_SERVER
+        return _coded("drama.upstream_server")
     if status is not None and status >= 400:
-        return _MSG_REJECTED
-    text = str(exc).split("{", 1)[0]
-    text = _REQUEST_ID_RE.sub("", text)
-    text = re.sub(r"\s+", " ", text).strip(" :;,-")
-    return (text or "Tạo thất bại, vui lòng thử lại sau")[:USER_ERROR_LIMIT]
+        return _coded("drama.upstream_rejected")
+    return _coded("drama.gen_failed")
+
+
+def set_job_error(params: dict[str, Any], field: str, exc: BaseException) -> str:
+    """记录任务失败：params[field] 文案 + field_code / field_params；返回文案。"""
+    text, code, err_params = user_job_error(exc)
+    set_job_error_code(params, field, code, err_params, text=text)
+    return text
+
+
+def set_job_error_code(
+    params: dict[str, Any],
+    field: str,
+    code: str,
+    err_params: dict[str, Any] | None = None,
+    *,
+    text: str | None = None,
+) -> None:
+    """按错误码记录任务失败（文案默认取错误码的中文模板）。"""
+    params[field] = text if text is not None else AppError(code, **(err_params or {})).detail
+    params[f"{field}_code"] = code
+    if err_params:
+        params[f"{field}_params"] = err_params
+    else:
+        params.pop(f"{field}_params", None)
+
+
+def clear_job_error(params: dict[str, Any], field: str, *, keep_key: bool = False) -> None:
+    """清除任务失败记录；keep_key=True 时文案字段保留为 None（兼容旧接口的显式 null）。"""
+    if keep_key:
+        params[field] = None
+    else:
+        params.pop(field, None)
+    params.pop(f"{field}_code", None)
+    params.pop(f"{field}_params", None)
+
+
+def gen_error_fields(exc: BaseException) -> tuple[str | None, dict[str, Any] | None]:
+    """生图 / 生视频失败的错误码：AppError 自身码，超时 / 网络归类，其余 None（前端按原文细分）。"""
+    if isinstance(exc, AppError):
+        return exc.code, (dict(exc.params) or None)
+    names = _exc_names(exc)
+    if names & _TIMEOUT_NAMES:
+        return "drama.gen_timeout", None
+    if names & _NETWORK_NAMES:
+        return "drama.gen_network", None
+    return None, None
+
+
+def with_error_code(
+    gen: dict[str, Any], code: str | None, params: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """给 params.generation 附上 error_code / error_params（code 为空时清除旧值）。"""
+    if code:
+        gen["error_code"] = code
+        if params:
+            gen["error_params"] = params
+        else:
+            gen.pop("error_params", None)
+    else:
+        gen.pop("error_code", None)
+        gen.pop("error_params", None)
+    return gen
+
+
+def gen_progress(key: str, text: str, **params: Any) -> dict[str, Any]:
+    """生成进度文案：中文 message（兼容旧前端 / 日志）+ message_key / message_params（前端翻译）。"""
+    out: dict[str, Any] = {"message": text, "message_key": key}
+    if params:
+        out["message_params"] = params
+    return out

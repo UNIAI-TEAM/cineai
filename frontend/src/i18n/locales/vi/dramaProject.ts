@@ -145,6 +145,26 @@ export const viDramaProject = {
       editScene: 'Sửa phân đoạn',
       savePart: 'Lưu phần này',
       empty: 'Chưa có kịch bản',
+      // 剧本结构标签的展示名（数据仍是中文标签，仅预览时替换）
+      castLabel: 'Nhân vật xuất hiện',
+      establishing: 'Cảnh không người',
+      sceneTime: {
+        day: 'Ngày',
+        night: 'Đêm',
+        dawn: 'Rạng sáng',
+        dusk: 'Hoàng hôn',
+        evening: 'Chiều tối',
+        beforeDawn: 'Trước bình minh',
+        earlyMorning: 'Sáng sớm',
+        morning: 'Buổi sáng',
+        noon: 'Buổi trưa',
+        late: 'Buổi tối',
+      },
+      scenePlace: {
+        interior: 'Nội cảnh',
+        exterior: 'Ngoại cảnh',
+        both: 'Nội/ngoại cảnh',
+      },
     },
     episodes: {
       loadFailed: 'Không tải được danh sách tập',

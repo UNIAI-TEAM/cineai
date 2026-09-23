@@ -67,6 +67,8 @@ class BillingAlertNotification(Base):
     title: Mapped[str] = mapped_column(String(128), default="")
     message: Mapped[str] = mapped_column(Text, default="")
     milestone_fen: Mapped[int] = mapped_column(Integer, default=0)
+    # 生成告警时的累计扣费（分），前端据此拼提示文案
+    total_charged_fen: Mapped[int | None] = mapped_column(Integer, nullable=True)
     acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -108,6 +110,9 @@ class Project(Base):
     status: Mapped[str] = mapped_column(String(32), default=ProjectStatus.DRAFT)
     progress: Mapped[int] = mapped_column(Integer, default=0)
     error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # error_msg 的错误码与参数（AppError / provider.* 等），前端按界面语言翻译；原文仍在 error_msg
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error_params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     cover_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     final_video_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     resolution_mode: Mapped[str] = mapped_column(String(16), default="preview")  # preview | hd
@@ -303,6 +308,9 @@ class ToolRun(Base):
     task_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # error 的错误码与参数，前端按界面语言翻译
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error_params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

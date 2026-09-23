@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+import logging
+
+from fastapi import APIRouter, Depends, Header
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +32,14 @@ from app.services.studio_tools import poll_video_task, ratio_to_size
 from app.services import storage
 
 router = APIRouter(prefix="/v1", tags=["public-api"])
+
+logger = logging.getLogger(__name__)
+
+
+def _upstream_failed(exc: BaseException) -> AppError:
+    """上游生成失败：原文只进日志，响应只带错误码（不回传服务商原始报错）。"""
+    logger.warning("v1 upstream failed: %s", str(exc)[:800])
+    return AppError("api.upstream_failed")
 
 
 async def _resolve_api_user(
@@ -75,7 +85,7 @@ async def generate_image(
             # Lỗi cấu hình model phải giữ nguyên code/status, không bọc thành 502
             raise
         except Exception as exc:  # noqa: BLE001
-            raise HTTPException(status_code=502, detail=str(exc)[:400]) from exc
+            raise _upstream_failed(exc) from exc
 
         await record_seedream_image_usage(
             db,
@@ -134,7 +144,7 @@ async def generate_video(
             # Lỗi cấu hình model phải giữ nguyên code/status, không bọc thành 502
             raise
         except Exception as exc:  # noqa: BLE001
-            raise HTTPException(status_code=502, detail=str(exc)[:400]) from exc
+            raise _upstream_failed(exc) from exc
 
         return upstream_id
 
@@ -168,7 +178,7 @@ async def forward_seedance(
 ) -> V1GenerationOut:
     """Chuyển tiếp body Seedance đa phương thức lên provider đang gán cho tools.video."""
     if not body.content:
-        raise HTTPException(status_code=400, detail="content 不能为空")
+        raise AppError("api.content_required")
     payload: dict = {
         "content": body.content,
         "resolution": body.resolution,
@@ -191,7 +201,7 @@ async def forward_seedance(
             # Lỗi cấu hình model phải giữ nguyên code/status, không bọc thành 502
             raise
         except Exception as exc:  # noqa: BLE001
-            raise HTTPException(status_code=502, detail=str(exc)[:400]) from exc
+            raise _upstream_failed(exc) from exc
 
         return upstream_id
 
@@ -219,7 +229,7 @@ async def get_task(
 ) -> V1GenerationOut:
     """查询 Seedance 视频任务状态（仅可查询本人提交的任务）。"""
     if not task_id.strip():
-        raise HTTPException(status_code=400, detail="缺少 task_id")
+        raise AppError("api.task_id_required")
     tid = task_id.strip()
     # 归属校验：上游 task_id 本身是可传递的凭据，不校验会拖走他人视频
     owned_row = (
@@ -230,7 +240,7 @@ async def get_task(
         )
     ).first()
     if owned_row is None:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise AppError("task.not_found")
     data = await poll_video_task(user, tid, channel_id=owned_row.provider_channel_id)
     await settle_deferred_video_poll(
         db,
@@ -245,10 +255,15 @@ async def get_task(
         model=str(data.get("model") or ""),
     )
     await db.commit()
+    raw_error = str(data.get("error") or "").strip()
+    if raw_error:
+        # 上游原文只记日志，不返回给开放 API 客户端
+        logger.warning("v1 video task failed task_id=%s error=%s", tid, raw_error[:400])
     return V1GenerationOut(
         status=str(data.get("status") or "running"),
         kind="video",
         urls=list(data.get("urls") or []),
         task_id=task_id.strip(),
-        error=data.get("error"),
+        error="Video generation failed at the model provider" if raw_error else None,
+        error_code="api.upstream_failed" if raw_error else None,
     )

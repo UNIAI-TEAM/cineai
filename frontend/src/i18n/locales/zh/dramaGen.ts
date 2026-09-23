@@ -29,6 +29,12 @@ export const zhDramaGen = {
       generatingImage: '生图中',
       generatingVideo: '生视频中',
       generatingRefs: '生成参考图…',
+      generatingRefsProgress: '正在生成参考图 {done}/{total}',
+      generatingRefsItem: '正在生成参考图 {done}/{total}：{name}',
+      refsReady: '参考图已就绪，开始生成视频',
+      upstreamRunning: '上游生成中',
+      awaitingReview: '待确认',
+      interrupted: '任务已中断，请重新生成',
     },
     title: {
       asset: '资产 {id}',

@@ -10,7 +10,7 @@ from typing import Any
 import httpx
 
 from app.schemas_routing import ResolvedModelRoute
-from app.services.providers.base import ProviderNotSupported, TtsRequest
+from app.services.providers.base import ProviderNotSupported, TtsRequest, UpstreamError
 
 VOLC_TTS_DEFAULT_URL = "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
 BYTEPLUS_TTS_URL = "https://voice.ap-southeast-1.bytepluses.com/api/v3/tts/unidirectional"
@@ -145,10 +145,10 @@ class VolcTtsAdapter:
         async with httpx.AsyncClient(timeout=120.0) as client:
             resp = await client.post(url, headers=headers, json=body)
         if resp.status_code >= 400:
-            raise RuntimeError(f"openspeech HTTP {resp.status_code}: {resp.text[:300]}")
+            raise UpstreamError(f"openspeech HTTP {resp.status_code}: {resp.text[:300]}")
         audio = parse_openspeech_ndjson(resp.content)
         if not audio:
-            raise RuntimeError("openspeech trả về âm thanh rỗng")
+            raise UpstreamError("openspeech trả về âm thanh rỗng")
         return audio
 
     def cost_fen(self, model: str, raw_usage: dict[str, Any] | None) -> int | None:

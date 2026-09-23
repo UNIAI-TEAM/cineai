@@ -168,6 +168,60 @@ ERRORS: dict[str, tuple[int, str]] = {
     "drama.skill_too_long": (400, "Skill 不能超过 {max} 字"),
     "drama.skill_limit": (400, "最多上传 {max} 条自定义 Skill"),
     "drama.skill_duplicate": (400, "已有同名 Skill，请换 name 或先删除旧的"),
+    # --- 落库错误码：科普项目 / 工具 / 任务 / 上游 / 登录 / 开放 API（Đợt 2A）---
+    "project.cancelled": (400, "用户取消"),
+    "project.ffmpeg_interrupted": (500, "FFmpeg 被系统中断（signal 15），请点击重新拼接"),
+    "project.compose_failed": (500, "FFmpeg 合成失败"),
+    "project.narration_audio_failed": (502, "整片配音生成失败"),
+    "project.narration_audio_silent": (502, "整片配音近静音（音量异常），请重新配音"),
+    "project.narration_audio_bad_duration": (502, "整片配音时长异常"),
+    "project.storyboard_not_ready": (409, "分镜尚未就绪，无法执行阶段 {phase}；请先生成分镜脚本"),
+    "project.storyboard_empty": (502, "分镜模型未返回任何镜头，请检查文字模型配置或稍后重试"),
+    "project.storyboard_invalid": (502, "分镜 JSON 格式无效，请重试"),
+    "tts.unavailable": (503, "配音失败：语音服务暂不可用，请稍后重试"),
+    "provider.network_error": (502, "无法连接模型服务，请稍后重试"),
+    "provider.timeout": (504, "模型服务响应超时，请稍后重试"),
+    "provider.failed": (502, "模型服务生成失败，请稍后重试"),
+    "provider.content_rejected": (400, "内容未通过模型服务审核，请修改提示词或参考图后重试"),
+    "task.execution_failed": (500, "任务执行失败"),
+    "task.freeze_failed": (500, "预扣失败"),
+    "task.handler_missing": (500, "未注册任务处理器：{domain}/{task_type}"),
+    "tool.ffmpeg_missing": (500, "未找到 ffmpeg，无法拼接图片"),
+    "tool.collage_failed": (500, "拼接失败"),
+    "auth.login_required": (401, "未登录"),
+    "auth.session_expired": (401, "登录已失效"),
+    "auth.api_key_missing": (401, "缺少 API Key"),
+    "auth.api_key_invalid": (401, "API Key 无效或已撤销"),
+    "api.content_required": (400, "content 不能为空"),
+    "api.task_id_required": (400, "缺少 task_id"),
+    "api.upstream_failed": (502, "上游生成失败，请稍后重试"),
+    # --- 漫剧：后台任务落库错误（剧本 / 分镜 / 生图生视频，Đợt 2B）---
+    "drama.upstream_auth": (502, "模型服务商拒绝了 API Key，请联系我们"),
+    "drama.upstream_rate_limit": (429, "模型服务商繁忙，请稍后再试"),
+    "drama.upstream_server": (502, "模型服务商出现故障，请稍后再试"),
+    "drama.upstream_rejected": (502, "模型服务商拒绝了请求，请稍后再试"),
+    "drama.upstream_network": (502, "无法连接模型服务商，请稍后再试"),
+    "drama.llm_empty_output": (502, "模型未返回内容，请重试"),
+    "drama.llm_bad_format": (502, "模型返回的格式无效，请重试"),
+    "drama.llm_output_too_short": (502, "模型生成的内容过短，请重试"),
+    "drama.episode_gen_incomplete": (500, "分集剧本未全部生成（{done}/{total}），请重试"),
+    "drama.episode_gen_stalled": (500, "分集剧本生成没有进展，请稍后重试"),
+    "drama.episode_input_required": (400, "请先填写本集创意或摘要"),
+    "drama.episode_body_empty": (400, "本集剧本正文为空，无法分镜"),
+    "drama.visual_prompt_too_short": (502, "「{name}」的 AI 提示词过短（{length} 字），请重试"),
+    "drama.visual_prompt_failed": (502, "「{name}」的 AI 提示词生成失败，请重试"),
+    "drama.gen_failed": (500, "生成失败，请稍后重试"),
+    "drama.gen_timeout": (504, "生成等待超时，请稍后重试"),
+    "drama.gen_network": (502, "无法连接生成服务，请稍后重试"),
+    "drama.gen_no_image_url": (502, "生图完成但没有拿到可用图片，请重试"),
+    "drama.gen_cancelled": (409, "已取消生成"),
+    "drama.gen_skipped_done": (409, "分镜已生成完成，跳过重复任务"),
+    "drama.prev_shot_failed": (409, "上一镜失败，无法衔接尾帧"),
+    "drama.fragment_changed": (409, "分镜已变更，请重新生成"),
+    "drama.video_channel_gone": (410, "旧视频通道已下线，请重新生成此分镜"),
+    "task.missing_provider_task": (500, "缺少上游任务 ID，无法查询进度"),
+    "task.video_poll_timeout": (504, "视频生成等待超时，预扣已退回"),
+    "task.upstream_failed": (502, "生成失败，请稍后重试"),
 }
 
 
@@ -211,6 +265,10 @@ class AppError(ValueError):
     def __reduce__(self):
         """支持 copy / pickle：按 code / status / params 重建。"""
         return (_rebuild_app_error, (type(self), self.code, self.status, self.params))
+
+
+class AppRuntimeError(AppError, RuntimeError):
+    """运行期失败（配音 / 合成 / 拆镜等）：带错误码，同时保留 RuntimeError 语义，已有 except RuntimeError 仍能捕获。"""
 
 
 def error_code_fields(exc: BaseException, default_code: str | None = None) -> tuple[str | None, dict[str, Any] | None]:

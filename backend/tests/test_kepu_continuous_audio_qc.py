@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.errors import AppRuntimeError
 from app.services import pipeline
 
 
@@ -25,11 +26,12 @@ async def test_synthesize_rejects_near_silent_tts(tmp_path, monkeypatch) -> None
         patch.object(pipeline, "is_near_silent_audio", return_value=True),
         patch.object(pipeline, "probe_duration", AsyncMock(side_effect=AssertionError("不应继续探测时长"))),
     ):
-        with pytest.raises(RuntimeError, match="近静音"):
+        with pytest.raises(AppRuntimeError, match="近静音") as exc_info:
             await pipeline._synthesize_continuous_audio(
                 1,
                 voice="zh-F1",
                 shot_rows=[SimpleNamespace(id=1, duration=4.0, narration="你好")],
                 force=True,
             )
+    assert exc_info.value.code == "project.narration_audio_silent"
     ark.tts.assert_awaited_once()

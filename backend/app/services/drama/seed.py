@@ -33,6 +33,7 @@ from app.services.drama.build_fragments import (
 from app.services.drama.access import detach_task_fragment_refs
 from app.services.drama.agents import MIN_EPISODE_CONTENT_CHARS
 from app.services.content_lang import is_zh, project_content_lang
+from app.services.drama.naming import default_episode_title
 from app.services.drama.extract_props_materials import extract_props_materials
 from app.services.drama.seed_asset_params import (
     build_character_params,
@@ -334,6 +335,8 @@ class SeedAssetsResult:
     props_updated: int = 0
     llm_calls_props: int = 0
     llm_errors: list[str] = field(default_factory=list)
+    # llm_error_items 结构化失败项 {kind, name, code, params}（llm_errors 为旧版文案，保留兼容）
+    llm_error_items: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -388,8 +391,12 @@ async def refresh_asset_prompts_from_script(
     db: AsyncSession,
     project: DramaProject,
     assets: list[DramaAsset],
+    error_items: list[dict[str, Any]] | None = None,
 ) -> tuple[int, list[str]]:
-    """按最新剧本为已有资产生成完整生图提示词（不删封面/视频）。"""
+    """按最新剧本为已有资产生成完整生图提示词（不删封面/视频）。
+
+    error_items：传入列表时追加结构化失败项 {kind, name, code, params}，前端按码翻译。
+    """
     from app.services.drama.visual_prompt import resolve_visual_prompt_for_asset
 
     targets = [
@@ -421,6 +428,13 @@ async def refresh_asset_prompts_from_script(
                 cause = exc.__cause__ or exc.__context__
                 detail = f"{exc}" + (f" ← {cause}" if cause else "")
                 errors.append(f"{kind}/{name}: {detail}")
+                if error_items is not None:
+                    code, err_params = error_code_fields(exc, "drama.visual_prompt_failed")
+                    if code == "drama.visual_prompt_failed" and not err_params:
+                        err_params = {"kind": kind, "name": name}
+                    error_items.append(
+                        {"kind": kind, "name": name, "code": code, "params": err_params or {}}
+                    )
                 logger.warning("资产提示词 AI 刷新失败 asset_id=%s err=%s", asset.id, detail)
                 return
             _write_visual_prompt_to_asset(asset, prompt)
@@ -485,6 +499,7 @@ async def seed_assets_from_script(
     props_updated = 0
     llm_calls_props = 0
     llm_errors: list[str] = []
+    llm_error_items: list[dict[str, Any]] = []
     logger.info(
         "seed_assets project_id=%s refresh_prompts=%s reextract_props=%s existing=%s",
         project.id,
@@ -643,7 +658,7 @@ async def seed_assets_from_script(
             ).scalars().all()
         )
         prompts_refreshed, refresh_errors = await refresh_asset_prompts_from_script(
-            db, project, all_assets
+            db, project, all_assets, llm_error_items
         )
         llm_errors.extend(refresh_errors)
 
@@ -658,6 +673,7 @@ async def seed_assets_from_script(
         props_updated=props_updated,
         llm_calls_props=llm_calls_props,
         llm_errors=llm_errors,
+        llm_error_items=llm_error_items,
     )
 
 
@@ -909,7 +925,9 @@ async def seed_episodes_from_script(
         series_introduced: set[str] = set()
         for item in bodies:
             ep_no = int(item.get("episodeNumber") or len(created) + 1)
-            title = str(item.get("title") or f"第{ep_no}集")
+            title = str(
+                item.get("title") or default_episode_title(ep_no, project_content_lang(project), compact=True)
+            )
             body = str(item.get("body") or item.get("content") or "")
             episode = DramaEpisode(
                 project_id=project.id,
@@ -982,7 +1000,9 @@ async def seed_episodes_from_script(
     for ep_no, item in sorted(body_by_number.items()):
         if ep_no in existing_numbers:
             continue
-        title = str(item.get("title") or f"第{ep_no}集")
+        title = str(
+            item.get("title") or default_episode_title(ep_no, project_content_lang(project), compact=True)
+        )
         body = str(item.get("body") or item.get("content") or "")
         episode = DramaEpisode(
             project_id=project.id,
@@ -1142,7 +1162,10 @@ async def seed_single_episode_from_script(
     if not script:
         raise AppError("drama.script_missing")
     item = require_confirmable_episode_body(script.episode_content, episode_number)
-    title = str(item.get("title") or f"第{episode_number}集")
+    title = str(
+        item.get("title")
+        or default_episode_title(episode_number, project_content_lang(project), compact=True)
+    )
     body = str(item.get("body") or item.get("content") or "")
 
     assets = list(

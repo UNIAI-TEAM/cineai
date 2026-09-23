@@ -19,6 +19,9 @@ class ToolTaskOut(BaseModel):
     kind: str = "video"
     urls: list[str] = Field(default_factory=list)
     error: str | None = None
+    # error 的错误码与参数，前端按界面语言翻译
+    error_code: str | None = None
+    error_params: dict | None = None
 
 
 class ToolRunRecordOut(BaseModel):
@@ -34,6 +37,8 @@ class ToolRunRecordOut(BaseModel):
     task_id: str | None = None
     params: dict | None = None
     error: str | None = None
+    error_code: str | None = None
+    error_params: dict | None = None
     created_at: str
 
 

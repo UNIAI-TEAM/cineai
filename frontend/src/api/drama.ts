@@ -1,5 +1,6 @@
 import { apiErrorText, throwApiError } from '../lib/apiError'
 import { uiLocaleHeaders } from '../lib/uiLocaleHeader'
+import type { SeedLlmErrorItem } from '../lib/dramaJobError'
 
 function defaultApiBase() {
   if (typeof window !== 'undefined' && window.location?.hostname) {
@@ -170,6 +171,8 @@ export type SeedAssetsResult = {
   prompts_refreshed: number
   props_updated: number
   llm_errors: string[]
+  /** 结构化失败项 {kind, name, code, params}（按错误码翻译；llm_errors 为旧版文案） */
+  llm_error_items?: SeedLlmErrorItem[]
   status?: string
   message?: string | null
 }
@@ -377,6 +380,7 @@ export const dramaApi = {
       prompts_refreshed: result?.prompts_refreshed ?? 0,
       props_updated: result?.props_updated ?? 0,
       llm_errors: Array.isArray(result?.llm_errors) ? result.llm_errors : [],
+      llm_error_items: Array.isArray(result?.llm_error_items) ? result.llm_error_items : [],
       status: result?.status ?? 'done',
       message: result?.message ?? null,
     }

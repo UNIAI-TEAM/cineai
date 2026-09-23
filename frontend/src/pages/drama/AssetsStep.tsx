@@ -36,6 +36,7 @@ import { displayDramaAssetName, filterDramaLibraryAssets } from '../../lib/drama
 import { DRAMA_VOICE_BINDING_ENABLED } from '../../lib/dramaVoiceBinding'
 import { useI18n } from '../../i18n/context'
 import { translate } from '../../i18n/translate'
+import { seedLlmErrorLines } from '../../lib/dramaJobError'
 import {
   dramaAssetImageGenButtonLabel,
   dramaAssetNeedsImageGeneration,
@@ -633,9 +634,10 @@ export function AssetsStep({ projectId, onError }: AssetsStepProps) {
         const created = Number(params.assets_seed_created ?? 0)
         const refreshed = Number(params.assets_seed_refreshed ?? 0)
         const propsUpdated = Number(params.assets_seed_props_updated ?? 0)
-        const llmErrors = Array.isArray(params.assets_seed_llm_errors)
-          ? (params.assets_seed_llm_errors as string[])
-          : []
+        const llmErrors = seedLlmErrorLines(
+          params.assets_seed_llm_error_items,
+          params.assets_seed_llm_errors,
+        )
         const failed = seedStatus === 'failed'
         let detail = failed
           ? localizeStoredError(
@@ -665,7 +667,7 @@ export function AssetsStep({ projectId, onError }: AssetsStepProps) {
       const created = result.created_count ?? 0
       const refreshed = result.prompts_refreshed ?? 0
       const propsUpdated = result.props_updated ?? 0
-      const llmErrors = Array.isArray(result.llm_errors) ? result.llm_errors : []
+      const llmErrors = seedLlmErrorLines(result.llm_error_items, result.llm_errors)
       let detail = reseedSummaryText(created, refreshed, propsUpdated)
       if (created === 0 && refreshed === 0 && llmErrors.length === 0) {
         detail += t('dramaAssets.step.reseedNothing')

@@ -47,6 +47,8 @@ from app.services.drama.seedream_options import (
 )
 from app.services.drama.visual_prompt import resolve_visual_prompt_for_asset
 from app.services.content_lang import project_content_lang
+from app.services.drama.job_errors import gen_progress, with_error_code
+from app.services.drama.naming import default_asset_name
 from app.services.drama.voice_synthesis import build_voice_sample_text, synthesize_voice_asset
 from app.services.drama.voice_prompt import fallback_voice_prompt
 from app.services.drama.voice_reference_audio import (
@@ -300,7 +302,10 @@ def build_failed_generation_params(
     *,
     attempts: int | None = None,
     attempt_limit: int | None = None,
+    error_code: str | None = None,
+    error_params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """error_code / error_params：可选业务错误码（前端按码翻译 error），不传则前端按原文分类。"""
     msg = str(error or "生成失败")[:500]
     prev = prev_gen if isinstance(prev_gen, dict) else {}
     prev_root = str(prev.get("root_error") or "").strip()
@@ -326,11 +331,15 @@ def build_failed_generation_params(
         else:
             display = f"{msg}：{root_snip}"
 
-    out: dict[str, Any] = {
-        "status": "failed",
-        "error": display[:500],
-        "root_error": root[:500],
-    }
+    out: dict[str, Any] = with_error_code(
+        {
+            "status": "failed",
+            "error": display[:500],
+            "root_error": root[:500],
+        },
+        error_code,
+        error_params,
+    )
     # attempts / attempt_limit：显式入参优先，否则保留 prev
     if attempts is not None:
         out["attempts"] = attempts
@@ -708,7 +717,7 @@ async def reconcile_orphaned_fragment_generations(
         params.pop("generation_attempts", None)
         params["generation"] = {
             "status": "idle",
-            "message": "任务已中断，请重新生成",
+            **gen_progress("interrupted", "任务已中断，请重新生成"),
         }
         fragment.params = params
         changed += 1
@@ -754,19 +763,26 @@ def overlay_fragment_status_with_active_task(
     if frag_st in {"done", "failed", "cancelled"}:
         return status
     out = dict(status)
+
+    # 没有进度文案时补默认文案（带 message_key 供前端翻译）；已有文案保持原样
+    def _default_message(key: str, text: str) -> None:
+        if not out.get("message"):
+            out.pop("message_params", None)
+            out.update(gen_progress(key, text))
+
     if raw_task in {"pending", "leased"}:
         out["status"] = "queued"
-        out.setdefault("message", "排队中")
+        _default_message("queued", "排队中")
         return out
     out["status"] = "running"
     if raw_task == "awaiting_poll":
         out["phase"] = out.get("phase") or "polling"
-        out["message"] = out.get("message") or "上游生成中"
+        _default_message("upstreamRunning", "上游生成中")
     elif raw_task == "awaiting_review":
         out["phase"] = out.get("phase") or "review"
-        out["message"] = out.get("message") or "待确认"
+        _default_message("awaitingReview", "待确认")
     else:
-        out.setdefault("message", "生成中")
+        _default_message("generating", "生成中")
     return out
 
 
@@ -902,7 +918,9 @@ async def ensure_fragment_reference_images(
         {
             "status": "running",
             "phase": "assets",
-            "message": f"正在生成参考图 0/{len(missing)}",
+            **gen_progress(
+                "generatingRefsProgress", f"正在生成参考图 0/{len(missing)}", done=0, total=len(missing)
+            ),
             "assets_total": len(missing),
             "assets_done": 0,
         },
@@ -932,7 +950,13 @@ async def ensure_fragment_reference_images(
             {
                 "status": "running",
                 "phase": "assets",
-                "message": f"正在生成参考图 {index + 1}/{len(missing)}：{asset.name or asset.id}",
+                **gen_progress(
+                    "generatingRefsItem",
+                    f"正在生成参考图 {index + 1}/{len(missing)}：{asset.name or asset.id}",
+                    done=index + 1,
+                    total=len(missing),
+                    name=str(asset.name or asset.id),
+                ),
                 "assets_total": len(missing),
                 "assets_done": index,
                 "asset_id": asset.id,
@@ -962,7 +986,7 @@ async def ensure_fragment_reference_images(
         {
             "status": "running",
             "phase": "video",
-            "message": "参考图已就绪，开始生成视频",
+            **gen_progress("refsReady", "参考图已就绪，开始生成视频"),
             "assets_total": len(missing),
             "assets_done": len(missing),
         },
@@ -1342,7 +1366,7 @@ async def generate_asset_image(
                 project.id,
             )
     if not (url or "").strip():
-        raise RuntimeError("生图成功但未拿到可用图片 URL")
+        raise AppError("drama.gen_no_image_url")
     logger.info("Seedream 返回 project_id=%s url=%s", project.id, url[:100])
 
     await record_seedream_image_usage(
@@ -1377,7 +1401,7 @@ async def generate_asset_image(
             project_id=project.id,
             type=kind,
             asset_type="image",
-            name=name or "未命名资产",
+            name=name or default_asset_name(project_content_lang(project)),
             cover=url,
             url=url,
             params=gen_meta,
@@ -1664,7 +1688,7 @@ async def submit_prepared_fragment_video(
 ) -> str:
     ark = get_ark()
     if prepared.submit_mode == "kie":
-        raise RuntimeError("Kênh video cũ không còn, hãy tạo lại phân cảnh này")
+        raise AppError("drama.video_channel_gone")
     if prepared.submit_mode == "seedance_body" and prepared.seedance_body:
         return await ark.gen_video_seedance_body(
             prepared.seedance_body,
@@ -1683,7 +1707,7 @@ async def submit_prepared_fragment_video(
             ratio=prepared.ratio,
             generate_audio=prepared.generate_audio,
         )
-    raise RuntimeError("分镜视频提交上下文不完整")
+    raise AppError("drama.fragment_changed")
 
 
 def serialize_fragment_video_prepared(prepared: FragmentVideoPrepared) -> dict[str, Any]:

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, defaultsFromTemplate } from '../../api'
 import type { Project, Shot, Template } from '../../api'
-import { ApiError } from '../../lib/apiError'
+import { ApiError, localizeStoredError } from '../../lib/apiError'
 import AppShell from '../../components/layout/AppShell'
 import Stepper from '../../components/ui/Stepper'
 import {
@@ -799,7 +799,11 @@ title={t('studioBoard.recomposeTitle')}
       </header>
 
       {error ? <BillingErrorNotice message={error} /> : null}
-      {project.error_msg ? <p className="pf-error">{project.error_msg}</p> : null}
+      {project.error_msg ? (
+        <p className="pf-error">
+          {localizeStoredError(project.error_msg, project.error_code, project.error_params)}
+        </p>
+      ) : null}
 
       <div className="pf-board">
         <aside className="pf-create-col">

@@ -10,6 +10,8 @@ from app.deps import get_current_user
 from app.models import User
 from app.models_drama import DramaAsset
 from app.schemas_drama import DramaCanvasSaveRequest
+from app.services.content_lang import project_content_lang
+from app.services.drama.naming import default_canvas_node_name
 from app.services.drama.access import get_owned_drama_project
 
 router = APIRouter()
@@ -37,6 +39,8 @@ async def save_canvas(
     user: User = Depends(get_current_user),
 ) -> dict:
     project = await get_owned_drama_project(db, body.project_id, user, with_assets=True)
+    # 画布节点默认名按项目内容语言
+    lang = project_content_lang(project)
     content = dict(project.content) if isinstance(project.content, dict) else {}
     content["canvas_nodes"] = body.nodes
     content["canvas_edges"] = body.edges
@@ -55,7 +59,7 @@ async def save_canvas(
             continue
         seen.add(nid)
         data = node.get("data") if isinstance(node.get("data"), dict) else {}
-        name = str(data.get("label") or data.get("name") or f"节点 {nid}")
+        name = str(data.get("label") or data.get("name") or default_canvas_node_name(nid, lang))
         url = data.get("mediaUrl") or data.get("url") or data.get("cover")
         kind = str(data.get("kind") or "none")
         asset_type = str(

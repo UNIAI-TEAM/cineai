@@ -395,7 +395,9 @@ async def settle_deferred_video_poll(
         )
     else:
         task.status = "failed"
-        task.error_code = "upstream_failed"
+        # 上游原文留在 error_message（管理端排查），用户侧按错误码显示通用文案
+        task.error_code = "task.upstream_failed"
+        task.error_params = None
         task.error_message = (error or "生成失败")[:500]
         task.finished_at = now
         await append_task_event(

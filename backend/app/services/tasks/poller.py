@@ -173,7 +173,8 @@ async def _poll_one_task(task_id: int) -> None:
             return
         if not task.provider_task_id:
             task.status = "failed"
-            task.error_code = "missing_provider_task_id"
+            task.error_code = "task.missing_provider_task"
+            task.error_params = None
             task.error_message = "缺少上游任务 ID，无法轮询"
             task.finished_at = datetime.now(UTC)
             await append_task_event(
@@ -266,7 +267,8 @@ async def _poll_ephemeral_with_session(
         started = started.replace(tzinfo=UTC)
     if started and (now - started).total_seconds() > timeout_sec:
         task.status = "failed"
-        task.error_code = "poll_timeout"
+        task.error_code = "task.video_poll_timeout"
+        task.error_params = None
         task.error_message = "视频轮询超时，预扣已退回"
         task.finished_at = now
         await append_task_event(

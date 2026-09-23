@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +31,7 @@ from app.services.password_reset import (
     apply_password_reset,
     request_password_reset,
 )
+from app.services.content_lang import request_lang
 from app.services.profile import prepare_profile_update
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -102,11 +103,12 @@ async def change_password(
 @router.post("/forgot-password")
 async def forgot_password(
     body: ForgotPasswordRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, object]:
-    """发送密码重置邮件；统一成功文案，避免邮箱枚举。"""
+    """发送密码重置邮件（按界面语言）；统一成功文案，避免邮箱枚举。"""
     try:
-        return await request_password_reset(db, str(body.email))
+        return await request_password_reset(db, str(body.email), request_lang(request))
     except RedisUnavailableError as exc:
         raise AppError("auth.service_unavailable") from exc
 

@@ -180,6 +180,10 @@ async def billing_alerts_pending(
                 "message": row.message,
                 "milestone_fen": int(row.milestone_fen or 0),
                 "milestone_yuan": round(int(row.milestone_fen or 0) / 100, 2),
+                # 生成告警时的累计扣费；老记录为空时前端只展示里程碑
+                "total_charged_fen": (
+                    int(row.total_charged_fen) if row.total_charged_fen is not None else None
+                ),
                 "created_at": row.created_at.isoformat() if row.created_at else None,
             }
             for row in rows
@@ -228,6 +232,7 @@ async def usage_events(
 
     items = []
     for ev, kepu_title, drama_title in rows:
+        # context 为旧版中文拼接（兼容保留）；前端用 context_kind / context_title / context_project_id 按语言拼
         if drama_title:
             context = f"漫剧 · {drama_title}"
         elif kepu_title:
@@ -238,14 +243,25 @@ async def usage_events(
             context = f"漫剧 · 项目 #{ev.drama_project_id}"
         else:
             context = "工具创作"
+        if drama_title or ev.drama_project_id:
+            context_kind, context_title, context_project_id = "drama", drama_title, ev.drama_project_id
+        elif kepu_title or ev.project_id:
+            context_kind, context_title, context_project_id = "kepu", kepu_title, ev.project_id
+        else:
+            context_kind, context_title, context_project_id = "tool", None, None
         charge_fen = int(ev.charge_fen or 0)
         items.append(
             {
                 "id": ev.id,
                 "billing_key": ev.billing_key,
                 "billing_label": billing.billing_key_label(ev.billing_key),
+                # 能力类别 llm|image|video|tts|other，前端按语言显示名称（billing_label 仅兼容保留）
+                "capability": billing.billing_key_to_capability(ev.billing_key),
                 "model": ev.model or "",
                 "context": context,
+                "context_kind": context_kind,
+                "context_title": context_title,
+                "context_project_id": context_project_id,
                 "total_tokens": int(ev.total_tokens or 0),
                 "charge_fen": charge_fen,
                 "charge_yuan": round(charge_fen / 100, 2),

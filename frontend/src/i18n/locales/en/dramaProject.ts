@@ -145,6 +145,26 @@ export const enDramaProject = {
       editScene: 'Edit scene',
       savePart: 'Save section',
       empty: 'No script yet',
+      // 剧本结构标签的展示名（数据仍是中文标签，仅预览时替换）
+      castLabel: 'Cast',
+      establishing: 'Establishing shot',
+      sceneTime: {
+        day: 'Day',
+        night: 'Night',
+        dawn: 'Dawn',
+        dusk: 'Dusk',
+        evening: 'Evening',
+        beforeDawn: 'Before dawn',
+        earlyMorning: 'Early morning',
+        morning: 'Morning',
+        noon: 'Noon',
+        late: 'Late evening',
+      },
+      scenePlace: {
+        interior: 'INT.',
+        exterior: 'EXT.',
+        both: 'INT./EXT.',
+      },
     },
     episodes: {
       loadFailed: 'Couldn’t load episodes',

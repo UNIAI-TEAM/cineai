@@ -7,7 +7,6 @@ import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -102,9 +101,10 @@ async def test_v1_get_task_rejects_other_user(db_session: AsyncSession) -> None:
 
     poll = AsyncMock(return_value={"status": "running"})
     with patch.object(v1_generation, "poll_video_task", poll):
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(AppError) as exc:
             await v1_generation.get_task("prov-idor-1", db=db_session, user=user_b)
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404
+    assert exc.value.code == "task.not_found"
     poll.assert_not_called()
 
 

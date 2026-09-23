@@ -243,6 +243,22 @@ async def _apply_schema_patches() -> None:
         if "i18n" not in tcols:
             await conn.execute(text("ALTER TABLE templates ADD COLUMN i18n JSON DEFAULT '{}'"))
 
+        # --- 落库错误码（Đợt 2A）：项目 / 工具记录错误码，额度告警累计扣费 ---
+        if "error_code" not in pcols:
+            await conn.execute(text("ALTER TABLE projects ADD COLUMN error_code VARCHAR(64)"))
+        if "error_params" not in pcols:
+            await conn.execute(text("ALTER TABLE projects ADD COLUMN error_params JSON"))
+        trun_cols = await _pg_columns(conn, "tool_runs")
+        if "error_code" not in trun_cols:
+            await conn.execute(text("ALTER TABLE tool_runs ADD COLUMN error_code VARCHAR(64)"))
+        if "error_params" not in trun_cols:
+            await conn.execute(text("ALTER TABLE tool_runs ADD COLUMN error_params JSON"))
+        bacols = await _pg_columns(conn, "billing_alert_notifications")
+        if "total_charged_fen" not in bacols:
+            await conn.execute(
+                text("ALTER TABLE billing_alert_notifications ADD COLUMN total_charged_fen INTEGER")
+            )
+
         # Task platform additive columns
         trcols = await _pg_columns(conn, "task_runs")
         if "dedupe_key" not in trcols:

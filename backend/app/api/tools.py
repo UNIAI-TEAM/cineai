@@ -200,6 +200,8 @@ def _record_out(row: ToolRun) -> ToolRunRecordOut:
         task_id=row.task_id,
         params=row.params if isinstance(row.params, dict) else None,
         error=row.error,
+        error_code=row.error_code,
+        error_params=row.error_params if isinstance(row.error_params, dict) else None,
         created_at=created,
     )
 

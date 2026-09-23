@@ -78,6 +78,8 @@ class SeedAssetsFromScriptOut(BaseModel):
     prompts_refreshed: int = 0
     props_updated: int = 0
     llm_errors: list[str] = Field(default_factory=list)
+    # 结构化失败项 {kind, name, code, params}，前端按错误码翻译（llm_errors 为旧版文案）
+    llm_error_items: list[dict] = Field(default_factory=list)
     status: str = "done"
     message: str | None = None
 

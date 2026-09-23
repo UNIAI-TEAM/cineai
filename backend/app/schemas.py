@@ -185,6 +185,9 @@ class ProjectOut(BaseModel):
     status: str
     progress: int
     error_msg: str | None
+    # error_msg 的错误码与参数：前端按界面语言翻译（localizeStoredError），无码时回落原文
+    error_code: str | None = None
+    error_params: dict | None = None
     cover_url: str | None
     final_video_url: str | None
     resolution_mode: str
@@ -218,6 +221,8 @@ class ProjectListItem(BaseModel):
     cover_url: str | None
     final_video_url: str | None = None
     error_msg: str | None = None
+    error_code: str | None = None
+    error_params: dict | None = None
     pipeline_mode: str = "full"
     output_ratio: str = ""
     published: bool = False

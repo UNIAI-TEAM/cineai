@@ -193,7 +193,7 @@ async def test_execute_task_run_fails_task_when_freeze_raises_non_valueerror(
     done = await get_task_for_runtime(db_session, task_id)
     assert done is not None
     assert done.status == "failed"
-    assert done.error_code == "RuntimeError"
+    assert done.error_code == "task.freeze_failed"
     assert "connection reset" in (done.error_message or "")
     assert done.finished_at is not None
     assert done.billing_status == "none"

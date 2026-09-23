@@ -12,6 +12,7 @@ from app.models_drama import DramaAsset, DramaProject
 from app.services.billing import record_llm_chat_line
 from app.services.content_lang import is_zh, project_content_lang
 from app.services.drama.llm import drama_chat_text
+from app.errors import AppError
 from app.services.llm_client import LlmUnavailableError
 from app.services.drama.seed import _episode_bodies
 from app.services.drama.seed_asset_params import (
@@ -334,12 +335,14 @@ async def resolve_visual_prompt_for_asset(
             if len(prompt) >= min_len or len(prompt) >= 80:
                 return prompt
             if strict_llm:
-                raise RuntimeError(f"角色「{name}」AI 提示词过短（{len(prompt)} 字）")
+                raise AppError("drama.visual_prompt_too_short", kind=kind, name=name, length=len(prompt))
         except LlmUnavailableError:
             raise
         except Exception as exc:
             if strict_llm:
-                raise RuntimeError(f"角色「{name}」AI 提示词生成失败") from exc
+                if isinstance(exc, AppError) and exc.code == "drama.visual_prompt_too_short":
+                    raise
+                raise AppError("drama.visual_prompt_failed", kind=kind, name=name) from exc
             logger.exception("角色视觉提示词 LLM 失败 asset_id=%s", asset.id)
         return rule_prompt
 
@@ -367,12 +370,14 @@ async def resolve_visual_prompt_for_asset(
             if len(prompt) >= min_len or len(prompt) >= 80:
                 return prompt
             if strict_llm:
-                raise RuntimeError(f"场景「{name}」AI 提示词过短（{len(prompt)} 字）")
+                raise AppError("drama.visual_prompt_too_short", kind=kind, name=name, length=len(prompt))
         except LlmUnavailableError:
             raise
         except Exception as exc:
             if strict_llm:
-                raise RuntimeError(f"场景「{name}」AI 提示词生成失败") from exc
+                if isinstance(exc, AppError) and exc.code == "drama.visual_prompt_too_short":
+                    raise
+                raise AppError("drama.visual_prompt_failed", kind=kind, name=name) from exc
             logger.exception("场景视觉提示词 LLM 失败 asset_id=%s", asset.id)
         return rule_prompt
 
@@ -405,12 +410,14 @@ async def resolve_visual_prompt_for_asset(
             if len(prompt) >= 60:
                 return prompt
             if strict_llm:
-                raise RuntimeError(f"「{name}」AI 提示词过短（{len(prompt)} 字）")
+                raise AppError("drama.visual_prompt_too_short", kind=kind, name=name, length=len(prompt))
         except LlmUnavailableError:
             raise
         except Exception as exc:
             if strict_llm:
-                raise RuntimeError(f"「{name}」AI 提示词生成失败") from exc
+                if isinstance(exc, AppError) and exc.code == "drama.visual_prompt_too_short":
+                    raise
+                raise AppError("drama.visual_prompt_failed", kind=kind, name=name) from exc
             logger.exception("%s 视觉提示词 LLM 失败 asset_id=%s", kind, asset.id)
         return rule_prompt
 

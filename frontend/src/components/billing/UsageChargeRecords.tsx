@@ -26,6 +26,29 @@ function formatTokens(n: number, locale: Locale) {
   return n.toLocaleString(LOCALE_DATE[locale])
 }
 
+type TFn = ReturnType<typeof useI18n>['t']
+
+const CAPABILITIES = ['llm', 'image', 'video', 'tts'] as const
+
+/** 计费类别名称：按 capability 走 i18n，未知类别显示「其他」 */
+function capabilityLabel(item: UsageChargeRecord, t: TFn): string {
+  const cap = CAPABILITIES.find((c) => c === item.capability) ?? 'other'
+  return t(`billing.records.capability.${cap}`)
+}
+
+/** 扣费来源：漫剧 / 科普项目（有标题显示标题，否则显示项目编号）或工具创作 */
+function contextLabel(item: UsageChargeRecord, t: TFn): string {
+  const title = (item.context_title || '').trim()
+  const id = item.context_project_id ?? ''
+  if (item.context_kind === 'drama') {
+    return title ? t('billing.records.context.drama', { title }) : t('billing.records.context.dramaProject', { id })
+  }
+  if (item.context_kind === 'kepu') {
+    return title ? t('billing.records.context.kepu', { title }) : t('billing.records.context.kepuProject', { id })
+  }
+  return t('billing.records.context.tool')
+}
+
 type UsageChargeRecordsProps = {
   /** 嵌入设置页时为 compact */
   variant?: 'panel' | 'compact'
@@ -107,9 +130,9 @@ export default function UsageChargeRecords({ variant = 'compact' }: UsageChargeR
             <li key={item.id}>
               <div className="pf-settings-list-row pf-usage-record-row">
                 <span className="pf-settings-list-main">
-                  <strong>{item.billing_label}</strong>
+                  <strong>{capabilityLabel(item, t)}</strong>
                   <em className="pf-muted">
-                    {item.context}
+                    {contextLabel(item, t)}
                     {item.total_tokens > 0 ? ` · ${formatTokens(item.total_tokens, locale)} tokens` : ''}
                     {item.estimated ? ` · ${t('billing.records.estimated')}` : ''}
                   </em>

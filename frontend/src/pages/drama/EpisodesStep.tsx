@@ -11,6 +11,7 @@ import { displayEpisodeName } from '../../lib/dramaWorkflow'
 import { readEpisodeSubtitleMode, subtitleModeUsesModelOutput } from '../../lib/dramaSubtitleBoard'
 import { FragmentPlanSkillModal } from '../../components/drama/FragmentPlanSkillModal'
 import { readFragmentGenerationStatus } from './dramaEpisodeEditUtils'
+import { storedJobError } from '../../lib/dramaJobError'
 
 type EpisodesStepProps = {
   projectId: number
@@ -203,7 +204,7 @@ export function EpisodesStep({ projectId, onError }: EpisodesStepProps) {
           return
         }
         if (st === 'failed') {
-          throw new Error(String(cur.params?.fragment_plan_error || t('dramaProject.episodes.planFailed')))
+          throw new Error(storedJobError(cur.params, 'fragment_plan_error') || t('dramaProject.episodes.planFailed'))
         }
       }
       throw new Error(t('dramaProject.episodes.planTimeout'))

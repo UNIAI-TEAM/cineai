@@ -3,9 +3,14 @@ import { useEffect, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { tasksApi, type TaskRunOut } from '../../api/tasks'
 import { localizeStoredError } from '../../lib/apiError'
-import { formatDramaGenError, formatDramaGenJobError, pickRootDramaGenError } from '../../lib/dramaGenError'
+import {
+  formatDramaGenError,
+  formatDramaGenJobError,
+  pickRootDramaGenErrorEntry,
+  type DramaGenErrorEntry,
+} from '../../lib/dramaGenError'
 import BillingTopupLink from '../billing/BillingTopupLink'
-import { dramaGenJobMessage, type DramaGenJob } from '../../lib/dramaGenQueue'
+import { dramaGenJobMessage, registeredErrorCode, type DramaGenJob } from '../../lib/dramaGenQueue'
 import { useI18n, type TFunction } from '../../i18n/context'
 
 type Props = {
@@ -13,9 +18,26 @@ type Props = {
   onClose: () => void
 }
 
-// 任务落库错误转展示文案：带业务错误码时按界面语言翻译，否则原文
-function taskErrorText(task: TaskRunOut): string {
-  return localizeStoredError(task.error_message, task.error_code, task.error_params)
+// 任务落库错误 → 候选项：带已登记错误码时按界面语言翻译并保留码，否则原文
+function taskErrorEntry(task: TaskRunOut): DramaGenErrorEntry {
+  return {
+    text: localizeStoredError(task.error_message, task.error_code, task.error_params),
+    code: registeredErrorCode(task.error_code, task.error_params),
+  }
+}
+
+// 历史任务是否为「分镜已有视频、跳过重复」的作废（不当作当前失败根因）
+function isSkippedDuplicate(task: TaskRunOut): boolean {
+  return (
+    task.status === 'cancelled' &&
+    (task.error_code === 'drama.gen_skipped_done' ||
+      /跳过重复任务|分镜已生成完成/.test(String(task.error_message || '')))
+  )
+}
+
+// 事件是否为失败类（进度 / 开始 / 完成等事件文案不作为失败原因）
+function isFailureEvent(eventType: string | null | undefined): boolean {
+  return /fail|error/i.test(String(eventType || ''))
 }
 
 // 拉取该目标相关的多条历史任务（用于挖出被「重试超限」覆盖的根因）
@@ -68,6 +90,8 @@ export function DramaGenTaskDetail({ job, onClose }: Props) {
   const isActive = job.status === 'queued' || job.status === 'running'
   const [loading, setLoading] = useState(isFailed)
   const [rawError, setRawError] = useState(job.error || '')
+  // rawCode 根因对应的已登记错误码（按码分类展示）
+  const [rawCode, setRawCode] = useState<string | undefined>(job.errorCode)
   const [showRaw, setShowRaw] = useState(false)
 
   useEffect(() => {
@@ -80,50 +104,45 @@ export function DramaGenTaskDetail({ job, onClose }: Props) {
 
     let cancelled = false
     setRawError(job.error || '')
+    setRawCode(job.errorCode)
     setLoading(true)
     void (async () => {
       try {
         const tasks = await listRelatedTasks(job)
         if (cancelled) return
-        const candidates: Array<string | null | undefined> = [job.error]
+        const candidates: DramaGenErrorEntry[] = [{ text: job.error || '', code: job.errorCode }]
         for (const task of tasks) {
           // 优先当前 job 绑定的任务；历史 cancelled「跳过重复」不当作根因抢占
           if (job.taskId && task.id === job.taskId) {
-            candidates.unshift(taskErrorText(task))
+            candidates.unshift(taskErrorEntry(task))
             continue
           }
-          if (
-            task.status === 'cancelled' &&
-            /跳过重复任务|分镜已生成完成/.test(String(task.error_message || ''))
-          ) {
-            continue
-          }
-          candidates.push(taskErrorText(task))
+          if (isSkippedDuplicate(task)) continue
+          candidates.push(taskErrorEntry(task))
         }
-        let best = pickRootDramaGenError(candidates)
-        if (!best || /重试超过|超过上限/.test(best)) {
+        let best = pickRootDramaGenErrorEntry(candidates)
+        if (!best || (!best.code && /重试超过|超过上限/.test(best.text))) {
           for (const task of tasks.slice(0, 5)) {
             if (!task.id) continue
-            if (
-              task.status === 'cancelled' &&
-              /跳过重复任务|分镜已生成完成/.test(String(task.error_message || ''))
-            ) {
-              continue
-            }
+            if (isSkippedDuplicate(task)) continue
             try {
               const detail = await tasksApi.get(task.id)
               if (cancelled) return
-              candidates.push(taskErrorText(detail))
+              candidates.push(taskErrorEntry(detail))
+              // 只取失败类事件的文案，进度 / 开始等事件不是失败原因
               for (const ev of detail.events || []) {
-                candidates.push(ev.message)
+                if (isFailureEvent(ev.event_type)) candidates.push({ text: ev.message || '' })
               }
             } catch {
               /* ignore */
             }
           }
-          best = pickRootDramaGenError(candidates)
+          best = pickRootDramaGenErrorEntry(candidates)
         }
-        if (best) setRawError(best)
+        if (best) {
+          setRawError(best.text)
+          setRawCode(best.code)
+        }
       } catch {
         /* 无平台任务时仍用 job.error */
       } finally {
@@ -135,11 +154,13 @@ export function DramaGenTaskDetail({ job, onClose }: Props) {
     }
   }, [job, isFailed])
 
-  // 根因仍是队列自身错误时带上错误码分类，否则按文本分类
+  // 根因仍是队列自身错误时带上错误码 / 状态分类；其他候选有已登记错误码时按码分类，否则按文本分类
   const usesJobError = Boolean(rawError) && rawError === job.error
   let errView: ReturnType<typeof formatDramaGenError> | null = null
   if (isFailed) {
-    errView = usesJobError ? formatDramaGenJobError(job) : formatDramaGenError(rawError || job.message)
+    if (usesJobError) errView = formatDramaGenJobError(job)
+    else if (rawCode) errView = formatDramaGenJobError({ error: rawError, errorCode: rawCode })
+    else errView = formatDramaGenError(rawError || job.message)
   }
   const panelTitle = isFailed
     ? t('dramaGen.detail.failedTitle')

@@ -29,6 +29,12 @@ export const viDramaGen = {
       generatingImage: 'Đang tạo ảnh',
       generatingVideo: 'Đang tạo video',
       generatingRefs: 'Đang tạo ảnh tham chiếu…',
+      generatingRefsProgress: 'Đang tạo ảnh tham chiếu {done}/{total}',
+      generatingRefsItem: 'Đang tạo ảnh tham chiếu {done}/{total}: {name}',
+      refsReady: 'Đã có đủ ảnh tham chiếu, bắt đầu tạo video',
+      upstreamRunning: 'Mô hình đang tạo video',
+      awaitingReview: 'Chờ xác nhận',
+      interrupted: 'Việc tạo bị gián đoạn, vui lòng tạo lại',
     },
     title: {
       asset: 'Tư liệu {id}',

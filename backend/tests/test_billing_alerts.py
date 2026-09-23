@@ -55,6 +55,8 @@ async def test_user_milestone_creates_popup_notification(db_session: AsyncSessio
 
     assert len(created) == 1
     assert created[0].milestone_fen == 2000
+    # 累计扣费随告警落库，前端按界面语言拼提示文案
+    assert created[0].total_charged_fen == 2500
     assert int(user.billing_alert_last_milestone_fen) == 2000
 
     pending = await list_pending_user_alerts(db_session, user.id)

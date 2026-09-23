@@ -3,6 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.errors import AppError
 from app.models import User
 from app.services.api_keys import API_KEY_PREFIX, user_from_api_key
 from app.services.auth import decode_token, get_user_by_id
@@ -29,10 +30,10 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
 ) -> User:
     if not creds:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未登录")
+        raise AppError("auth.login_required")
     user = await _user_from_bearer(db, creds.credentials)
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="登录已失效")
+        raise AppError("auth.session_expired")
     return user
 
 
@@ -46,10 +47,10 @@ async def get_api_user(
     if not token and creds:
         token = creds.credentials
     if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="缺少 API Key")
+        raise AppError("auth.api_key_missing")
     user = await _user_from_bearer(db, token)
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API Key 无效或已撤销")
+        raise AppError("auth.api_key_invalid")
     return user
 
 

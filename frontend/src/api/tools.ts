@@ -29,6 +29,9 @@ export type ToolTaskResult = {
   kind: string
   urls: string[]
   error?: string | null
+  /** error 的错误码与参数；展示用 localizeStoredError */
+  error_code?: string | null
+  error_params?: Record<string, unknown> | null
 }
 
 export type ToolRunRecord = {
@@ -42,7 +45,7 @@ export type ToolRunRecord = {
   task_id?: string | null
   params?: Record<string, string> | null
   error?: string | null
-  /** 落库错误码与参数（后端补齐前可能缺省），展示用 localizeStoredError */
+  /** 落库错误码与参数，展示用 localizeStoredError */
   error_code?: string | null
   error_params?: Record<string, unknown> | null
   created_at: string

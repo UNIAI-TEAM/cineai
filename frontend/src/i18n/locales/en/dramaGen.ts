@@ -29,6 +29,12 @@ export const enDramaGen = {
       generatingImage: 'Generating image',
       generatingVideo: 'Generating video',
       generatingRefs: 'Generating reference images…',
+      generatingRefsProgress: 'Generating reference images {done}/{total}',
+      generatingRefsItem: 'Generating reference image {done}/{total}: {name}',
+      refsReady: 'Reference images ready, starting the video',
+      upstreamRunning: 'The model is generating the video',
+      awaitingReview: 'Waiting for review',
+      interrupted: 'Generation was interrupted. Please generate again',
     },
     title: {
       asset: 'Asset {id}',

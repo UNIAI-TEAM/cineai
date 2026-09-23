@@ -22,7 +22,9 @@ from app.schemas_drama import (
     DramaScriptSummaryRequest,
 )
 from app.services.billing import run_billed_ephemeral
-from app.services.content_lang import lang_display_name, request_lang
+from app.services.content_lang import lang_display_name, project_content_lang, request_lang
+from app.services.drama.naming import default_episode_title
+from app.services.drama.job_errors import clear_job_error
 from app.services.drama.access import get_owned_drama_project
 from app.services.drama.agents import (
     MAX_DRAMA_EPISODES,
@@ -108,7 +110,7 @@ async def script_summary(
         )
     params["summary_status"] = "generating"
     params["summary_generating_at"] = datetime.now(timezone.utc).isoformat()
-    params.pop("summary_error", None)
+    clear_job_error(params, "summary_error")
     project.script.params = params
 
     try:
@@ -202,12 +204,16 @@ async def episode_script(
                 patch["body"] = str(cur.get("body") or "")
                 patch["summary"] = str(cur.get("summary") or "")
                 patch["creative"] = creative_in or str(cur.get("creative") or "")
-                patch["title"] = title_in or str(cur.get("title") or f"第 {episode_number} 集")
+                patch["title"] = title_in or str(
+                    cur.get("title") or default_episode_title(episode_number, project_content_lang(project))
+                )
                 if str(cur.get("origin") or "") == "manual":
                     patch["origin"] = "manual"
             else:
                 patch["creative"] = creative_in
-                patch["title"] = title_in or f"第 {episode_number} 集"
+                patch["title"] = title_in or default_episode_title(
+                    episode_number, project_content_lang(project)
+                )
                 patch["origin"] = "manual"
             existing = merge_episode_bodies(existing, [patch], prefer_incoming=True)
             project.script.episode_content = {"episodes": existing}
@@ -248,7 +254,7 @@ async def episode_script(
         params["episode_optimize_status"] = "generating"
         params["episode_optimize_number"] = episode_number
         params["episode_optimize_mode"] = mode
-        params.pop("episode_optimize_error", None)
+        clear_job_error(params, "episode_optimize_error")
         project.script.params = params
         try:
             task_id = await dispatch_episode_scripts_job(
@@ -309,7 +315,7 @@ async def episode_script(
 
     params["episode_content_status"] = "generating"
     params["episode_count"] = total
-    params.pop("episode_content_error", None)
+    clear_job_error(params, "episode_content_error")
     if body.force:
         existing = _existing_episodes(project.script.episode_content)
         if existing:
@@ -317,7 +323,10 @@ async def episode_script(
                 "episodes": [
                     {
                         "episodeNumber": int(item.get("episodeNumber") or 0),
-                        "title": str(item.get("title") or f"第 {item.get('episodeNumber')} 集"),
+                        "title": str(
+                            item.get("title")
+                            or default_episode_title(item.get("episodeNumber"), project_content_lang(project))
+                        ),
                         "body": "",
                     }
                     for item in existing
@@ -395,7 +404,9 @@ async def add_episode(
     if len(existing) >= MAX_DRAMA_EPISODES:
         raise AppError("drama.max_episodes", max=MAX_DRAMA_EPISODES)
     try:
-        episodes, episode_number = append_manual_episode(existing, body.title)
+        episodes, episode_number = append_manual_episode(
+            existing, body.title, lang=project_content_lang(project)
+        )
     except ValueError as exc:
         raise http_exception_for_value_error(exc) from exc
     project.script.episode_content = {"episodes": episodes}

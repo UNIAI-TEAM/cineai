@@ -243,7 +243,9 @@ async def fail_remaining_sequential_batch(
         if int(payload.get("batch_index", -1)) <= int(failed_index):
             continue
         task.status = "cancelled"
-        task.error_code = "sequential_blocked"
+        # 串行批次前镜失败：带业务码，前端按界面语言翻译
+        task.error_code = "drama.prev_shot_failed"
+        task.error_params = None
         task.error_message = reason[:500]
         task.finished_at = now
         task.next_action_at = None
@@ -254,6 +256,7 @@ async def fail_remaining_sequential_batch(
                 params["generation"] = {
                     "status": "failed",
                     "error": reason[:500],
+                    "error_code": "drama.prev_shot_failed",
                 }
                 frag.params = params
         await append_task_event(
@@ -287,6 +290,12 @@ _STALE_FRAGMENT_VIDEO_STATUSES = frozenset(
     {"pending", "leased", "running", "awaiting_poll", "cancel_requested"}
 )
 _STALE_FRAGMENT_REASON = "分镜已变更，请重新生成"
+_SKIPPED_DONE_REASON = "分镜已生成完成，跳过重复任务"
+# 作废原因 → 业务错误码（前端按界面语言翻译）
+_STALE_REASON_CODES = {
+    _STALE_FRAGMENT_REASON: "drama.fragment_changed",
+    _SKIPPED_DONE_REASON: "drama.gen_skipped_done",
+}
 
 
 # 从任务列与 payload 解析关联分镜 id。
@@ -327,14 +336,15 @@ def stale_pending_fragment_video_reason(frags: list[Any], task: Any | None = Non
         status = str(fragment_generation_status(frag).get("status") or "").lower()
         if status in _ACTIVE_FRAGMENT_VIDEO_GEN:
             return None
-    return "分镜已生成完成，跳过重复任务"
+    return _SKIPPED_DONE_REASON
 
 
 # 将任务标记为因分镜变更而取消（立即终态，不走 cancel_requested）。
 async def _mark_task_cancelled_stale(db: AsyncSession, task: TaskRun, reason: str, now: datetime) -> None:
     task.status = "cancelled"
     task.cancel_requested = True
-    task.error_code = "stale_fragment_ref"
+    task.error_code = _STALE_REASON_CODES.get(reason, "drama.fragment_changed")
+    task.error_params = None
     task.error_message = reason[:500]
     task.finished_at = now
     task.next_action_at = None

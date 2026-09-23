@@ -29,6 +29,7 @@ import {
   enqueueEpisodeVideoJobs,
   ensureEpisodeVideoStatusPoll,
   FRAGMENT_VIDEO_SUBTYPE,
+  registeredErrorCode,
   subscribeEpisodeGenerateStatus,
   syncEpisodeVideoJobs,
   useDramaGenQueue,
@@ -95,6 +96,8 @@ import { displayEpisodeName } from '../../lib/dramaWorkflow'
 import { useI18n } from '../../i18n/context'
 import { translate } from '../../i18n/translate'
 import './drama.css'
+import { storedJobError } from '../../lib/dramaJobError'
+import { localizeStoredError } from '../../lib/apiError'
 
 export default function EpisodeEditPage() {
   return (
@@ -583,8 +586,12 @@ function EpisodeEditInner() {
               video?: string
               cover?: string
               message?: string
+              message_key?: string
+              message_params?: Record<string, unknown>
               phase?: string
               error?: string
+              error_code?: string
+              error_params?: Record<string, unknown>
             }
           | undefined
         return {
@@ -598,8 +605,12 @@ function EpisodeEditInner() {
               video: item?.video,
               cover: item?.cover,
               message: item?.message,
+              message_key: item?.message_key,
+              message_params: item?.message_params,
               phase: item?.phase,
               error: item?.error,
+              error_code: item?.error_code,
+              error_params: item?.error_params,
             },
           },
         }
@@ -618,8 +629,12 @@ function EpisodeEditInner() {
             fragment_id: number
             status: string
             message?: string
+            message_key?: string
+            message_params?: Record<string, unknown>
             phase?: string
             error?: string
+            error_code?: string
+            error_params?: Record<string, unknown>
             video?: string
             cover?: string
           }
@@ -627,8 +642,12 @@ function EpisodeEditInner() {
             fragment_id: row.fragment_id,
             status: row.status,
             message: row.message,
+            message_key: row.message_key,
+            message_params: row.message_params,
             phase: row.phase,
             error: row.error,
+            error_code: row.error_code,
+            error_params: row.error_params,
             video: row.video,
             cover: row.cover,
           }
@@ -665,7 +684,7 @@ function EpisodeEditInner() {
               return
             }
             if (st === 'failed') {
-              setError(String(cur.params?.fragment_plan_error || t('dramaEpisode.page.planFailed')))
+              setError(storedJobError(cur.params, 'fragment_plan_error') || t('dramaEpisode.page.planFailed'))
               setBusy(false)
               return
             }
@@ -1190,7 +1209,7 @@ function EpisodeEditInner() {
           return
         }
         if (st === 'failed') {
-          const msg = String(ep.params?.fragment_plan_error || t('dramaEpisode.page.planFailed'))
+          const msg = storedJobError(ep.params, 'fragment_plan_error') || t('dramaEpisode.page.planFailed')
           setError(msg)
           setBusy(false)
           return
@@ -1385,7 +1404,12 @@ function EpisodeEditInner() {
       title: fromQueue?.title || title,
       subtype: FRAGMENT_VIDEO_SUBTYPE,
       status: 'failed',
-      error: fromQueue?.error || gen.error || t('dramaEpisode.page.generateFailed'),
+      error:
+        fromQueue?.error ||
+        (gen.error ? localizeStoredError(gen.error, gen.errorCode, gen.errorParams) : '') ||
+        t('dramaEpisode.page.generateFailed'),
+      errorCode: fromQueue ? fromQueue.errorCode : registeredErrorCode(gen.errorCode, gen.errorParams),
+      errorStatus: fromQueue?.errorStatus,
       createdAt: fromQueue?.createdAt || Date.now(),
     })
   }

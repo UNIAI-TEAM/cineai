@@ -33,6 +33,7 @@ import {
 } from './dramaWorkspaceUtils'
 import { sumFragmentContentDuration } from './dramaEpisodeEditUtils'
 import { OutlineScriptParseModal, OutlineScriptPreview } from './outlineScriptPreview'
+import { storedJobError } from '../../lib/dramaJobError'
 
 type SectionKey = 'creative' | 'summary' | 'body'
 
@@ -330,7 +331,7 @@ export function OutlineEpisodePanel({
         const num = Number((cur.params || {}).episode_optimize_number || 0)
         if (num === tokenEpisode && st === 'completed') return cur
         if (num === tokenEpisode && st === 'failed') {
-          throw new Error(String((cur.params || {}).episode_optimize_error || t('dramaProject.generateFailed')))
+          throw new Error(storedJobError(cur.params, 'episode_optimize_error') || t('dramaProject.generateFailed'))
         }
         if (st !== 'generating') return cur
       } catch (err) {

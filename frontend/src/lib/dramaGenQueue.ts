@@ -1,7 +1,7 @@
 /** 漫剧全局生成队列：图片 / 视频等任务统一展示与恢复 */
 import { useSyncExternalStore } from 'react'
 import type { DramaTaskBrief } from '../api/drama'
-import { localizeStoredError } from './apiError'
+import { localizeStoredError, translateErrorCode } from './apiError'
 import { getActiveLocale } from '../i18n/detect'
 import { interpolate } from '../i18n/lookup'
 import { messages } from '../i18n/messages'
@@ -19,6 +19,56 @@ export type DramaGenMessageKey =
   | 'generatingImage'
   | 'generatingVideo'
   | 'generatingRefs'
+  | 'generatingRefsProgress'
+  | 'generatingRefsItem'
+  | 'refsReady'
+  | 'upstreamRunning'
+  | 'awaitingReview'
+  | 'interrupted'
+
+/** 进度文案插值参数（后端 message_params，如 {done, total, name}） */
+export type DramaGenMessageParams = Record<string, string | number>
+
+// 前端认识的进度 key（后端 message_key 不在其中时回退显示 message 原文）
+const KNOWN_MESSAGE_KEYS: ReadonlySet<string> = new Set<DramaGenMessageKey>([
+  'queued',
+  'enqueued',
+  'generating',
+  'generatingImage',
+  'generatingVideo',
+  'generatingRefs',
+  'generatingRefsProgress',
+  'generatingRefsItem',
+  'refsReady',
+  'upstreamRunning',
+  'awaitingReview',
+  'interrupted',
+])
+
+/** 后端 message_key 转本地 key：不认识的返回 undefined */
+export function toDramaGenMessageKey(key: unknown): DramaGenMessageKey | undefined {
+  return typeof key === 'string' && KNOWN_MESSAGE_KEYS.has(key) ? (key as DramaGenMessageKey) : undefined
+}
+
+// 后端 message_params 只保留字符串 / 数字
+function toMessageParams(raw: unknown): DramaGenMessageParams | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const out: DramaGenMessageParams = {}
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === 'string' || typeof v === 'number') out[k] = v
+  }
+  return Object.keys(out).length ? out : undefined
+}
+
+// 参数对象的稳定比较键
+function paramsKey(params?: DramaGenMessageParams): string {
+  return params ? JSON.stringify(params) : ''
+}
+
+/** 已登记（前端能翻译）的错误码；异常类名等未登记值返回 undefined */
+export function registeredErrorCode(code?: string | null, params?: unknown): string | undefined {
+  return code && translateErrorCode(code, params) ? code : undefined
+}
 
 /** 分镜视频 subtype：内部标识（其它页面也按此值构造/比较），展示时翻译 */
 export const FRAGMENT_VIDEO_SUBTYPE = '分镜视频'
@@ -42,6 +92,8 @@ export type DramaGenJob = {
   message?: string
   /** 本地进度文案 key；有值时优先于 message，展示时翻译 */
   messageKey?: DramaGenMessageKey
+  /** 进度文案插值参数 */
+  messageParams?: DramaGenMessageParams
   error?: string
   /** 接口错误码 / HTTP 状态（有则按码分类展示） */
   errorCode?: string
@@ -97,6 +149,7 @@ function snapshotsEqual(a: DramaGenJob[], b: DramaGenJob[]): boolean {
       x.status !== y.status ||
       x.message !== y.message ||
       x.messageKey !== y.messageKey ||
+      paramsKey(x.messageParams) !== paramsKey(y.messageParams) ||
       x.error !== y.error ||
       x.errorCode !== y.errorCode ||
       x.finishedAt !== y.finishedAt ||
@@ -170,6 +223,7 @@ function jobDisplayEqual(a: DramaGenJob, b: DramaGenJob): boolean {
     a.status === b.status &&
     a.message === b.message &&
     a.messageKey === b.messageKey &&
+    paramsKey(a.messageParams) === paramsKey(b.messageParams) &&
     a.error === b.error &&
     a.errorCode === b.errorCode &&
     a.errorStatus === b.errorStatus &&
@@ -212,6 +266,7 @@ export function upsertDramaGenJob(
     status,
     message: patch.message,
     messageKey: patch.messageKey,
+    messageParams: patch.messageKey ? patch.messageParams : undefined,
     error: patch.error,
     errorCode: patch.errorCode,
     errorStatus: patch.errorStatus,
@@ -234,10 +289,10 @@ function genMessages() {
 
 // 任务进度文案：本地 key 按当前语言翻译，否则用后端原文
 export function dramaGenJobMessage(
-  job: Pick<DramaGenJob, 'message' | 'messageKey'>,
-  t: (path: string) => string,
+  job: Pick<DramaGenJob, 'message' | 'messageKey' | 'messageParams'>,
+  t: (path: string, vars?: DramaGenMessageParams) => string,
 ): string | undefined {
-  if (job.messageKey) return t(`dramaGen.msg.${job.messageKey}`)
+  if (job.messageKey) return t(`dramaGen.msg.${job.messageKey}`, job.messageParams)
   return job.message
 }
 
@@ -328,10 +383,16 @@ type FragmentStatusItem = {
   fragment_id: number
   status: string
   message?: string
+  /** 后端进度文案 key / 参数（dramaGen.msg.*） */
+  message_key?: string
+  message_params?: Record<string, unknown>
   /** 本地乐观入队时的文案 key（后端返回的行没有） */
   messageKey?: DramaGenMessageKey
   phase?: string
   error?: string
+  /** 失败的业务错误码 / 参数（有则按界面语言翻译 error） */
+  error_code?: string
+  error_params?: Record<string, unknown>
   video?: string
   cover?: string
 }
@@ -385,6 +446,11 @@ type FragmentTaskItem = DramaTaskBrief
 function taskErrorText(task?: FragmentTaskItem): string | undefined {
   if (!task) return undefined
   return localizeStoredError(task.error_message, task.error_code, task.error_params) || undefined
+}
+
+// 任务落库的已登记错误码（供队列按码分类）
+function taskErrorCode(task?: FragmentTaskItem): string | undefined {
+  return task ? registeredErrorCode(task.error_code, task.error_params) : undefined
 }
 
 export type EpisodeGenerateStatusPayload = {
@@ -471,6 +537,7 @@ export function syncEpisodeVideoJobs(input: {
             status: 'failed',
             // 保持中文：dramaGenError 按「任务已中断」识别并给出本地化说明
             error: taskErrorText(latestTask) || '任务已中断，请重新生成',
+            errorCode: taskErrorCode(latestTask),
           },
           { silent: true },
         )
@@ -487,28 +554,41 @@ export function syncEpisodeVideoJobs(input: {
     } else if (raw === 'queued') status = 'queued'
     else status = 'running'
 
-    const errText =
-      item.error ||
-      (raw === 'cancelled' || status === 'failed'
-        ? taskErrorText(latestTask)
-        : undefined) ||
-      (raw === 'cancelled' ? '已取消' : undefined)
+    // 失败原因：分镜自身错误（带码则翻译）优先，没有再用平台任务的错误
+    let errText: string | undefined
+    let errCode: string | undefined
+    if (item.error) {
+      errText = localizeStoredError(item.error, item.error_code, item.error_params) || item.error
+      errCode = registeredErrorCode(item.error_code, item.error_params)
+    } else if (raw === 'cancelled' || status === 'failed') {
+      errText = taskErrorText(latestTask)
+      errCode = taskErrorCode(latestTask)
+    }
+    if (!errText && raw === 'cancelled') errText = '已取消'
 
-    // 进度文案：后端 message 原样；本地兜底只存 key，展示时翻译
+    // 进度文案：后端 message_key 按当前语言翻译，否则 message 原样；本地兜底只存 key
     let message: string | undefined
     let messageKey: DramaGenMessageKey | undefined
-    const itemMessage = item.messageKey ? undefined : item.message
+    const backendKey = toDramaGenMessageKey(item.message_key)
+    const messageParams = backendKey ? toMessageParams(item.message_params) : undefined
+    const itemKey = item.messageKey || backendKey
+    const itemMessage = itemKey ? undefined : item.message
     const phaseKey: DramaGenMessageKey | undefined =
       item.phase === 'assets' ? 'generatingRefs' : undefined
     if (status === 'queued') {
       message = itemMessage
-      messageKey = item.messageKey || (itemMessage ? undefined : 'queued')
-    } else if (activeTask && status === 'running' && activeTask.current_step_key === 'assets') {
+      messageKey = itemKey || (itemMessage ? undefined : 'queued')
+    } else if (
+      activeTask &&
+      status === 'running' &&
+      activeTask.current_step_key === 'assets' &&
+      !(backendKey && backendKey.startsWith('generatingRefs'))
+    ) {
       messageKey = 'generatingRefs'
     } else {
       message = itemMessage
       messageKey =
-        item.messageKey ||
+        itemKey ||
         (itemMessage
           ? undefined
           : phaseKey || (activeTask && status === 'running' ? 'generating' : undefined))
@@ -527,7 +607,9 @@ export function syncEpisodeVideoJobs(input: {
         status,
         message,
         messageKey,
+        messageParams: messageKey && messageKey === backendKey ? messageParams : undefined,
         error: errText,
+        errorCode: errCode,
       },
       { silent: true },
     )

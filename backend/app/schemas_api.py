@@ -54,4 +54,6 @@ class V1GenerationOut(BaseModel):
     urls: list[str] = Field(default_factory=list)
     task_id: str | None = None
     preview_url: str | None = None
+    # 失败时 error 为固定英文短句（不透传上游原文），error_code 供客户端判断
     error: str | None = None
+    error_code: str | None = None

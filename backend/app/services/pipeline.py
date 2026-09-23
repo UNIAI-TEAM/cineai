@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.database import AsyncSessionLocal
-from app.errors import AppError
+from app.errors import AppError, AppRuntimeError
 from app.models import PipelineJob, Project, ProjectStatus, Shot, ShotStatus
 from app.services.ark import get_ark
 from app.services.content_lang import kepu_content_lang
@@ -28,6 +28,12 @@ from app.services.ffmpeg_compose import (
     probe_duration,
 )
 from app.services.progress import publish_progress
+from app.services.project_errors import (
+    clear_project_error,
+    project_error_fields,
+    set_project_cancelled,
+    set_project_error,
+)
 from app.services.providers.ark_adapter import sanitize_seedream_prompt
 from app.services import storage
 from app.services.style_lock import (
@@ -335,16 +341,16 @@ async def _synthesize_continuous_audio(
         )
         src = storage.local_path_from_url(audio_url or "")
         if not src or not src.exists():
-            raise RuntimeError("整片配音生成失败")
+            raise AppRuntimeError("project.narration_audio_failed")
         if src.resolve() != dest.resolve():
             dest.write_bytes(src.read_bytes())
         # 新合成必须复查近静音：TTS 偶发返回极低音量音频，静默合成会产出无声成片
         if is_near_silent_audio(dest):
-            raise RuntimeError("整片配音近静音（音量异常），请重新配音")
+            raise AppRuntimeError("project.narration_audio_silent")
 
     dur = await asyncio.to_thread(probe_duration, dest)
     if not dur or dur < 0.8:
-        raise RuntimeError("整片配音时长异常")
+        raise AppRuntimeError("project.narration_audio_bad_duration")
 
     allocated = allocate_durations_by_narration(narrations, dur)
     async with _db_write_lock():
@@ -414,9 +420,7 @@ async def run_pipeline(project_id: int, *, phase: str | None = None) -> None:
 
         if not skip_script:
             if requested and requested not in {"script", "produce"}:
-                raise RuntimeError(
-                    f"分镜尚未就绪，无法执行阶段 {requested}；请先生成分镜脚本"
-                )
+                raise AppRuntimeError("project.storyboard_not_ready", phase=requested)
             await _script_stage(project_id)
             await _ensure_not_cancelled(project_id)
             await publish_progress(
@@ -518,7 +522,7 @@ async def run_pipeline(project_id: int, *, phase: str | None = None) -> None:
                         raise PipelineCancelled(f"project {project_id} cancelled")
                     project.status = ProjectStatus.DONE
                     project.progress = 100
-                    project.error_msg = None
+                    clear_project_error(project)
                     await db.commit()
             await publish_progress(
                 project_id,
@@ -571,7 +575,7 @@ async def run_pipeline(project_id: int, *, phase: str | None = None) -> None:
                     raise PipelineCancelled(f"project {project_id} cancelled")
                 project.status = ProjectStatus.DONE
                 project.progress = 100
-                project.error_msg = None
+                clear_project_error(project)
                 await db.commit()
         await publish_progress(
             project_id,
@@ -585,7 +589,7 @@ async def run_pipeline(project_id: int, *, phase: str | None = None) -> None:
             project = await db.get(Project, project_id)
             if project and project.status != ProjectStatus.DONE:
                 project.status = ProjectStatus.CANCELLED
-                project.error_msg = "用户取消"
+                set_project_cancelled(project)
                 await db.commit()
         await publish_progress(
             project_id,
@@ -595,6 +599,7 @@ async def run_pipeline(project_id: int, *, phase: str | None = None) -> None:
                 "message": "用户取消",
                 "retryable": True,
                 "code": "CANCELLED",
+                "error_code": "project.cancelled",
             },
         )
         raise
@@ -605,7 +610,7 @@ async def run_pipeline(project_id: int, *, phase: str | None = None) -> None:
                 project = await db.get(Project, project_id)
                 if project and project.status != ProjectStatus.DONE:
                     project.status = ProjectStatus.CANCELLED
-                    project.error_msg = "用户取消"
+                    set_project_cancelled(project)
                     await db.commit()
             await publish_progress(
                 project_id,
@@ -615,20 +620,17 @@ async def run_pipeline(project_id: int, *, phase: str | None = None) -> None:
                     "message": "用户取消",
                     "retryable": True,
                     "code": "CANCELLED",
+                    "error_code": "project.cancelled",
                 },
             )
             return
         logger.exception("pipeline failed project=%s", project_id)
-        fail_msg = (
-            "FFmpeg 被系统中断（signal 15），请点击重新拼接"
-            if is_ffmpeg_interrupted_error(exc)
-            else str(exc)[:2000]
-        )
+        fail_msg, fail_code, fail_params = project_error_fields(exc)
         async with AsyncSessionLocal() as db:
             project = await db.get(Project, project_id)
             if project:
                 project.status = ProjectStatus.FAILED
-                project.error_msg = fail_msg
+                set_project_error(project, fail_msg, fail_code, fail_params)
                 await db.commit()
         await publish_progress(
             project_id,
@@ -638,6 +640,8 @@ async def run_pipeline(project_id: int, *, phase: str | None = None) -> None:
                 "message": fail_msg,
                 "retryable": True,
                 "code": "PIPELINE_ERROR",
+                "error_code": fail_code,
+                "error_params": fail_params,
             },
         )
         raise
@@ -1069,7 +1073,7 @@ async def _parallel_image_and_audio(project_id: int) -> None:
         for err in errors:
             if isinstance(err, (PipelineCancelled, asyncio.CancelledError)):
                 raise err
-        raise RuntimeError(str(errors[0]))
+        raise errors[0]
 
     async with _db_write_lock():
         async with AsyncSessionLocal() as db:
@@ -1505,7 +1509,7 @@ async def _run_ffmpeg_compose_with_retry(project_id: int, work) -> None:
                 await asyncio.sleep(float(attempt) * 2.0)
                 continue
             raise
-    raise last_exc or RuntimeError("FFmpeg 合成失败")
+    raise last_exc or AppRuntimeError("project.compose_failed")
 
 
 @storage.without_intermediate_oss
@@ -1759,7 +1763,7 @@ async def regen_project_audio_and_compose(project_id: int) -> None:
             if project and project.status != ProjectStatus.CANCELLED:
                 project.status = ProjectStatus.DONE
                 project.progress = 100
-                project.error_msg = None
+                clear_project_error(project)
                 await db.commit()
         await publish_progress(
             project_id,
@@ -1774,17 +1778,13 @@ async def regen_project_audio_and_compose(project_id: int) -> None:
 
 # 拼接失败时把项目落成 FAILED，避免长期卡在 COMPOSING 无法点「重新拼接」
 async def _fail_project_compose(project_id: int, exc: Exception) -> None:
-    raw = str(exc)
-    if is_ffmpeg_interrupted_error(exc):
-        msg = "FFmpeg 被系统中断（signal 15），请点击重新拼接"
-    else:
-        msg = raw[:2000]
+    msg, code, params = project_error_fields(exc, "project.compose_failed")
     logger.error("compose failed project=%s: %s", project_id, msg[:500])
     async with AsyncSessionLocal() as db:
         project = await db.get(Project, project_id)
         if project and project.status != ProjectStatus.DONE:
             project.status = ProjectStatus.FAILED
-            project.error_msg = msg
+            set_project_error(project, msg, code, params)
             await db.commit()
     await publish_progress(
         project_id,
@@ -1794,6 +1794,8 @@ async def _fail_project_compose(project_id: int, exc: Exception) -> None:
             "message": msg,
             "retryable": True,
             "code": "COMPOSE_ERROR",
+            "error_code": code,
+            "error_params": params,
         },
     )
 
@@ -1807,7 +1809,7 @@ async def compose_only(project_id: int) -> None:
             if project and project.status != ProjectStatus.CANCELLED:
                 project.status = ProjectStatus.DONE
                 project.progress = 100
-                project.error_msg = None
+                clear_project_error(project)
                 await db.commit()
         await publish_progress(
             project_id,

@@ -7,7 +7,7 @@
 import { getActiveLocale } from '../i18n/detect'
 import { interpolate, type TVars } from '../i18n/lookup'
 import { messages } from '../i18n/messages'
-import { ApiError, type ErrorCodeFields } from './apiError'
+import { ApiError, translateErrorCode, type ErrorCodeFields } from './apiError'
 import { isBillingError, isInsufficientBalanceCode, isMarkedBillingMessage } from './billingError'
 import { dialog } from './dialog'
 
@@ -37,7 +37,26 @@ const SLOT_KEYS: Record<string, SlotKey> = {
 }
 
 // 表示「分镜已变更 / 已失效」的错误码
-const FRAGMENT_CHANGED_CODES = new Set(['drama.fragment_not_found', 'drama.no_fragments_to_generate'])
+const FRAGMENT_CHANGED_CODES = new Set([
+  'drama.fragment_not_found',
+  'drama.no_fragments_to_generate',
+  'drama.fragment_changed',
+])
+// 上一镜失败 / 需先生成上一镜
+const PREV_FAILED_CODES = new Set(['drama.prev_fragment_required', 'drama.prev_shot_failed'])
+// 生成等待超时
+const TIMEOUT_CODES = new Set(['drama.gen_timeout', 'task.video_poll_timeout'])
+// 连不上生成服务 / 模型服务商
+const NETWORK_CODES = new Set(['drama.gen_network', 'drama.upstream_network'])
+// 被当成根因优先展示的错误码（优先于「重试超限」等包装句）
+const ROOT_CAUSE_CODES = new Set([
+  ...FRAGMENT_CHANGED_CODES,
+  ...PREV_FAILED_CODES,
+  'drama.video_channel_gone',
+  'drama.gen_no_image_url',
+  'drama.visual_prompt_too_short',
+  'drama.visual_prompt_failed',
+])
 
 /** 当前界面语言的 dramaGenError 文案 */
 function copy() {
@@ -104,6 +123,26 @@ function extractNamedSlot(
   return { label: fmt(copy().slotNamed, { kind, name: named[2] }), name: named[2] }
 }
 
+/** 带错误码的候选错误（任务落库 error_message + error_code） */
+export type DramaGenErrorEntry = { text: string; code?: string }
+
+/**
+ * 同 pickRootDramaGenError，但保留错误码：已登记的根因类错误码优先，其次按原文判断。
+ * 参数 entries：候选错误（text 为已翻译或原文，code 为已登记错误码）。
+ */
+export function pickRootDramaGenErrorEntry(
+  entries: Array<DramaGenErrorEntry | null | undefined>,
+): DramaGenErrorEntry | null {
+  const cleaned = entries
+    .filter((e): e is DramaGenErrorEntry => Boolean(e && String(e.text || '').trim()))
+    .map((e) => ({ ...e, text: String(e.text).trim() }))
+  return (
+    cleaned.find((e) => (e.code && ROOT_CAUSE_CODES.has(e.code)) || looksLikeRootCause(e.text)) ||
+    cleaned[0] ||
+    null
+  )
+}
+
 /**
  * 从多条候选错误里挑出最具体的根因（例如隐私图审核），
  * 避免只展示「重试超过上限」这类包装文案。
@@ -140,13 +179,31 @@ function formatApiError(err: ApiError): DramaGenErrorView | null {
       suggestion: c.fragmentChanged.suggestion,
     }
   }
-  if (code === 'drama.prev_fragment_required') {
+  if (PREV_FAILED_CODES.has(code)) {
     return {
       title: c.prevFailed.title,
       message: readable(err.message, c.prevFailed.message),
       suggestion: c.prevFailed.suggestion,
     }
   }
+  if (TIMEOUT_CODES.has(code)) {
+    return { title: c.timeout.title, message: c.timeout.message, suggestion: c.timeout.suggestion }
+  }
+  if (NETWORK_CODES.has(code)) {
+    return { title: c.network.title, message: c.network.message, suggestion: c.network.suggestion }
+  }
+  if (code === 'drama.gen_cancelled') {
+    return { title: c.cancelled.title, message: c.cancelled.message, suggestion: c.cancelled.suggestion }
+  }
+  if (code === 'drama.gen_skipped_done') {
+    return {
+      title: c.duplicateSkipped.title,
+      message: c.duplicateSkipped.message,
+      suggestion: c.duplicateSkipped.suggestion,
+    }
+  }
+  // 落库错误（status 0）带未登记的码（如异常类名）：交给文本分类
+  if (!err.status && !translateErrorCode(code, err.params)) return null
   return {
     title: c.genericFailed,
     message: readable(err.message, c.unknownMessage),
@@ -374,7 +431,8 @@ export function formatDramaGenError(raw: unknown): DramaGenErrorView {
  */
 export function formatDramaGenJobError(job: { error?: string } & ErrorCodeFields): DramaGenErrorView {
   if (job.errorCode || job.errorStatus) {
-    return formatDramaGenError(new ApiError(job.error || '', job.errorStatus ?? 0, job.errorCode))
+    const view = formatApiError(new ApiError(job.error || '', job.errorStatus ?? 0, job.errorCode))
+    if (view) return view
   }
   return formatDramaGenError(job.error)
 }

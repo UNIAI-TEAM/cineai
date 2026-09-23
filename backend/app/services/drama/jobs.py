@@ -22,6 +22,7 @@ from app.models_drama import (
     DramaFragmentAssetRef,
     DramaProject,
 )
+from app.errors import AppError
 from app.services.billing import record_line, record_llm_chat_line
 from app.services.content_lang import project_content_lang
 from app.services.drama.billing_util import record_seed_assets_llm_usage
@@ -43,7 +44,15 @@ from app.services.drama.agents import (
     run_script_summary,
 )
 from app.services.drama.asset_video import generate_asset_video
-from app.services.drama.job_errors import user_job_error
+from app.services.drama.job_errors import (
+    clear_job_error,
+    gen_error_fields,
+    gen_progress,
+    set_job_error,
+    set_job_error_code,
+    with_error_code,
+)
+from app.services.drama.naming import default_episode_title
 from app.services.drama.generation import (
     apply_fragment_video_assets,
     build_failed_generation_params,
@@ -103,7 +112,11 @@ async def _reset_fragment_video_generation(
         status = str(gen.get("status") or "") if isinstance(gen, dict) else ""
         if status not in ACTIVE_VIDEO_GEN_STATUSES:
             continue
-        params["generation"] = {"status": "cancelled", "error": "任务已取消"}
+        params["generation"] = {
+            "status": "cancelled",
+            "error": "任务已取消",
+            "error_code": "drama.gen_cancelled",
+        }
         frag.params = params
         changed += 1
     if changed:
@@ -248,18 +261,18 @@ async def run_script_summary_job(project_id: int) -> dict[str, Any]:
         except Exception as exc:  # noqa: BLE001
             params = dict(script.params or {})
             params["summary_status"] = "failed"
-            params["summary_error"] = user_job_error(exc)
+            err_text = set_job_error(params, "summary_error", exc)
             params.pop("summary_generating_at", None)
             script.params = params
             await db.commit()
             logger.exception("剧本摘要失败 project_id=%s err=%s", project_id, exc)
-            return {"ok": False, "error": user_job_error(exc)}
+            return {"ok": False, "error": err_text}
 
         script.summary = summary
         params = dict(script.params or {})
         params["summary_text"] = format_summary_text(summary)
         params["summary_status"] = "completed"
-        params["summary_error"] = None
+        clear_job_error(params, "summary_error", keep_key=True)
         params.pop("summary_generating_at", None)
         params["episode_content_status"] = params.get("episode_content_status") or "pending"
         script.params = params
@@ -430,7 +443,12 @@ async def run_episode_scripts_job(
                     existing = [
                         {
                             "episodeNumber": int(item.get("episodeNumber") or 0),
-                            "title": str(item.get("title") or f"第 {item.get('episodeNumber')} 集"),
+                            "title": str(
+                                item.get("title")
+                                or default_episode_title(
+                                    item.get("episodeNumber"), project_content_lang(project)
+                                )
+                            ),
                             "body": "",
                         }
                         for item in existing
@@ -539,15 +557,17 @@ async def run_episode_scripts_job(
                 )
                 guard += 1
                 if guard > max(total * 2, 24):
-                    raise RuntimeError(
-                        f"分集生成未完成（{count_completed_episodes(existing, total)}/{total}）"
+                    raise AppError(
+                        "drama.episode_gen_incomplete",
+                        done=count_completed_episodes(existing, total),
+                        total=total,
                     )
                 if not batch:
-                    raise RuntimeError("分集生成无进度")
+                    raise AppError("drama.episode_gen_stalled")
 
             params = dict(script.params or {})
             params["episode_content_status"] = "completed"
-            params["episode_content_error"] = None
+            clear_job_error(params, "episode_content_error", keep_key=True)
             params["episode_count"] = total
             params["episode_content_progress"] = {"done": total, "total": total}
             script.params = params
@@ -558,11 +578,11 @@ async def run_episode_scripts_job(
         except Exception as exc:  # noqa: BLE001
             params = dict(script.params or {})
             params["episode_content_status"] = "failed"
-            params["episode_content_error"] = user_job_error(exc)
+            err_text = set_job_error(params, "episode_content_error", exc)
             script.params = params
             await db.commit()
             logger.exception("分集剧本失败 project_id=%s err=%s", project_id, exc)
-            return {"ok": False, "error": user_job_error(exc)}
+            return {"ok": False, "error": err_text}
 
 
 async def _run_single_episode_script_job(
@@ -605,7 +625,7 @@ async def _run_single_episode_script_job(
         params["episode_optimize_status"] = "generating"
         params["episode_optimize_number"] = int(episode_number)
         params["episode_optimize_mode"] = mode
-        params.pop("episode_optimize_error", None)
+        clear_job_error(params, "episode_optimize_error")
         script.params = params
         await db.commit()
 
@@ -620,7 +640,9 @@ async def _run_single_episode_script_job(
         )
         ep_creative = str((current or {}).get("creative") or "").strip()
         ep_summary = str((current or {}).get("summary") or "").strip()
-        ep_title = str((current or {}).get("title") or "").strip() or f"第 {episode_number} 集"
+        ep_title = str((current or {}).get("title") or "").strip() or default_episode_title(
+            episode_number, project_content_lang(project)
+        )
         origin = str((current or {}).get("origin") or "")
 
         # 已有定妆角色名，约束单集 LLM 称呼
@@ -637,7 +659,7 @@ async def _run_single_episode_script_job(
         try:
             if mode == "summary":
                 if len(ep_creative) < 20:
-                    raise ValueError("请先填写本集原始创意（至少 20 字）")
+                    raise AppError("drama.episode_creative_required", min=20)
                 batch = await run_episode_summary_from_creative(
                     summary,
                     existing,
@@ -662,7 +684,7 @@ async def _run_single_episode_script_job(
                 )
             elif mode == "full":
                 if len(ep_creative) < 20:
-                    raise ValueError("请先填写本集原始创意（至少 20 字）")
+                    raise AppError("drama.episode_creative_required", min=20)
                 batch = await run_episode_full_from_creative(
                     summary,
                     existing,
@@ -676,7 +698,7 @@ async def _run_single_episode_script_job(
             elif mode == "brief":
                 ep_body = str((current or {}).get("body") or (current or {}).get("content") or "").strip()
                 if len(ep_body) < 80:
-                    raise ValueError("请先有本集剧本内容，再补齐创意与摘要")
+                    raise AppError("drama.episode_body_required")
                 batch = await run_episode_brief_from_body(
                     summary,
                     existing,
@@ -689,7 +711,7 @@ async def _run_single_episode_script_job(
                 )
             else:
                 if not draft or len(draft) < 20:
-                    raise ValueError("请先输入本集剧本草稿，再让 AI 优化")
+                    raise AppError("drama.draft_required")
                 batch = await run_episode_script_from_draft(
                     summary,
                     existing,
@@ -738,7 +760,7 @@ async def _run_single_episode_script_job(
             params["episode_optimize_mode"] = mode
             params["episode_optimize_assets_created"] = assets_created
             params["episode_optimize_assets_reused"] = assets_reused
-            params.pop("episode_optimize_error", None)
+            clear_job_error(params, "episode_optimize_error")
             if str(params.get("episode_content_status") or "") != "generating":
                 params["episode_content_status"] = "completed"
             script.params = params
@@ -800,7 +822,7 @@ async def _run_single_episode_script_job(
             params["episode_optimize_status"] = "failed"
             params["episode_optimize_number"] = int(episode_number)
             params["episode_optimize_mode"] = mode
-            params["episode_optimize_error"] = user_job_error(exc)
+            err_text = set_job_error(params, "episode_optimize_error", exc)
             params["episode_optimize_assets_created"] = 0
             params["episode_optimize_assets_reused"] = 0
             script.params = params
@@ -812,7 +834,7 @@ async def _run_single_episode_script_job(
                 mode,
                 exc,
             )
-            return {"ok": False, "error": user_job_error(exc)}
+            return {"ok": False, "error": err_text}
 
 
 # ---------- episode fragment plan (LLM) ----------
@@ -858,7 +880,7 @@ async def run_episode_fragment_plan_job(
         if not (body or "").strip():
             params = dict(episode.params or {})
             params["fragment_plan_status"] = "failed"
-            params["fragment_plan_error"] = "本集剧本正文为空，无法分镜"
+            set_job_error_code(params, "fragment_plan_error", "drama.episode_body_empty")
             episode.params = params
             await db.commit()
             return {"ok": False, "error": "empty_body"}
@@ -985,10 +1007,10 @@ async def run_episode_fragment_plan_job(
             if not fallback_rules:
                 params = dict(episode.params or {})
                 params["fragment_plan_status"] = "failed"
-                params["fragment_plan_error"] = user_job_error(exc)
+                err_text = set_job_error(params, "fragment_plan_error", exc)
                 episode.params = params
                 await db.commit()
-                return {"ok": False, "error": user_job_error(exc)}
+                return {"ok": False, "error": err_text}
             drafts = build_fragments_from_episode_body(
                 body,
                 assets,
@@ -1015,7 +1037,7 @@ async def run_episode_fragment_plan_job(
         params = dict(episode.params or {})
         params["fragment_plan_status"] = "completed"
         params["fragment_plan_mode"] = mode_used
-        params.pop("fragment_plan_error", None)
+        clear_job_error(params, "fragment_plan_error")
         params["fragment_plan_count"] = len(protected_frags) + len(drafts)
         params["fragment_plan_preserved"] = len(protected_frags)
         episode.params = params
@@ -1094,7 +1116,11 @@ async def submit_fragment_video_task(task: TaskRun) -> dict[str, Any]:
         if _is_episode_video_cancelled(episode_id):
             params = dict(frag.params or {})
             params.pop("generation_attempts", None)
-            params["generation"] = {"status": "cancelled", "error": "任务已取消"}
+            params["generation"] = {
+            "status": "cancelled",
+            "error": "任务已取消",
+            "error_code": "drama.gen_cancelled",
+        }
             frag.params = params
             await db.commit()
             return {"ok": False, "cancelled": True}
@@ -1208,7 +1234,7 @@ async def submit_fragment_video_task(task: TaskRun) -> dict[str, Any]:
             "phase": "polling",
             "attempts": attempts,
             "attempt_limit": max_attempts,
-            "message": "上游生成中",
+            **gen_progress("upstreamRunning", "上游生成中"),
             "provider_task_id": provider_task_id,
         }
         frag.params = params
@@ -1420,7 +1446,7 @@ async def poll_fragment_video_task(task_id: int) -> None:
                 return
 
             if str(payload.get("video_provider") or "") == "kie":
-                await _fail_task(db, task, RuntimeError("Kênh video cũ không còn, hãy tạo lại phân cảnh này"))
+                await _fail_task(db, task, AppError("drama.video_channel_gone"))
                 return
 
             result = await get_ark().fetch_task_once(task.provider_task_id, channel_id=task.provider_channel_id)
@@ -1649,7 +1675,7 @@ async def run_asset_image_job(
             params = dict(asset.params or {})
             gen = dict(params.get("generation") or {})
             gen["status"] = "generating"
-            gen["message"] = "生图中"
+            gen.update(gen_progress("generatingImage", "生图中"))
             params["generation"] = gen
             asset.params = params
             await db.commit()
@@ -1700,11 +1726,14 @@ async def run_asset_image_job(
             from app.services.exc_format import format_exception_message
 
             err_text = format_exception_message(exc, fallback="生图失败", limit=500)
+            err_code, err_params = gen_error_fields(exc)
             if asset_id:
                 asset = await db.get(DramaAsset, asset_id)
                 if asset:
                     params = dict(asset.params or {})
-                    params["generation"] = {"status": "failed", "error": err_text[:400]}
+                    params["generation"] = with_error_code(
+                        {"status": "failed", "error": err_text[:400]}, err_code, err_params
+                    )
                     asset.params = params
                     await db.commit()
             logger.exception(
@@ -1824,10 +1853,13 @@ async def run_asset_video_job(
             from app.services.exc_format import format_exception_message
 
             err_text = format_exception_message(exc, fallback="生视频失败", limit=500)
+            err_code, err_params = gen_error_fields(exc)
             asset = await db.get(DramaAsset, asset_id)
             if asset:
                 params = dict(asset.params or {})
-                params["generation"] = {"status": "failed", "error": err_text[:400]}
+                params["generation"] = with_error_code(
+                    {"status": "failed", "error": err_text[:400]}, err_code, err_params
+                )
                 if (prompt or "").strip():
                     params["visualPrompt"] = prompt.strip()
                 asset.params = params
@@ -1885,6 +1917,10 @@ async def run_seed_assets_job(
                 params["assets_seed_llm_errors"] = result.llm_errors[:20]
             else:
                 params.pop("assets_seed_llm_errors", None)
+            if result.llm_error_items:
+                params["assets_seed_llm_error_items"] = result.llm_error_items[:20]
+            else:
+                params.pop("assets_seed_llm_error_items", None)
             project.params = params
             user = await db.get(User, project.user_id)
             if user:
@@ -1896,10 +1932,11 @@ async def run_seed_assets_job(
                 "prompts_refreshed": result.prompts_refreshed,
                 "props_updated": result.props_updated,
                 "llm_errors": result.llm_errors,
+                "llm_error_items": result.llm_error_items,
             }
         except Exception as exc:  # noqa: BLE001
             params["assets_seed_status"] = "failed"
-            set_seed_error(params, exc)
+            set_seed_error(params, exc, code="drama.asset_extract_failed")
             params.pop("assets_seed_generating_at", None)
             project.params = params
             await db.commit()

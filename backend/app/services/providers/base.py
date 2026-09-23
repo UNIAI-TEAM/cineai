@@ -24,16 +24,16 @@ def upstream_timeout(read_sec: float, *, connect: float = 30.0) -> httpx.Timeout
 def reraise_upstream_timeout(exc: BaseException, *, kind: str, read_sec: float) -> NoReturn:
     """Convert httpx timeout to readable RuntimeError; ReadTimeout means connected but timeout on result."""
     if isinstance(exc, httpx.ReadTimeout):
-        raise RuntimeError(
+        raise UpstreamTimeoutError(
             f"{kind}等待上游超时（ReadTimeout）：已连通上游，但 {read_sec:.0f} 秒内未返回结果，请稍后重试"
         ) from exc
     if isinstance(exc, httpx.WriteTimeout):
-        raise RuntimeError(
+        raise UpstreamTimeoutError(
             f"{kind}发送请求超时（WriteTimeout）：已连通上游，但 {read_sec:.0f} 秒内未能发完请求，请稍后重试"
         ) from exc
     name = type(exc).__name__
     # Connect/Pool timeout: request chưa tới upstream → đánh dấu tạm thời để gateway failover
-    raise TransientUpstreamError(
+    raise UpstreamNetworkError(
         f"{kind}无法连接上游（{name}）：请检查网络、代理或上游是否可达"
     ) from exc
 
@@ -54,12 +54,24 @@ def retry_after_seconds(resp: httpx.Response, default: float) -> float:
     return default
 
 
-class ProviderNotSupported(RuntimeError):
+class UpstreamError(RuntimeError):
+    """Lỗi từ nhà cung cấp mô hình (chữ gốc chỉ để log / admin); lưu DB quy về mã provider.*（exc_format.stored_error_fields）。"""
+
+
+class UpstreamTimeoutError(UpstreamError):
+    """Đã kết nối nhà cung cấp nhưng quá thời gian chờ (ReadTimeout / WriteTimeout)."""
+
+
+class ProviderNotSupported(UpstreamError):
     """Provider/protocol không được hỗ trợ hoặc không có năng lực này."""
 
 
-class TransientUpstreamError(RuntimeError):
+class TransientUpstreamError(UpstreamError):
     """Lỗi tạm thời lúc tạo tác vụ (429/5xx/mạng) — được phép failover sang model kế tiếp."""
+
+
+class UpstreamNetworkError(TransientUpstreamError):
+    """Không kết nối được nhà cung cấp (Connect/Pool timeout, proxy...) — vẫn được failover."""
 
 
 # Lỗi mạng xảy ra trước khi request tới upstream: failover không sợ tạo trùng tác vụ bị tính tiền.

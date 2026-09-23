@@ -36,6 +36,7 @@ from app.schemas_tasks import TaskCreateRequest, TaskTargetBind
 from app.services.agent.compose import parse_skill_ids
 from app.services.billing import run_billed_ephemeral
 from app.services.billing.http import http_exception_for_value_error
+from app.services.drama.job_errors import clear_job_error, gen_progress
 from app.services.drama.access import (
     count_user_inflight_fragment_video_tasks,
     detach_task_fragment_refs,
@@ -358,7 +359,7 @@ async def confirm_episode_from_script(
         project = await get_owned_drama_project(db, body.project_id, user, with_script=True)
         params = dict(project.params or {}) if isinstance(project.params, dict) else {}
         params["assets_seed_status"] = "failed"
-        set_seed_error(params, exc)
+        set_seed_error(params, exc, code="drama.asset_extract_failed")
         params.pop("assets_seed_generating_at", None)
         project.params = params
         await db.commit()
@@ -456,7 +457,7 @@ async def plan_episode_fragments(
             raise AppError("drama.fragments_protected")
 
     params["fragment_plan_status"] = "generating"
-    params.pop("fragment_plan_error", None)
+    clear_job_error(params, "fragment_plan_error")
     params["fragment_plan_mode"] = "llm"
     if req.subtitle_enabled is not None:
         params["subtitleEnabled"] = bool(req.subtitle_enabled)
@@ -665,7 +666,11 @@ async def generate_episode(
         params = dict(f.params or {})
         # 用户主动点生成：清零内部重试计数（上限只约束同一次任务内的自动重试）
         params.pop("generation_attempts", None)
-        params["generation"] = {"status": "queued", "queued_at": queued_at, "message": "已入队"}
+        params["generation"] = {
+            "status": "queued",
+            "queued_at": queued_at,
+            **gen_progress("queued", "已入队"),
+        }
         f.params = params
 
     created_tasks: list[int] = []

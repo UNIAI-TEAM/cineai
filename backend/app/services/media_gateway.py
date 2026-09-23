@@ -39,7 +39,7 @@ from app.services.providers.ark_adapter import (
     seedance_duration,
     seedance_prompt_text,
 )
-from app.services.providers.base import ImageRequest, TaskResult, VideoRequest
+from app.services.providers.base import ImageRequest, TaskResult, UpstreamError, VideoRequest
 from app.services.providers.registry import get_adapter, url_needs_auth
 
 logger = logging.getLogger(__name__)
@@ -158,7 +158,7 @@ class MediaGateway:
                     raise
                 logger.warning("provider %s tạm lỗi (%s), thử model kế tiếp", route.channel_id, exc)
                 last = exc
-        raise RuntimeError(str(last) if last else "không có provider khả dụng")
+        raise UpstreamError(str(last) if last else "không có provider khả dụng") from last
 
     def _auth_headers_for(self, route: ResolvedModelRoute | None, url: str | None) -> dict[str, str] | None:
         """Header Bearer khi URL kết quả của provider cần xác thực mới tải được."""
@@ -249,7 +249,7 @@ class MediaGateway:
                     continue
                 logger.warning("Seedream InputTextSensitive shot=%s; retries exhausted", shot_no)
                 raise
-        raise RuntimeError(str(last_err) if last_err else "Seedream failed")
+        raise UpstreamError(str(last_err) if last_err else "Seedream failed") from last_err
 
     async def _image_once(
         self,
@@ -527,7 +527,7 @@ class MediaGateway:
                 if _audio_fallback(exc, accepted=True):
                     continue
                 raise
-        raise RuntimeError(str(last_err) if last_err else "Seedance multimodal failed")
+        raise UpstreamError(str(last_err) if last_err else "Seedance multimodal failed") from last_err
 
     # ---- Video: truy vấn tác vụ -------------------------------------------
 
@@ -633,7 +633,7 @@ class MediaGateway:
     ) -> tuple[str, str | None]:
         """Lưu kết quả poll thành công thành video local và ảnh khung cuối (nếu có)."""
         if result.status != "succeeded" or not result.url:
-            raise RuntimeError(result.error or "video generation failed")
+            raise UpstreamError(result.error or "video generation failed")
 
         channel_id = result.channel_id or None
         if result.url.startswith("/static/"):
@@ -743,7 +743,7 @@ class MediaGateway:
                 if not retryable or attempt >= max_attempts - 1:
                     break
                 await asyncio.sleep(1.5 * (attempt + 1))
-        raise RuntimeError(str(last_err) if last_err else "video generation failed")
+        raise UpstreamError(str(last_err) if last_err else "video generation failed") from last_err
 
     # ---- Tiếng nói & văn bản ----------------------------------------------
 
@@ -799,12 +799,12 @@ class MediaGateway:
                 public = storage.republish_url(raw, sync=True)
                 if public and str(public).startswith("https://"):
                     return str(public)
-                raise RuntimeError(
+                raise UpstreamError(
                     "Seedance 需要公网可访问的图片 URL（请启用 OSS 并确保参考图已上传），"
                     "本地 /static 图无法被方舟拉取"
                 )
             if raw.startswith("data:"):
-                raise RuntimeError("Seedance 不支持 data URI 图片，请使用 Ark CDN https 链接")
+                raise UpstreamError("Seedance 不支持 data URI 图片，请使用 Ark CDN https 链接")
         if raw.startswith("http://") or raw.startswith("https://") or raw.startswith("data:"):
             return raw
         local = storage.local_path_from_url(raw)

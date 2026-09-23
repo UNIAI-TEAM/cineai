@@ -125,6 +125,7 @@ async def process_user_milestone_alert(
             f"当前累计扣费 {_fen_to_yuan(total)}，请注意账户余额。"
         ),
         milestone_fen=target,
+        total_charged_fen=int(total),
     )
     db.add(note)
     user.billing_alert_last_milestone_fen = target

@@ -110,9 +110,38 @@ def build_reset_link(token: str) -> str:
     return f"{base}/auth?mode=reset&token={token}"
 
 
-async def request_password_reset(db: AsyncSession, email: str) -> dict[str, Any]:
+# 重置邮件文案（按用户界面语言；{link} 为重置链接）
+_RESET_EMAIL: dict[str, tuple[str, str]] = {
+    "zh": (
+        "CineAI 密码重置",
+        "您正在重置 CineAI 账号密码。\n\n"
+        "请在 30 分钟内打开以下链接设置新密码：\n{link}\n\n"
+        "如非本人操作，请忽略本邮件。",
+    ),
+    "en": (
+        "Reset your CineAI password",
+        "We received a request to reset the password for your CineAI account.\n\n"
+        "Open this link within 30 minutes to set a new password:\n{link}\n\n"
+        "If you didn't request this, you can ignore this email.",
+    ),
+    "vi": (
+        "Đặt lại mật khẩu CineAI",
+        "Bạn vừa yêu cầu đặt lại mật khẩu tài khoản CineAI.\n\n"
+        "Mở link dưới đây trong vòng 30 phút để đặt mật khẩu mới:\n{link}\n\n"
+        "Nếu không phải bạn yêu cầu, hãy bỏ qua email này.",
+    ),
+}
+
+
+def reset_email_content(link: str, lang: str | None = None) -> tuple[str, str]:
+    """按语言生成 (标题, 正文)；未知语言按越南语。"""
+    subject, body = _RESET_EMAIL.get(lang or "", _RESET_EMAIL["vi"])
+    return subject, body.format(link=link)
+
+
+async def request_password_reset(db: AsyncSession, email: str, lang: str | None = None) -> dict[str, Any]:
     """
-    发起找回：写 Redis token 并尝试发信。
+    发起找回：写 Redis token 并尝试发信（邮件按 lang = 用户界面语言 zh|en|vi）。
     始终返回统一成功文案（防枚举）；Redis 不可用时抛错。
     """
     redis_client = get_redis_client()
@@ -131,14 +160,10 @@ async def request_password_reset(db: AsyncSession, email: str) -> dict[str, Any]
 
     token = create_reset_token(redis_client, int(user.id))
     link = build_reset_link(token)
-    body = (
-        "您正在重置 CineAI 账号密码。\n\n"
-        f"请在 30 分钟内打开以下链接设置新密码：\n{link}\n\n"
-        "如非本人操作，请忽略本邮件。"
-    )
+    subject, body = reset_email_content(link, lang)
     sent = await send_email(
         to_addrs=[email_norm],
-        subject="CineAI 密码重置",
+        subject=subject,
         body=body,
     )
     if not sent:

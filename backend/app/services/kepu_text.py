@@ -8,6 +8,7 @@ import logging
 import re
 from dataclasses import dataclass
 
+from app.errors import AppRuntimeError
 from app.services.ark_mock import mock_expand_content as _vi_mock_expand_content
 from app.services.ark_mock import mock_storyboard_items
 from app.services.content_lang import (
@@ -357,7 +358,7 @@ async def chat_storyboard(
             )
 
     if not (content or "").strip():
-        raise RuntimeError("分镜模型返回空内容，请检查文字模型渠道配置或稍后重试")
+        raise AppRuntimeError("project.storyboard_empty")
 
     return parse_storyboard(
         content,
@@ -483,11 +484,12 @@ def parse_storyboard(
 ) -> StoryboardResult:
     raw = (content or "").strip()
     if not raw:
-        raise RuntimeError("分镜 JSON 为空，无法解析")
+        raise AppRuntimeError("project.storyboard_empty")
     try:
         data = _extract_json(raw)
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f"分镜 JSON 解析失败：{exc}") from exc
+        logger.warning("分镜 JSON 解析失败：%s", exc)
+        raise AppRuntimeError("project.storyboard_invalid") from exc
     character_bible = ""
     bgm_lock = ""
     items = data
@@ -498,9 +500,9 @@ def parse_storyboard(
         bgm_lock = str(data.get("bgm_lock") or data.get("bgm") or "").strip()
         items = data.get("shots") or data.get("storyboard") or data.get("scenes") or []
     if not isinstance(items, list):
-        raise RuntimeError("LLM storyboard JSON 格式无效：需要 shots 数组")
+        raise AppRuntimeError("project.storyboard_invalid")
     if not items:
-        raise RuntimeError("分镜模型未返回任何镜头（shots 为空）")
+        raise AppRuntimeError("project.storyboard_empty")
     hi = min(duration_max, max_shot_duration)
     plans: list[ShotPlan] = []
     for i, item in enumerate(items, start=1):

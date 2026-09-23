@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Download, Loader2 } from 'lucide-react'
-import { ApiError } from '../lib/apiError'
+import { ApiError, localizeStoredError } from '../lib/apiError'
 import BillingErrorNotice from '../components/billing/BillingErrorNotice'
 import AppShell from '../components/layout/AppShell'
 import Button from '../components/ui/Button'
@@ -86,7 +86,10 @@ function ToolWorkspace({ tool: baseTool }: { tool: ToolDef }) {
           setResultUrls(data.urls)
           setBusy(false)
         } else if (data.status === 'failed') {
-          setError(data.error || translate('tools.errors.videoFailed'))
+          setError(
+            localizeStoredError(data.error, data.error_code, data.error_params) ||
+              translate('tools.errors.videoFailed'),
+          )
           setBusy(false)
         }
       } catch (err) {
