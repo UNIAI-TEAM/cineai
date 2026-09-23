@@ -69,7 +69,7 @@ function CopyRow({
 
 /** 银行转账弹窗：展示收款账户 / 转账备注 / VietQR，并每 10 秒轮询订单直到管理员确认到账 */
 export default function PaymentModal({ open, checkout, onClose, onPaid }: Props) {
-  const { t } = useI18n()
+  const { t, m } = useI18n()
   const { currency, format, formatAmount } = useCurrency()
   /*
    * remain 剩余秒数
@@ -190,7 +190,7 @@ export default function PaymentModal({ open, checkout, onClose, onPaid }: Props)
         </header>
 
         <div className="pf-pay-sku-box">
-          <strong>{checkout.sku_name}</strong>
+          <strong>{(m.pricing.skus as Record<string, string>)[checkout.sku_id] || checkout.sku_name}</strong>
           <span>{t('billing.creditAmount', { amount: creditText })}</span>
         </div>
 

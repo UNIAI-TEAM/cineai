@@ -21,10 +21,13 @@ export const CATEGORY_ORDER = [
   '图文',
 ]
 
-// 按当前界面语言取分类展示名；未登记的键原样返回
+// 按当前界面语言取分类展示名；未登记的键：非中文界面下含汉字时显示「其他」，否则原样返回
 export function categoryLabel(key: string): string {
-  const map = messages[getActiveLocale()].categories as Record<string, string>
-  return map[key] || key
+  const pack = messages[getActiveLocale()]
+  const map = pack.categories as Record<string, string>
+  if (map[key]) return map[key]
+  if (getActiveLocale() !== 'zh' && /[\u4e00-\u9fff]/.test(key)) return pack.settingsPanels.templates.categoryOther
+  return key
 }
 
 // 兼容旧的 HOME_CATEGORY_LABELS[key] 写法：按当前语言动态取值

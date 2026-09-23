@@ -276,10 +276,17 @@ export const viDramaProject = {
           'Bấm tư liệu ở bảng bên trái, hoặc ở dải tư liệu liên kết của cảnh, cũng tự chèn tham chiếu',
           'Nhân vật được tham chiếu cần có ảnh tham chiếu; Seedance tự lồng tiếng thoại/lời dẫn, không cần gán giọng',
         ],
+        dialogueForm: 'Tên nhân vật: lời thoại',
+        cueExamples: {
+          bgm: 'trầm hùng kiểu sử thi, nhỏ hơn giọng nói',
+          visual: 'Sóng Hoàng Hà đục ngầu vỗ vào những tảng đá cổ…',
+          dialogue: 'Vũ: Lũ chưa yên, sao có thể lui!',
+          narration: 'Nghìn năm sau, người ta vẫn nhớ trận chiến này.',
+        },
         cuesTitle: 'Gợi ý (cue) hay dùng cho phim ngắn (đừng dùng câu phụ đề “đọc lời dẫn suốt video” của video kiến thức)',
         cues: [
           '**Cảnh chỉ có hình / cỡ cảnh**: viết `{empty}…` (cảnh trống), `{wide}…` (toàn cảnh), `{close}…` (cận cảnh) hoặc `{visual}`; **không được** ghi thành thoại/lời dẫn (sẽ bị đọc thành tiếng và in phụ đề)',
-          '**Thoại**: `{dialogueForm}` (tên nhân vật: câu thoại) hoặc {dialogue}',
+          '**Thoại**: `{dialogueForm}` hoặc {dialogue}',
           '**Lời dẫn**: {narration}; phụ đề đổi theo từng câu, khớp với câu đang đọc, không phủ cả đoạn lên màn hình',
           '**Giới thiệu nhân vật**: chữ giới thiệu nhân vật quan trọng khi xuất hiện lần đầu đặt **cạnh nhân vật đó** (không phải phụ đề dưới đáy, không phải tiêu đề giữa màn hình)',
           '**BGM**: nhỏ hơn giọng nói, không lấn át',

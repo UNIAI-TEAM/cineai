@@ -1,3 +1,5 @@
+import { getActiveLocale } from './i18n/detect'
+
 /** Strip internal Seedream lock wrappers from prompts shown in UI. */
 export function scenePromptForDisplay(raw: string | null | undefined): string {
   if (!raw) return ''
@@ -15,6 +17,8 @@ export function scenePromptForDisplay(raw: string | null | undefined): string {
     '必须严格沿用',
     '画面干净无文字',
   ]
+  // 中文界面用全角逗号拼接，其余语言用「, 」
+  const sep = getActiveLocale() === 'zh' ? '，' : ', '
   return raw
     .split(/[，,\n]/)
     .map((p) => p.trim())
@@ -25,9 +29,9 @@ export function scenePromptForDisplay(raw: string | null | undefined): string {
       if (boilerplate.some((b) => p.includes(b) || p.startsWith(b))) return false
       return true
     })
-    .join('，')
+    .join(sep)
     .replace(/【(?:风格锁定|人物锁定|约束|场景)】/g, '')
-    .replace(/[，,]{2,}/g, '，')
+    .replace(/[，,](?:\s*[，,])+/g, sep)
     .replace(/^[，,。；;\s]+|[，,。；;\s]+$/g, '')
     .trim()
 }

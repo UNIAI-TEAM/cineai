@@ -385,8 +385,8 @@ export function enqueueDramaImageGen(input: EnqueueInput): Promise<DramaAsset> {
       id: makeJobId(),
       projectId: input.projectId,
       assetId: input.assetId,
-      // assetName 会作为 name 提交后端，默认名保持中文；界面标题用 displayName
-      assetName: (input.assetName || '').trim() || `资产 ${input.assetId}`,
+      // assetName 作为 name 提交后端（仅新建资产时使用；空名由后端落默认名）；界面标题用 displayName
+      assetName: (input.assetName || '').trim(),
       displayName: (input.assetName || '').trim(),
       assetType: input.assetType || 'character',
       prompt: input.prompt,

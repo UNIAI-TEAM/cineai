@@ -156,6 +156,7 @@ export const enStudioBoard = {
       totalError: 'Total shot duration cannot exceed {max} seconds (currently {total}s)',
       placeholderVisual: 'Over-the-shoulder view of the workstation…',
       placeholderNarration: 'Spoken line…',
+      placeholderBgm: 'light, professional background music, quieter than the voice',
     },
   },
   studioEditor: {

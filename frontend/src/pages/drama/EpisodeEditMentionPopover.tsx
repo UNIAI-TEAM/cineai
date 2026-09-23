@@ -16,6 +16,7 @@ import {
 } from '../../lib/dramaEpisodePromptEditor'
 import type { AssetScope } from './dramaEpisodeEditUtils'
 import { useI18n } from '../../i18n/context'
+import { displayDramaAssetName } from '../../lib/dramaLibraryAssets'
 
 type Props = {
   open: boolean
@@ -284,7 +285,7 @@ export function EpisodeEditMentionPopover({
                       )}
                     </span>
                     <span className="drama-ep-mention-pop-meta">
-                      <strong>{asset.name || t('dramaEpisode.assetFallback', { id: asset.id })}</strong>
+                      <strong>{asset.name ? displayDramaAssetName(asset.name) : t('dramaEpisode.assetFallback', { id: asset.id })}</strong>
                       <em>{typeLabels[typeKey] || typeKey}</em>
                     </span>
                   </button>

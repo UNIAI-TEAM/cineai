@@ -24,6 +24,7 @@ type Props = {
 }
 
 // 文案里可用的常量占位符：时长上限 + 脚本协议前缀 / 提示词约束块标记（中文原文由后端解析，不翻译）
+// dialogueForm（对白格式示意）按界面语言在组件内补上
 const RULE_VARS: TVars = {
   max: FRAGMENT_CONTENT_DURATION_MAX,
   segMin: DRAMA_SEGMENT_DURATION_MIN,
@@ -36,7 +37,6 @@ const RULE_VARS: TVars = {
   wide: '远景：',
   close: '特写：',
   push: '推镜：',
-  dialogueForm: '角色名：台词',
   blockStyle: '【强制约束：视频画面风格】',
   blockAudio: '【强制约束：音频、字幕与配乐】',
   blockRole: '【强制约束：角色形象】',
@@ -46,10 +46,11 @@ const RULE_VARS: TVars = {
 
 /**
  * 渲染带简单标记的说明文案：**粗体**、`代码`
- * @param text 文案（先插值 RULE_VARS）
+ * @param text 文案（先插值 vars）
+ * @param vars 占位符取值（RULE_VARS + 按语言的示意文案）
  */
-function rich(text: string): ReactNode {
-  const parts = interpolate(text, RULE_VARS).split(/(\*\*[^*]+\*\*|`[^`]+`)/)
+function rich(text: string, vars: TVars): ReactNode {
+  const parts = interpolate(text, vars).split(/(\*\*[^*]+\*\*|`[^`]+`)/)
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
       return <strong key={i}>{part.slice(2, -2)}</strong>
@@ -62,8 +63,8 @@ function rich(text: string): ReactNode {
 }
 
 // 列表：每项一条 rich 文案
-function RuleList({ items, ordered = false }: { items: readonly string[]; ordered?: boolean }) {
-  const children = items.map((item, i) => <li key={i}>{rich(item)}</li>)
+function RuleList({ items, vars, ordered = false }: { items: readonly string[]; vars: TVars; ordered?: boolean }) {
+  const children = items.map((item, i) => <li key={i}>{rich(item, vars)}</li>)
   return ordered ? (
     <ol className="seedance-rules-list">{children}</ol>
   ) : (
@@ -77,6 +78,8 @@ export function SeedanceRulesModal({ open, onClose }: Props) {
   const [tab, setTab] = useState<Tab>('payload')
   const r = m.dramaProject.seedance
   const tabs: Tab[] = ['payload', 'script', 'usage']
+  const vars: TVars = { ...RULE_VARS, dialogueForm: r.script.dialogueForm }
+  const ex = r.script.cueExamples
 
   return (
     <Modal
@@ -92,7 +95,7 @@ export function SeedanceRulesModal({ open, onClose }: Props) {
       }
     >
       <div className="pf-help">
-        <p className="pf-help-lede">{rich(r.lede)}</p>
+        <p className="pf-help-lede">{rich(r.lede, vars)}</p>
 
         <div className="pf-help-tabs" role="tablist" aria-label={t('dramaProject.seedance.tabsAria')}>
           {tabs.map((key) => (
@@ -112,61 +115,61 @@ export function SeedanceRulesModal({ open, onClose }: Props) {
         {tab === 'payload' ? (
           <div className="seedance-rules-section">
             <h4>{r.payload.paramsTitle}</h4>
-            <RuleList items={r.payload.params} />
+            <RuleList items={r.payload.params} vars={vars} />
 
             <h4>{r.payload.contentTitle}</h4>
             {/* 音色难控：暂不提交 reference_audio，口播由 generate_audio 自发挥（原第 3 项已移除） */}
-            <RuleList items={r.payload.content} ordered />
-            <p className="seedance-rules-note">{rich(r.payload.note)}</p>
+            <RuleList items={r.payload.content} vars={vars} ordered />
+            <p className="seedance-rules-note">{rich(r.payload.note, vars)}</p>
 
             <h4>{r.payload.orderTitle}</h4>
             {/* 角色音色 / 旁白音色约束块暂关，未列出 */}
-            <RuleList items={r.payload.order} ordered />
+            <RuleList items={r.payload.order} vars={vars} ordered />
           </div>
         ) : null}
 
         {tab === 'script' ? (
           <div className="seedance-rules-section">
             <h4>{r.script.durationTitle}</h4>
-            <RuleList items={r.script.duration} />
+            <RuleList items={r.script.duration} vars={vars} />
 
             <h4>{r.script.refsTitle}</h4>
-            <RuleList items={r.script.refs} />
+            <RuleList items={r.script.refs} vars={vars} />
 
             <h4>{r.script.cuesTitle}</h4>
-            {/* 示例为脚本协议原文（中文标记由后端解析），各语言一致不翻译 */}
+            {/* 协议标记（【…】前缀、空镜：、@duration）由后端解析，保持中文；标记后的示例内容按界面语言 */}
             <div className="seedance-rules-examples">
               <code>{DRAMA_SUBTITLE_CUE}</code>
-              <code>【BGM：低沉史诗，音量低于人声】</code>
+              <code>{`【BGM：${ex.bgm}】`}</code>
               <code>@duration:4</code>
-              <code>{VISUAL_PREFIX}空镜：浑浊黄河拍击老石……</code>
+              <code>{`${VISUAL_PREFIX}空镜：${ex.visual}`}</code>
               <code>@duration:6</code>
-              <code>{DIALOGUE_PREFIX}禹：水患未平，岂能退！</code>
-              <code>{DRAMA_NARRATION_PREFIX}千年后，人们仍记得这一战。</code>
+              <code>{`${DIALOGUE_PREFIX}${ex.dialogue}`}</code>
+              <code>{`${DRAMA_NARRATION_PREFIX}${ex.narration}`}</code>
             </div>
-            <RuleList items={r.script.cues} />
+            <RuleList items={r.script.cues} vars={vars} />
 
             <h4>{r.script.cameraTitle}</h4>
-            <RuleList items={r.script.camera} />
+            <RuleList items={r.script.camera} vars={vars} />
           </div>
         ) : null}
 
         {tab === 'usage' ? (
           <div className="seedance-rules-section">
             <h4>{r.usage.checkTitle}</h4>
-            <RuleList items={r.usage.check} />
+            <RuleList items={r.usage.check} vars={vars} />
 
             <h4>{r.usage.queueTitle}</h4>
-            <RuleList items={r.usage.queue} />
+            <RuleList items={r.usage.queue} vars={vars} />
 
             <h4>{r.usage.linkTitle}</h4>
-            <RuleList items={r.usage.link} />
+            <RuleList items={r.usage.link} vars={vars} />
 
             <h4>{r.usage.audioTitle}</h4>
-            <RuleList items={r.usage.audio} />
+            <RuleList items={r.usage.audio} vars={vars} />
 
             <h4>{r.usage.replanTitle}</h4>
-            <p className="seedance-rules-note">{rich(r.usage.replan)}</p>
+            <p className="seedance-rules-note">{rich(r.usage.replan, vars)}</p>
           </div>
         ) : null}
       </div>

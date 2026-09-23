@@ -22,17 +22,23 @@ export type EpisodeComposeProgress = {
 
 /** 按分镜顺序收集可拼接的视频地址 */
 export function listEpisodeComposeClips(fragments: DramaFragment[]): EpisodeComposeClip[] {
+  const copy = composeCopy()
   const clips: EpisodeComposeClip[] = []
   fragments.forEach((fragment, index) => {
     const url = resolveDramaMediaUrl(fragment.video)
     if (!url || fragment.id == null) return
     clips.push({
       id: fragment.id,
-      label: `分镜${index + 1}`,
+      label: interpolate(copy.clipLabel, { n: index + 1 }),
       url,
     })
   })
   return clips
+}
+
+// 当前界面语言的拼接提示文案
+function composeCopy() {
+  return messages[getActiveLocale()].dramaEpisode.composeClient
 }
 
 /** 全片下载文件名 */
@@ -54,7 +60,7 @@ async function composeEpisodeVideoServer(
     clips.map((c) => c.id),
   )
   const url = resolveDramaMediaUrl(result.video_url)
-  if (!url) throw new Error('服务端合成未返回可下载地址')
+  if (!url) throw new Error(composeCopy().serverNoUrl)
   const blob = await fetchMediaBlob(url)
   onProgress?.({ phase: 'server', done: clips.length, total: clips.length })
   return blob
@@ -66,8 +72,9 @@ export async function composeEpisodeVideoClient(
   onProgress?: (progress: EpisodeComposeProgress) => void,
   options?: { episodeId?: number },
 ): Promise<Blob> {
+  const copy = composeCopy()
   if (clips.length === 0) {
-    throw new Error('本集还没有可拼接的分镜视频')
+    throw new Error(copy.noClips)
   }
 
   const buffers: Uint8Array[] = new Array(clips.length)
@@ -91,7 +98,7 @@ export async function composeEpisodeVideoClient(
   const names = clips.map((clip) => clip.label)
   for (let i = 0; i < buffers.length; i++) {
     if (!isMp4(buffers[i])) {
-      throw new Error(`${names[i]} 不是可拼接的 MP4`)
+      throw new Error(interpolate(copy.notMp4, { name: names[i] }))
     }
   }
   const compat = mp4Compat(buffers, { names })
@@ -101,11 +108,7 @@ export async function composeEpisodeVideoClient(
       // Seedance 各镜 HEVC SPS/PPS 常不一致，服务端统一重编码即可
       return composeEpisodeVideoServer(episodeId, clips, onProgress)
     }
-    throw new Error(
-      `各镜编码不一致，无法在浏览器里无损拼接。请用同一模型、比例和清晰度生成后再试。${
-        compat.reason ? `（${compat.reason}）` : ''
-      }`,
-    )
+    throw new Error(`${copy.codecMismatch}${compat.reason ? ` (${compat.reason})` : ''}`)
   }
   const merged = concatMp4(buffers)
   onProgress?.({ phase: 'concat', done: clips.length, total: clips.length })

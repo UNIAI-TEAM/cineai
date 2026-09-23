@@ -40,10 +40,13 @@ export function resolveSelectedSkillIds(skills: AgentSkill[], stored: number[] |
   return stored.filter((id) => valid.has(id))
 }
 
-/** 按钮上显示已选 Skill 名称 */
-export function skillTriggerLabel(skills: AgentSkill[], selectedIds: number[]): string {
+/**
+ * 按钮上显示已选 Skill 名称。
+ * 参数 noSkillText：未勾选任何 Skill 时的文案（按界面语言由调用方传入）。
+ */
+export function skillTriggerLabel(skills: AgentSkill[], selectedIds: number[], noSkillText: string): string {
   if (skills.length === 0) return 'Skill'
-  if (selectedIds.length === 0) return '不使用 Skill'
+  if (selectedIds.length === 0) return noSkillText
   if (selectedIds.length === 1) {
     const hit = skills.find((skill) => skill.id === selectedIds[0])
     return hit?.name || 'Skill'

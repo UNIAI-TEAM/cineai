@@ -63,6 +63,7 @@ export const enSettingsPanels = {
       lead: 'Pick a visual language for your AI short video',
       searchPlaceholder: 'Search template name or description',
       categoryTabs: 'Template categories',
+      categoryOther: 'Other',
       empty: 'No matching templates.',
     },
     filterSelect: {

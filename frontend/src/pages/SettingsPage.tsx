@@ -12,7 +12,7 @@ import ApiKeysPanel from './settings/ApiKeysPanel'
 import AccountProfileCard from './settings/AccountProfileCard'
 import ChangePasswordCard from './settings/ChangePasswordCard'
 import ComingSoon from '../components/ui/ComingSoon'
-import { dramaProjectEntryPath, formatDramaCardMeta } from '../lib/dramaWorkflow'
+import { displayDramaTitle, dramaProjectEntryPath, formatDramaCardMeta } from '../lib/dramaWorkflow'
 import { STATUS_CN } from '../lib/status'
 import SettingsToolRunsPanel from './SettingsToolRunsPanel'
 import { formatDateTime, useI18n, type Locale } from '../i18n'
@@ -213,7 +213,7 @@ export default function SettingsPage() {
                     <li key={item.id}>
                       <Link to={dramaProjectEntryPath(item)} className="pf-settings-list-row">
                         <span className="pf-settings-list-main">
-                          <strong>{item.title || t('settings.projectFallback', { id: item.id })}</strong>
+                          <strong>{item.title ? displayDramaTitle(item.title) : t('settings.projectFallback', { id: item.id })}</strong>
                           <em className="pf-muted">{formatDramaCardMeta(item)}</em>
                         </span>
                         <span className="pf-settings-list-meta pf-muted">
@@ -259,7 +259,7 @@ export default function SettingsPage() {
                     <li key={item.id}>
                       <Link to={`/studio/${item.id}`} className="pf-settings-list-row">
                         <span className="pf-settings-list-main">
-                          <strong>{item.title || t('settings.projectFallback', { id: item.id })}</strong>
+                          <strong>{item.title ? displayDramaTitle(item.title) : t('settings.projectFallback', { id: item.id })}</strong>
                           <em className="pf-muted">{STATUS_CN[item.status] || item.status}</em>
                         </span>
                         <span className="pf-settings-list-meta pf-muted">

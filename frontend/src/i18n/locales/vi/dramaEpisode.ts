@@ -343,5 +343,12 @@ export const viDramaEpisode = {
     modelFallback: 'Mô hình',
     untitled: 'Chưa đặt tên',
     fullFilmFile: '{name}_tap_phim',
+    composeClient: {
+      clipLabel: 'Cảnh {n}',
+      serverNoUrl: 'Máy chủ dựng xong nhưng không trả về link tải xuống',
+      noClips: 'Tập này chưa có video cảnh nào để ghép',
+      notMp4: '{name} không phải file MP4 ghép được',
+      codecMismatch: 'Các cảnh có định dạng mã hoá khác nhau nên không ghép trực tiếp trên trình duyệt được. Hãy tạo lại bằng cùng mô hình, tỉ lệ và độ phân giải rồi thử lại.',
+    },
   },
 }

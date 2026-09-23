@@ -176,6 +176,7 @@ export const enDramaCanvas = {
       customDuration: 'Custom ({min}–{max}s)',
       videoOutputAria: 'Aspect ratio and resolution',
       pickSkill: 'Choose Skills',
+      noSkill: 'No Skill',
     },
     episode: {
       shotCount: '{count} shots',

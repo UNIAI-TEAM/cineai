@@ -1,6 +1,7 @@
 /** 画布节点类型与选择器选项定义 */
 import type { LucideIcon } from 'lucide-react'
 import type { TFunction } from '../../../i18n/context'
+import { displayDramaAssetName } from '../../../lib/dramaLibraryAssets'
 import {
   AudioLines,
   Image as ImageIcon,
@@ -106,7 +107,8 @@ export function canvasNodeDisplayLabel(
   const defaultKind = (Object.keys(CANVAS_NODE_DEFAULT_LABEL) as CanvasNodeKind[]).find(
     (k) => CANVAS_NODE_DEFAULT_LABEL[k] === raw,
   )
-  return defaultKind ? t(`dramaCanvas.defaultLabel.${defaultKind}`) : raw
+  // 其余后端 / 旧数据的中文默认名（未命名、节点 N、某某音色等）交给资产展示名统一翻译
+  return defaultKind ? t(`dramaCanvas.defaultLabel.${defaultKind}`) : displayDramaAssetName(raw)
 }
 
 /** 节点卡片尺寸（宽 × 高，用于落点居中） */

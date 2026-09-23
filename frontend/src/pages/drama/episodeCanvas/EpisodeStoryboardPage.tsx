@@ -40,6 +40,8 @@ import { useI18n } from '../../../i18n/context'
 import { getActiveLocale } from '../../../i18n/detect'
 import { messages } from '../../../i18n/messages'
 import './episodeCanvas.css'
+import { displayDramaAssetName } from '../../../lib/dramaLibraryAssets'
+import { displayEpisodeName } from '../../../lib/dramaWorkflow'
 
 const SAVE_DEBOUNCE_MS = 800
 
@@ -310,7 +312,7 @@ function EpisodeStoryboardInner() {
   const assetTypeLabel = (type: string | null | undefined) => {
     const tab = normalizeAssetTab(type || '')
     if (tab) return t(`dramaCanvas.assetTab.${tab}`)
-    return type || t('dramaCanvas.episode.asset')
+    return (type && !/[\u4e00-\u9fff]/.test(type) && type) || t('dramaCanvas.episode.asset')
   }
 
   return (
@@ -327,7 +329,7 @@ function EpisodeStoryboardInner() {
             <ChevronLeft size={20} strokeWidth={1.8} />
           </button>
           <div className="ep-storyboard-title">
-            <strong>{episode?.name || t('dramaCanvas.episode.episodeFallback', { id: eid })}</strong>
+            <strong>{displayEpisodeName(episode?.name) || t('dramaCanvas.episode.episodeFallback', { id: eid })}</strong>
             <span>
               {t('dramaCanvas.episode.subtitle', { count: fragments.length })}
               {dirty
@@ -411,9 +413,9 @@ function EpisodeStoryboardInner() {
                   onClick={() => handlePickAsset(asset)}
                 >
                   <div className="ep-storyboard-picker-thumb">
-                    {cover ? <img src={cover} alt="" /> : <span>{(asset.name || '?')[0]}</span>}
+                    {cover ? <img src={cover} alt="" /> : <span>{(displayDramaAssetName(asset.name) || '?')[0]}</span>}
                   </div>
-                  <strong>{asset.name || t('dramaCanvas.episode.assetFallback', { id: asset.id })}</strong>
+                  <strong>{asset.name ? displayDramaAssetName(asset.name) : t('dramaCanvas.episode.assetFallback', { id: asset.id })}</strong>
                   <em>{assetTypeLabel(asset.type)}</em>
                 </button>
               )

@@ -17,6 +17,7 @@ import { CanvasNodePreviewModal } from './CanvasNodePreviewModal'
 import { CanvasNodeUploadBar } from './nodes/CanvasNodeUploadBar'
 import { DRAMA_VOICE_BINDING_ENABLED } from '../../../lib/dramaVoiceBinding'
 import { useI18n } from '../../../i18n/context'
+import { displayDramaAssetName } from '../../../lib/dramaLibraryAssets'
 
 /** 画布视频缩略：仅展示封面，不拦截单击（单击要选中并显示提示词面板） */
 function CanvasAssetVideoPreview({ src }: { src: string }) {
@@ -51,12 +52,13 @@ function CanvasAssetNodeComponent({ id, data, selected }: NodeProps<Node<CanvasA
   const mediaSrc = resolveDramaMediaUrl(data.mediaUrl)
   const showUpload = selected && CANVAS_UPLOADABLE_KINDS.has(data.kind)
   const showGenerate = selected && CANVAS_GENERATABLE_KINDS.has(data.kind)
-  const voiceLabel = typeof data.voiceLabel === 'string' ? data.voiceLabel : ''
+  // 音色名：旧数据可能是中文默认名，按界面语言展示
+  const voiceLabel = typeof data.voiceLabel === 'string' ? displayDramaAssetName(data.voiceLabel) : ''
   const voiceUrl = typeof data.voiceUrl === 'string' ? data.voiceUrl : ''
   const displayName =
     data.kind === 'character'
       ? typeof data.characterName === 'string' && data.characterName
-        ? data.characterName
+        ? canvasNodeDisplayLabel(data.characterName, data.kind, t)
         : canvasNodeDisplayLabel(data.label, data.kind, t)
       : canvasNodeDisplayLabel(data.label, data.kind, t)
   const footerLabel =

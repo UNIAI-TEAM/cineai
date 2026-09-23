@@ -3,6 +3,7 @@ import { AudioLines, Trash2, Volume2 } from 'lucide-react'
 import { resolveDramaMediaUrl, type DramaAsset } from '../../api/drama'
 import { CharacterVoicePreviewButton } from '../../components/drama/CharacterVoicePreviewButton'
 import { useI18n } from '../../i18n/context'
+import { displayDramaAssetName } from '../../lib/dramaLibraryAssets'
 
 type Props = {
   asset: DramaAsset
@@ -37,7 +38,7 @@ export function DramaVoiceAssetCard({
           <AudioLines size={18} strokeWidth={1.75} />
         </div>
         <div className="drama-voice-card-title">
-          <h3>{asset.name || t('dramaAssets.voiceCard.untitled')}</h3>
+          <h3>{asset.name ? displayDramaAssetName(asset.name) : t('dramaAssets.voiceCard.untitled')}</h3>
           <span className={`drama-voice-card-status${hasAudio ? ' is-ready' : ' is-pending'}`}>
             {hasAudio ? t('dramaAssets.common.synthesized') : t('dramaAssets.voiceCard.pending')}
           </span>
@@ -46,7 +47,7 @@ export function DramaVoiceAssetCard({
           type="button"
           className="drama-voice-card-delete"
           aria-label={t('dramaAssets.voiceCard.deleteAria', {
-            name: asset.name || t('dramaAssets.voiceCard.untitled'),
+            name: asset.name ? displayDramaAssetName(asset.name) : t('dramaAssets.voiceCard.untitled'),
           })}
           disabled={synthBusy}
           onClick={onDelete}
@@ -73,7 +74,7 @@ export function DramaVoiceAssetCard({
             <>
               <CharacterVoicePreviewButton
                 url={asset.url || ''}
-                label={asset.name || undefined}
+                label={asset.name ? displayDramaAssetName(asset.name) : undefined}
                 variant="button"
                 size="sm"
                 onError={onError}

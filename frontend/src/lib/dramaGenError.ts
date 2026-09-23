@@ -49,6 +49,16 @@ function fmt(template: string, vars?: TVars): string {
   return interpolate(template, vars)
 }
 
+/**
+ * 原文含汉字且界面不是中文时换成已翻译的说明，原文只在「查看原始错误」里出现；
+ * 不含汉字的原文（如服务商英文报错）照常展示。
+ * 参数 text：原文；translated：当前语言的说明。
+ */
+function readable(text: string, translated: string): string {
+  if (getActiveLocale() !== 'zh' && /[\u4e00-\u9fff]/.test(text)) return translated
+  return text
+}
+
 /** 超长原文截断 */
 function clip(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…` : text
@@ -117,7 +127,7 @@ function formatApiError(err: ApiError): DramaGenErrorView | null {
   if (err.status === 402 || isInsufficientBalanceCode(code)) {
     return {
       title: c.billing.title,
-      message: err.message || c.billing.message,
+      message: readable(err.message, c.billing.message) || c.billing.message,
       suggestion: c.billing.suggestion,
       billingBlocked: true,
     }
@@ -133,13 +143,13 @@ function formatApiError(err: ApiError): DramaGenErrorView | null {
   if (code === 'drama.prev_fragment_required') {
     return {
       title: c.prevFailed.title,
-      message: err.message,
+      message: readable(err.message, c.prevFailed.message),
       suggestion: c.prevFailed.suggestion,
     }
   }
   return {
     title: c.genericFailed,
-    message: err.message,
+    message: readable(err.message, c.unknownMessage),
     suggestion: c.hintFollow,
   }
 }
@@ -156,12 +166,12 @@ function formatErrorText(raw: string | null | undefined): DramaGenErrorView {
   }
 
   if (/ReadTimeout|WriteTimeout|等待上游超时|响应超时/i.test(text)) {
-    return { title: c.timeout.title, message: clip(text, 200), suggestion: c.timeout.suggestion }
+    return { title: c.timeout.title, message: readable(clip(text, 200), c.timeout.message), suggestion: c.timeout.suggestion }
   }
 
   // 连接错误按错误类型 / 后端文案识别（providers/base.py, exc_format.py），不依赖具体服务商域名
   if (/网络错误|ConnectError|ConnectTimeout|无法连接上游/i.test(text)) {
-    return { title: c.network.title, message: clip(text, 200), suggestion: c.network.suggestion }
+    return { title: c.network.title, message: readable(clip(text, 200), c.network.message), suggestion: c.network.suggestion }
   }
 
   // 生图队列兜底文案（dramaImageGenQueue 写入）
@@ -218,7 +228,11 @@ function formatErrorText(raw: string | null | undefined): DramaGenErrorView {
   }
 
   if (/重试超过上限|超过重试上限|内部自动重试超过上限/.test(text)) {
-    return { title: c.retryExhausted.title, message: text, suggestion: c.retryExhausted.suggestion }
+    return {
+      title: c.retryExhausted.title,
+      message: readable(text, c.retryExhausted.message),
+      suggestion: c.retryExhausted.suggestion,
+    }
   }
 
   if (/上一镜失败|无法衔接尾帧/.test(text)) {
@@ -282,7 +296,7 @@ function formatErrorText(raw: string | null | undefined): DramaGenErrorView {
   if (/File type not supported|参考图格式不支持|不支持 SVG/i.test(text)) {
     return {
       title: c.fileType.title,
-      message: text.includes('参考图格式不支持') ? text : c.fileType.message,
+      message: text.includes('参考图格式不支持') ? readable(text, c.fileType.message) : c.fileType.message,
       suggestion: c.fileType.suggestion,
     }
   }
@@ -303,7 +317,11 @@ function formatErrorText(raw: string | null | undefined): DramaGenErrorView {
   }
 
   if (/Seedance|上游生成失败/i.test(text)) {
-    return { title: c.videoFailed.title, message: clip(text, 160), suggestion: c.videoFailed.suggestion }
+    return {
+      title: c.videoFailed.title,
+      message: readable(clip(text, 160), c.videoFailed.message),
+      suggestion: c.videoFailed.suggestion,
+    }
   }
 
   if (/跳过重复任务|分镜已生成完成/.test(text)) {
@@ -320,17 +338,21 @@ function formatErrorText(raw: string | null | undefined): DramaGenErrorView {
     const known = /^(已取消|生图已取消|任务已中断，请重新生成)$/.test(text)
     return {
       title: cancelled ? c.cancelled.title : c.cancelled.interruptedTitle,
-      message: known ? (cancelled ? c.cancelled.message : c.cancelled.interruptedMessage) : text,
+      message: known
+        ? cancelled
+          ? c.cancelled.message
+          : c.cancelled.interruptedMessage
+        : readable(text, cancelled ? c.cancelled.message : c.cancelled.interruptedMessage),
       suggestion: c.cancelled.suggestion,
     }
   }
 
-  // 已是较短中文：原样展示，补通用建议
+  // 已是较短中文：中文界面原样展示，补通用建议；其他语言换成通用说明
   if (!/[{\\[\]"]/.test(text) && text.length <= 120 && /[一-鿿]/.test(text)) {
-    return { title: c.genericFailed, message: text, suggestion: c.hintFollow }
+    return { title: c.genericFailed, message: readable(text, c.unknownMessage), suggestion: c.hintFollow }
   }
 
-  return { title: c.genericFailed, message: clip(text, 200), suggestion: c.hintDefault }
+  return { title: c.genericFailed, message: readable(clip(text, 200), c.unknownMessage), suggestion: c.hintDefault }
 }
 
 /**

@@ -151,6 +151,7 @@ export const viErrors = {
     slotNamed: '{kind} “{name}”',
     contentItem: 'mục thứ {n} trong yêu cầu / content[{idx}]',
     genericFailed: 'Không tạo được',
+    unknownMessage: 'Có lỗi xảy ra trong lúc tạo.',
     empty: {
       message: 'Việc tạo chưa xong và hệ thống không ghi lại lỗi cụ thể.',
       suggestion:
@@ -158,11 +159,13 @@ export const viErrors = {
     },
     timeout: {
       title: 'Nhà cung cấp mô hình phản hồi quá lâu',
+      message: 'Nhà cung cấp mô hình phản hồi quá thời gian cho phép.',
       suggestion:
         'Đã kết nối được nhà cung cấp mô hình nhưng tạo ảnh/video mất quá thời gian cho phép. Vui lòng thử lại sau. Nếu tạo văn bản vẫn được mà chỉ ảnh/video bị quá giờ thì thường là do hàng chờ bên nhà cung cấp chậm, không phải mất mạng.',
     },
     network: {
       title: 'Không kết nối được dịch vụ tạo ảnh/video',
+      message: 'Máy chủ không kết nối được dịch vụ tạo ảnh/video.',
       suggestion:
         'Máy chủ hiện không kết nối được nhà cung cấp mô hình (thường do proxy chặn hoặc mất mạng). Hãy kiểm tra mạng/proxy rồi thử lại, và kiểm tra key nhà cung cấp trong trang quản trị.',
     },
@@ -194,6 +197,7 @@ export const viErrors = {
     },
     retryExhausted: {
       title: 'Thử nhiều lần vẫn không được',
+      message: 'Hệ thống đã tự thử lại nhiều lần nhưng vẫn chưa tạo được.',
       suggestion:
         'Lần tạo này đã tự thử lại hết số lần cho phép, bạn vẫn có thể bấm tạo lại. Hãy sửa đúng nguyên nhân (thường là ảnh tham chiếu bị nhận là người thật) rồi mới tạo lại.',
     },
@@ -250,6 +254,7 @@ export const viErrors = {
     },
     videoFailed: {
       title: 'Không tạo được video',
+      message: 'Nhà cung cấp mô hình chưa tạo được video cho cảnh này.',
       suggestion: 'Bạn có thể thử lại phân cảnh này sau. Nếu lỗi liên tục, hãy đổi ảnh tham chiếu hoặc rút gọn kịch bản.',
     },
     duplicateSkipped: {

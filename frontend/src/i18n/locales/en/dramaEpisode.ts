@@ -344,5 +344,12 @@ export const enDramaEpisode = {
     modelFallback: 'Model',
     untitled: 'Untitled',
     fullFilmFile: '{name}_full',
+    composeClient: {
+      clipLabel: 'Shot {n}',
+      serverNoUrl: 'The server finished composing but returned no download link',
+      noClips: 'This episode has no shot videos to join yet',
+      notMp4: '{name} isn’t an MP4 that can be joined',
+      codecMismatch: 'Shots use different encodings, so they can’t be joined losslessly in the browser. Generate them with the same model, ratio and resolution, then try again.',
+    },
   },
 }

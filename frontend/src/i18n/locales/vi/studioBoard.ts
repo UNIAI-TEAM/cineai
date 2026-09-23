@@ -156,6 +156,7 @@ export const viStudioBoard = {
       totalError: 'Tổng thời lượng cảnh không được vượt quá {max} giây (hiện {total}s)',
       placeholderVisual: 'Cảnh quay qua vai, đang thao tác tại bàn làm việc…',
       placeholderNarration: 'Nội dung lời dẫn…',
+      placeholderBgm: 'nhạc nền nhẹ nhàng, chuyên nghiệp, nhỏ hơn giọng đọc',
     },
   },
   studioEditor: {

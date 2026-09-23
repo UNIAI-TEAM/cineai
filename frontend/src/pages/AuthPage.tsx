@@ -77,8 +77,9 @@ export default function AuthPage() {
       }
       setLoading(true)
       try {
-        const res = await api.forgotPassword(trimmedEmail)
-        setNotice(res.message || t('auth.forgotSent'))
+        // 后端返回的 message 为中文，统一用本地文案
+        await api.forgotPassword(trimmedEmail)
+        setNotice(t('auth.forgotSent'))
       } catch (err) {
         setError(err instanceof Error ? err.message : t('common.fail'))
       } finally {

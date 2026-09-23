@@ -63,6 +63,7 @@ export const viSettingsPanels = {
       lead: 'Chọn phong cách hình ảnh cho video ngắn AI của bạn',
       searchPlaceholder: 'Tìm theo tên hoặc mô tả mẫu',
       categoryTabs: 'Nhóm mẫu',
+      categoryOther: 'Khác',
       empty: 'Không tìm thấy mẫu phù hợp.',
     },
     filterSelect: {

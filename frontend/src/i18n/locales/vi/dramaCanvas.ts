@@ -176,6 +176,7 @@ export const viDramaCanvas = {
       customDuration: 'Tuỳ chỉnh ({min}–{max}s)',
       videoOutputAria: 'Tỉ lệ và độ phân giải',
       pickSkill: 'Chọn Skill',
+      noSkill: 'Không dùng Skill',
     },
     episode: {
       shotCount: '{count} cảnh',

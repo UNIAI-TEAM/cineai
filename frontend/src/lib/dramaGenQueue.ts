@@ -5,6 +5,7 @@ import { localizeStoredError } from './apiError'
 import { getActiveLocale } from '../i18n/detect'
 import { interpolate } from '../i18n/lookup'
 import { messages } from '../i18n/messages'
+import { displayDramaAssetName } from './dramaLibraryAssets'
 
 export type DramaGenJobKind = 'image' | 'video'
 
@@ -268,7 +269,9 @@ export function syncImageJobToUnified(input: {
     projectId: input.projectId,
     targetId: input.assetId,
     // 标题在写入时按当前语言生成；每次 emit 都会重写，切换语言后下一次同步即更新
-    title: input.assetName || interpolate(genMessages().title.asset, { id: input.assetId }),
+    title: input.assetName
+      ? displayDramaAssetName(input.assetName)
+      : interpolate(genMessages().title.asset, { id: input.assetId }),
     subtype: input.assetType || 'image',
     status: input.status,
     taskId: input.taskId,
@@ -304,7 +307,9 @@ export function syncAssetVideoJobToUnified(input: {
     kind: 'video',
     projectId: input.projectId,
     targetId: input.assetId,
-    title: input.assetName || interpolate(genMessages().title.video, { id: input.assetId }),
+    title: input.assetName
+      ? displayDramaAssetName(input.assetName)
+      : interpolate(genMessages().title.video, { id: input.assetId }),
     subtype: CANVAS_VIDEO_SUBTYPE,
     status: input.status,
     error: input.error,

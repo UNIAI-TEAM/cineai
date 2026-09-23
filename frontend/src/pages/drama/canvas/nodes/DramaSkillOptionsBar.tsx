@@ -51,7 +51,7 @@ export function DramaSkillOptionsBar({
     event.stopPropagation()
   }
 
-  const label = skillTriggerLabel(skills, selectedIds)
+  const label = skillTriggerLabel(skills, selectedIds, t('dramaCanvas.genOptions.noSkill'))
   const active = open || selectedIds.length > 0
 
   return (

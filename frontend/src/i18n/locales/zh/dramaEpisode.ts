@@ -336,5 +336,12 @@ export const zhDramaEpisode = {
     modelFallback: '模型',
     untitled: '未命名',
     fullFilmFile: '{name}_全片',
+    composeClient: {
+      clipLabel: '分镜{n}',
+      serverNoUrl: '服务端合成未返回可下载地址',
+      noClips: '本集还没有可拼接的分镜视频',
+      notMp4: '{name} 不是可拼接的 MP4',
+      codecMismatch: '各镜编码不一致，无法在浏览器里无损拼接。请用同一模型、比例和清晰度生成后再试。',
+    },
   },
 }

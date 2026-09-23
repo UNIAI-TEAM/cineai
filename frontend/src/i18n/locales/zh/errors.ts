@@ -151,17 +151,20 @@ export const zhErrors = {
     slotNamed: '{kind}「{name}」',
     contentItem: '提交内容第 {n} 项 / content[{idx}]',
     genericFailed: '生成失败',
+    unknownMessage: '生成过程中出错了。',
     empty: {
       message: '任务未能完成，且未记录具体错误信息。',
       suggestion: '请稍后重试；若反复失败，检查网络/代理是否能访问模型服务商，以及后台配置的服务商密钥。',
     },
     timeout: {
       title: '上游响应超时',
+      message: '等待上游模型响应超时。',
       suggestion:
         '已经连上模型服务商，但出图/出视频等待超过上限。请稍后重试；若文本能生成、只有图/视频超时，多半是上游排队较慢，不是代理断网。',
     },
     network: {
       title: '无法连接图片/视频服务',
+      message: '服务器连接不上生图/视频服务。',
       suggestion: '本机当前连不上上游（常见于代理未放行或网络中断）。请检查网络/代理后重试，并确认后台配置的服务商密钥有效。',
     },
     imageFailedLegacy: {
@@ -191,6 +194,7 @@ export const zhErrors = {
     },
     retryExhausted: {
       title: '多次生成仍失败',
+      message: '本次生成已多次自动重试，仍未成功。',
       suggestion:
         '这是同一次任务内的自动重试耗尽，不是禁止你再点生成。请根据真实原因（常见是参考图真人审核）改素材或文案后，再重新点生成。',
     },
@@ -246,6 +250,7 @@ export const zhErrors = {
     },
     videoFailed: {
       title: '视频生成失败',
+      message: '上游模型没能生成这段视频。',
       suggestion: '可稍后重试该分镜；连续失败时请更换参考图或简化脚本。',
     },
     duplicateSkipped: {

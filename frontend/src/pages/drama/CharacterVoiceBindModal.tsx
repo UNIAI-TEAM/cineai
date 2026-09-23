@@ -4,6 +4,7 @@ import { dramaApi, resolveDramaMediaUrl, type DramaAsset } from '../../api/drama
 import Modal from '../../components/ui/Modal'
 import { useI18n } from '../../i18n/context'
 import { translate } from '../../i18n/translate'
+import { displayDramaAssetName } from '../../lib/dramaLibraryAssets'
 
 export type VoiceBinding = {
   sourceAssetId: number
@@ -33,7 +34,7 @@ export function readVoicePrompt(asset: DramaAsset): string {
   return typeof params.voicePrompt === 'string' ? params.voicePrompt.trim() : ''
 }
 
-// 从角色资产 params 读取已绑定音色
+// 从角色资产 params 读取已绑定音色（label 已转为展示名：旧的中文默认名按界面语言显示）
 export function readAssetVoiceBinding(asset: DramaAsset): VoiceBinding | null {
   const params = (asset.params || {}) as Record<string, unknown>
   const raw = params.voiceAudio
@@ -55,7 +56,7 @@ export function readAssetVoiceBinding(asset: DramaAsset): VoiceBinding | null {
       return {
         sourceAssetId,
         url,
-        label: typeof data.label === 'string' ? data.label : '音色',
+        label: typeof data.label === 'string' ? displayDramaAssetName(data.label) : translate('dramaAssets.common.voice'),
         voicePrompt: typeof data.voicePrompt === 'string' ? data.voicePrompt : undefined,
       }
     }
@@ -68,7 +69,7 @@ export function readAssetVoiceBinding(asset: DramaAsset): VoiceBinding | null {
       const sourceAssetId = typeof data.sourceAssetId === 'number' ? data.sourceAssetId : null
       const url = typeof data.url === 'string' ? data.url : ''
       if (sourceAssetId && url) {
-        return { sourceAssetId, url, label: '音色' }
+        return { sourceAssetId, url, label: translate('dramaAssets.common.voice') }
       }
     }
   }
@@ -81,7 +82,8 @@ export function buildBoundParams(asset: DramaAsset, voice: DramaAsset): Record<s
   const binding: VoiceBinding = {
     sourceAssetId: voice.id,
     url,
-    label: voice.name || '音色',
+    // 无名称时按当前界面语言写入默认标签（用户数据，展示时 displayDramaAssetName 兼容旧的中文值）
+    label: voice.name || translate('dramaAssets.common.voice'),
     voicePrompt: readVoicePrompt(voice) || undefined,
   }
   const prev = (asset.params || {}) as Record<string, unknown>
@@ -359,7 +361,7 @@ export function CharacterVoiceBindModal({
                     onChange={() => setSelectedId(voice.id)}
                   />
                   <span>
-                    {voice.name || t('dramaAssets.common.voiceNumbered', { id: voice.id })}
+                    {voice.name ? displayDramaAssetName(voice.name) : t('dramaAssets.common.voiceNumbered', { id: voice.id })}
                     <small>
                       {hasAudio
                         ? t('dramaAssets.common.synthesized')

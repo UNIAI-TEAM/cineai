@@ -4,6 +4,13 @@ export const zhDramaAssets = {
   dramaAssets: {
     common: {
       untitled: '未命名',
+      untitledVoice: '未命名音色',
+      nodeNo: '节点 {n}',
+      assetNo: '资产 {n}',
+      voice: '音色',
+      voiceOf: '{name}音色',
+      narratorVoice: '旁白音色',
+      characterVoice: '角色音色',
       preview: '预览',
       clickToZoom: '点击放大',
       projectNo: '项目 #{id}',
@@ -211,6 +218,7 @@ export const zhDramaAssets = {
       speakerHint: '（不同角色会自动匹配不同 TTS 发音人）',
       synthButton: '按提示词合成试听',
       suggestFailed: 'AI 生成音色描述失败',
+      promptEmpty: '音色描述为空',
       synthFailed: '合成失败',
       resynthFailed: '重新合成失败',
       selectRequired: '请选择已合成试听的音色资产',

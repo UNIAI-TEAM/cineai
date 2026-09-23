@@ -33,6 +33,7 @@ export const zhShell = {
     pageSizeAfter: '条',
     pageSummary: '第 {page} / {pageCount} 页 · 共 {total} 条',
     loginRequired: '未登录',
+    sessionExpired: '登录已失效，请重新登录',
     generateFailed: '生成失败',
     queryFailed: '查询失败',
     requestFailed: '请求失败',

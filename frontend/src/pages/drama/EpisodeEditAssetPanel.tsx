@@ -10,6 +10,7 @@ import {
   type AssetScope,
   type AssetTab,
 } from './dramaEpisodeEditUtils'
+import { displayDramaAssetName } from '../../lib/dramaLibraryAssets'
 
 type Props = {
   scope: AssetScope
@@ -158,11 +159,11 @@ export function EpisodeEditAssetPanel({
                     {cover ? (
                       <img key={cover} src={cover} alt="" loading="lazy" decoding="async" />
                     ) : (
-                      <span>{(asset.name || '?')[0]}</span>
+                      <span>{(displayDramaAssetName(asset.name) || '?')[0]}</span>
                     )}
                     {imageBusy ? <em className="drama-ep-asset-gen-badge">{t('dramaEpisode.assetPanel.generatingBadge')}</em> : null}
                   </div>
-                  <span className="drama-ep-asset-name">{asset.name || t('dramaEpisode.assetFallback', { id: asset.id })}</span>
+                  <span className="drama-ep-asset-name">{asset.name ? displayDramaAssetName(asset.name) : t('dramaEpisode.assetFallback', { id: asset.id })}</span>
                   {isActive ? <span className="drama-ep-asset-linked">{t('dramaEpisode.assetPanel.linked')}</span> : null}
                   {DRAMA_VOICE_BINDING_ENABLED && voice ? (
                     <span className="drama-ep-asset-voice">{t('dramaEpisode.assetPanel.voice')}</span>
@@ -193,7 +194,7 @@ export function EpisodeEditAssetPanel({
                     voice ? (
                       <CharacterVoicePreviewButton
                         url={voice.url}
-                        label={voice.label}
+                        label={displayDramaAssetName(voice.label)}
                         variant="inline"
                         className="drama-ep-asset-voice-btn is-bound"
                         onError={onVoiceError}

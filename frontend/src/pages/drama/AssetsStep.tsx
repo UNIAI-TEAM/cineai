@@ -32,7 +32,7 @@ import { handleBillingError, isBillingError } from '../../lib/billingError'
 import { alertDramaGenError, formatDramaGenError, isUpstreamAccountError } from '../../lib/dramaGenError'
 import { pageCountOf } from '../../lib/pagination'
 import { readVisualPrompt } from '../../lib/dramaVisualPrompt'
-import { filterDramaLibraryAssets } from '../../lib/dramaLibraryAssets'
+import { displayDramaAssetName, filterDramaLibraryAssets } from '../../lib/dramaLibraryAssets'
 import { DRAMA_VOICE_BINDING_ENABLED } from '../../lib/dramaVoiceBinding'
 import { useI18n } from '../../i18n/context'
 import { translate } from '../../i18n/translate'
@@ -217,13 +217,14 @@ export function AssetsStep({ projectId, onError }: AssetsStepProps) {
   }, [genQueue, projectId])
 
   const assetList = assets ?? []
-  const narrationVoiceLabel =
+  // 旁白音色展示名：落库的中文默认名（如「旁白音色」）按界面语言显示
+  const narrationVoiceRaw =
     project?.params && typeof project.params === 'object'
-      ? String(
-          ((project.params as Record<string, unknown>).narrationVoiceAudio as Record<string, unknown> | undefined)?.label ||
-            t('dramaAssets.step.notSet'),
-        )
-      : t('dramaAssets.step.notSet')
+      ? ((project.params as Record<string, unknown>).narrationVoiceAudio as Record<string, unknown> | undefined)?.label
+      : undefined
+  const narrationVoiceLabel = narrationVoiceRaw
+    ? displayDramaAssetName(String(narrationVoiceRaw))
+    : t('dramaAssets.step.notSet')
   const filtered = assetList.filter((a) => {
     const type = (a.type || '').toLowerCase()
     if (tab === 'voice') return type === 'voice'
@@ -518,7 +519,7 @@ export function AssetsStep({ projectId, onError }: AssetsStepProps) {
     const ok = await dialog.confirm({
       title: t('dramaAssets.step.deleteVoiceTitle'),
       message: t('dramaAssets.step.deleteVoiceMessage', {
-        name: asset.name || t('dramaAssets.common.untitled'),
+        name: displayDramaAssetName(asset.name),
       }),
       tone: 'danger',
       confirmText: t('common.delete'),
@@ -560,7 +561,7 @@ export function AssetsStep({ projectId, onError }: AssetsStepProps) {
     const ok = await dialog.confirm({
       title: t('dramaAssets.step.deleteCharacterTitle'),
       message: t('dramaAssets.step.deleteCharacterMessage', {
-        name: asset.name || t('dramaAssets.common.untitled'),
+        name: displayDramaAssetName(asset.name),
       }),
       tone: 'danger',
       confirmText: t('common.delete'),
@@ -908,18 +909,18 @@ export function AssetsStep({ projectId, onError }: AssetsStepProps) {
                   title={t('dramaAssets.common.clickToZoom')}
                   onClick={(e) => {
                     e.stopPropagation()
-                    setLightbox({ src: mediaSrc, alt: asset.name || t('dramaAssets.common.preview') })
+                    setLightbox({ src: mediaSrc, alt: asset.name ? displayDramaAssetName(asset.name) : t('dramaAssets.common.preview') })
                   }}
                 >
-                  <img key={mediaSrc} src={mediaSrc} alt={asset.name || ''} />
+                  <img key={mediaSrc} src={mediaSrc} alt={asset.name ? displayDramaAssetName(asset.name) : ''} />
                 </button>
               ) : (
                 <div className="drama-asset-placeholder">{kindLabel(asset.type) || 'asset'}</div>
               )}
-              <h3>{asset.name || t('dramaAssets.common.untitled')}</h3>
+              <h3>{displayDramaAssetName(asset.name)}</h3>
               <p>
                 {kindLabel(asset.type)}
-                {isCharacter && voice ? ` · ${voice.label}` : ''}
+                {isCharacter && voice ? ` · ${displayDramaAssetName(voice.label)}` : ''}
               </p>
               <div
                 className="drama-asset-card-actions"
@@ -960,7 +961,7 @@ export function AssetsStep({ projectId, onError }: AssetsStepProps) {
                       voice ? (
                         <CharacterVoicePreviewButton
                           url={voice.url}
-                          label={voice.label}
+                          label={displayDramaAssetName(voice.label)}
                           onError={onError}
                         />
                       ) : (

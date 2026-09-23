@@ -151,6 +151,7 @@ export const zhStudioBoard = {
       totalError: '镜头时长合计不能超过 {max} 秒（当前 {total}s）',
       placeholderVisual: '过肩工位操作画面…',
       placeholderNarration: '口播内容…',
+      placeholderBgm: '后期混音 · 轻快专业，音量低于人声',
     },
   },
   studioEditor: {

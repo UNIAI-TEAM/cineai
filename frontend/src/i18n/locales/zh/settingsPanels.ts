@@ -63,6 +63,7 @@ export const zhSettingsPanels = {
       lead: '为科普与知识短片挑选画面语言',
       searchPlaceholder: '搜索模板名称或描述',
       categoryTabs: '模板分类',
+      categoryOther: '其他',
       empty: '没有匹配的模板。',
     },
     filterSelect: {

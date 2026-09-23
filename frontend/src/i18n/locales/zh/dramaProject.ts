@@ -271,6 +271,13 @@ export const zhDramaProject = {
           '左侧资产面板点击资产，或本镜「参与资产」条，也会自动写入引用',
           '被引用的角色需有参考图；口播由 Seedance 按对白/旁白自行发挥，无需绑定音色',
         ],
+        dialogueForm: '角色名：台词',
+        cueExamples: {
+          bgm: '低沉史诗，音量低于人声',
+          visual: '浑浊黄河拍击老石……',
+          dialogue: '禹：水患未平，岂能退！',
+          narration: '千年后，人们仍记得这一战。',
+        },
         cuesTitle: '漫剧常用 cue（勿用科普版「全程旁白烧录」字幕句）',
         cues: [
           '**空镜 / 景别**：写成「{empty}…」「{wide}…」「{close}…」或 `{visual}`；**禁止**标成对白/旁白（会口播并烧字幕）',

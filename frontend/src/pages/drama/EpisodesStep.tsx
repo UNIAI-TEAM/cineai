@@ -7,6 +7,7 @@ import { useI18n } from '../../i18n/context'
 import { translate } from '../../i18n/translate'
 import { dialog } from '../../lib/dialog'
 import { loadDramaEpisodes } from '../../lib/dramaStoryboardNav'
+import { displayEpisodeName } from '../../lib/dramaWorkflow'
 import { readEpisodeSubtitleMode, subtitleModeUsesModelOutput } from '../../lib/dramaSubtitleBoard'
 import { FragmentPlanSkillModal } from '../../components/drama/FragmentPlanSkillModal'
 import { readFragmentGenerationStatus } from './dramaEpisodeEditUtils'
@@ -85,9 +86,10 @@ function summarizeEpisode(ep: DramaEpisode): EpisodeSummary {
   }
 }
 
-// 分集标题竖排展示用（过长截断）
+// 分集标题竖排展示用（过长截断；只有中文标题去空格，拉丁文字保留词间空格）
 function verticalTitleLabel(name: string, max = 14): string {
-  const clean = (name || '').replace(/\s+/g, '')
+  const raw = (name || '').trim()
+  const clean = /[\u4e00-\u9fff]/.test(raw) ? raw.replace(/\s+/g, '') : raw.replace(/\s+/g, ' ')
   if (clean.length <= max) return clean
   return `${clean.slice(0, max - 1)}…`
 }
@@ -303,14 +305,14 @@ export function EpisodesStep({ projectId, onError }: EpisodesStepProps) {
                   type="button"
                   className="drama-ep-card-poster"
                   onClick={() => navigate(`/drama/projects/${projectId}/episodes/${ep.id}`)}
-                  aria-label={t('dramaProject.episodes.editAria', { name: ep.name })}
+                  aria-label={t('dramaProject.episodes.editAria', { name: displayEpisodeName(ep.name) })}
                 >
                   {summary.previewUrl ? (
                     <img src={summary.previewUrl} alt="" className="drama-ep-card-poster-img" />
                   ) : (
                     <div className="drama-ep-card-poster-fallback">
                       <span className="drama-ep-card-poster-vertical">
-                        {verticalTitleLabel(ep.name)}
+                        {verticalTitleLabel(displayEpisodeName(ep.name))}
                       </span>
                     </div>
                   )}
@@ -326,7 +328,7 @@ export function EpisodesStep({ projectId, onError }: EpisodesStepProps) {
                 </button>
 
                 <div className="drama-ep-card-body">
-                  <h3 className="drama-ep-card-title">{ep.name}</h3>
+                  <h3 className="drama-ep-card-title">{displayEpisodeName(ep.name)}</h3>
                   <div className="drama-ep-card-meta">
                     <span className="drama-ep-card-meta-item">
                       <Layers size={14} strokeWidth={1.75} aria-hidden />

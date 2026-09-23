@@ -25,24 +25,19 @@ export const SUBTITLE_CUE = '【字幕：后期叠旁白字幕，简体中文逐
 /** 与后端一致的旁白前缀（科普自然偏快；旧稿「慢速清晰」仍可识别） */
 export const NARRATION_PREFIX = '【旁白·自然语速·同步字幕】'
 
-/** 与后端一致的 BGM cue 示例（协议标记，保持中文） */
-const BGM_CUE_EXAMPLE = '【BGM：后期混音 · 轻快专业，音量低于人声】'
-
 // 按当前界面语言取分镜脚本相关文案
 function segmentMessages() {
   return messages[getActiveLocale()].studioBoard.segment
 }
 
 /**
- * 脚本编辑区 placeholder：字幕/BGM/旁白协议标记保持中文，示例填充文案跟随界面语言
+ * 脚本编辑区 placeholder：字幕 cue 与旁白前缀后端按整串匹配（normalize / 后期字幕去烧录），保持中文；
+ * 【BGM：…】后端只认前缀、其后为配乐描述，所以描述与示例填充文案跟随界面语言
  */
 export function segmentScriptPlaceholder(): string {
   const seg = segmentMessages()
-  return `${SUBTITLE_CUE}\n${BGM_CUE_EXAMPLE}\n@duration:4\n${seg.placeholderVisual}\n@duration:8\n${NARRATION_PREFIX}${seg.placeholderNarration}`
+  return `${SUBTITLE_CUE}\n【BGM：${seg.placeholderBgm}】\n@duration:4\n${seg.placeholderVisual}\n@duration:8\n${NARRATION_PREFIX}${seg.placeholderNarration}`
 }
-
-/** 脚本编辑区 placeholder（中文默认值，兼容旧调用） */
-export const SEGMENT_SCRIPT_PLACEHOLDER = `${SUBTITLE_CUE}\n${BGM_CUE_EXAMPLE}\n@duration:4\n过肩工位操作画面…\n@duration:8\n${NARRATION_PREFIX}口播内容…`
 
 const DURATION_TOKEN_PATTERN = /@duration:(\d+)/g
 

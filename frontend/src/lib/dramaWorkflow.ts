@@ -75,3 +75,11 @@ export function displayDramaTitle(title: string | null | undefined): string {
   if (raw === DRAMA_DEFAULT_TITLE) return l.untitledDrama
   return raw
 }
+
+/** 分集展示名：后端默认名「第N集」/「第 N 集」按界面语言显示为「Tập N」等，其余原样返回 */
+export function displayEpisodeName(name: string | null | undefined): string {
+  const raw = (name || '').trim()
+  const match = raw.match(/^第\s*(\d+)\s*集$/)
+  if (!match) return name || ''
+  return interpolate(messages[getActiveLocale()].dramaProject.episodeNo, { n: Number(match[1]) })
+}

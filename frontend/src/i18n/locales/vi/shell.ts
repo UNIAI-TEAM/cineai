@@ -34,6 +34,7 @@ export const viShell = {
     pageSizeAfter: 'mục / trang',
     pageSummary: 'Trang {page} / {pageCount} · {total} mục',
     loginRequired: 'Vui lòng đăng nhập',
+    sessionExpired: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại',
     generateFailed: 'Tạo thất bại',
     queryFailed: 'Tra cứu thất bại',
     requestFailed: 'Có lỗi xảy ra, vui lòng thử lại',

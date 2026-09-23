@@ -176,6 +176,7 @@ export const zhDramaCanvas = {
       customDuration: '自定义（{min}–{max}s）',
       videoOutputAria: '画幅与清晰度',
       pickSkill: '选择 Skill',
+      noSkill: '不使用 Skill',
     },
     episode: {
       shotCount: '{count} 镜',

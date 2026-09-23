@@ -5,6 +5,7 @@ import { useI18n } from '../../i18n/context'
 import { getActiveLocale } from '../../i18n/detect'
 import { interpolate } from '../../i18n/lookup'
 import { messages } from '../../i18n/messages'
+import { displayEpisodeName } from '../../lib/dramaWorkflow'
 
 export type DramaEpisodeDirItem = {
   id: number
@@ -40,7 +41,7 @@ export function buildEpisodeDirItems(episodes: DramaEpisode[]): DramaEpisodeDirI
         epNo >= 1
           ? interpolate(l.episodeNo, { n: epNo })
           : interpolate(l.dir.unnumbered, { id: ep.id }),
-      title: ep.name || interpolate(l.episodeFallback, { id: ep.id }),
+      title: displayEpisodeName(ep.name) || interpolate(l.episodeFallback, { id: ep.id }),
       meta: fragCount > 0 ? interpolate(l.dir.shots, { n: fragCount }) : undefined,
     }
   })

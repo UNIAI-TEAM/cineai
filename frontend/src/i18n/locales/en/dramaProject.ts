@@ -276,10 +276,17 @@ export const enDramaProject = {
           'Clicking an asset in the left panel, or in the shot’s linked-assets bar, also inserts a reference',
           'Referenced characters need a reference image; Seedance voices dialogue/narration on its own, no voice binding needed',
         ],
+        dialogueForm: 'Character: line',
+        cueExamples: {
+          bgm: 'deep and epic, quieter than the voices',
+          visual: 'The muddy Yellow River crashes against ancient rocks…',
+          dialogue: 'Yu: The flood isn’t tamed yet. We can’t retreat!',
+          narration: 'A thousand years later, people still remember this battle.',
+        },
         cuesTitle: 'Common drama cues (don’t use the explainer-video “full narration burn-in” subtitle line)',
         cues: [
           '**Visual-only / shot size**: write `{empty}…`, `{wide}…`, `{close}…` or `{visual}`; **never** mark them as dialogue/narration (they’d be voiced and subtitled)',
-          '**Dialogue**: `{dialogueForm}` (character: line) or {dialogue}',
+          '**Dialogue**: `{dialogueForm}` or {dialogue}',
           '**Narration**: {narration}; subtitles change line by line in sync with the speech, never fill the screen with a whole block',
           '**Character intro**: text for important characters on first appearance sits **next to the character** (not bottom subtitles, not a centered title)',
           '**BGM**: quieter than voices, never competing',

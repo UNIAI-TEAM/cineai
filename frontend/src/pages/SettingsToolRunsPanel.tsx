@@ -11,9 +11,10 @@ import {
   resolveToolMediaUrl,
   type ToolRunRecord,
 } from '../api/tools'
-import { getToolDef } from '../lib/toolsCatalog'
+import { chipDisplayLabel, getToolDef, localizeToolDef } from '../lib/toolsCatalog'
+import { localizeStoredError } from '../lib/apiError'
 import { pageCountOf } from '../lib/pagination'
-import { formatDateTime, useI18n } from '../i18n'
+import { formatDateTime, useI18n, type Messages } from '../i18n'
 
 const PAGE_SIZE_DEFAULT = 8
 
@@ -34,10 +35,20 @@ function isVideoRecord(item: ToolRunRecord, url?: string): boolean {
   return /\.mp4($|\?)/i.test(target)
 }
 
+// 工具展示名（按界面语言）；未登记的工具显示 id
+function toolTitle(toolId: string, m: Messages): string {
+  const tool = getToolDef(toolId)
+  return tool ? localizeToolDef(tool, m).title : toolId
+}
+
+// 落库错误按界面语言展示（有错误码时翻译，否则原文）
+function toolRunError(item: ToolRunRecord): string {
+  return localizeStoredError(item.error, item.error_code, item.error_params)
+}
+
 // 下载文件名：工具名 + 记录 id
-function downloadName(item: ToolRunRecord, url: string): string {
-  const tool = getToolDef(item.tool_id)
-  const title = (tool?.title || item.tool_id).replace(/\s+/g, '')
+function downloadName(item: ToolRunRecord, url: string, m: Messages): string {
+  const title = toolTitle(item.tool_id, m).replace(/\s+/g, '')
   const ext = isVideoRecord(item, url) ? 'mp4' : url.match(/\.([a-z0-9]{3,4})($|\?)/i)?.[1] || 'png'
   return `${title}_${item.id}.${ext}`
 }
@@ -118,7 +129,7 @@ export default function SettingsToolRunsPanel() {
     setDownloading(abs)
     try {
       const blob = await fetchMediaBlob(abs)
-      triggerBlobDownload(blob, downloadName(item, abs))
+      triggerBlobDownload(blob, downloadName(item, abs, m))
     } catch (err) {
       setActionError(err instanceof Error ? err.message : t('settingsPanels.toolRuns.downloadFailed'))
     } finally {
@@ -153,7 +164,6 @@ export default function SettingsToolRunsPanel() {
       {items.length > 0 ? (
         <ul className="pf-settings-list">
           {items.map((item) => {
-            const tool = getToolDef(item.tool_id)
             const cover = coverOf(item)
             const video = isVideoRecord(item, cover)
             const firstUrl = item.urls[0] || item.preview_url || ''
@@ -172,7 +182,7 @@ export default function SettingsToolRunsPanel() {
                       <span className="pf-settings-thumb is-empty" aria-hidden />
                     )}
                     <span className="pf-settings-list-main">
-                      <strong>{tool?.title || item.tool_id}</strong>
+                      <strong>{toolTitle(item.tool_id, m)}</strong>
                       <em className="pf-muted">
                         {statusLabel(item.status)}
                         {item.prompt ? ` · ${item.prompt.slice(0, 36)}` : ''}
@@ -223,7 +233,7 @@ export default function SettingsToolRunsPanel() {
         onClose={() => setDetail(null)}
         title={
           detail
-            ? getToolDef(detail.tool_id)?.title || t('settingsPanels.toolRuns.detailTitle')
+            ? toolTitle(detail.tool_id, m) || t('settingsPanels.toolRuns.detailTitle')
             : t('settingsPanels.toolRuns.detailTitle')
         }
         size="lg"
@@ -268,7 +278,7 @@ export default function SettingsToolRunsPanel() {
               ) : (
                 <p className="pf-muted">
                   {statusLabel(detail.status)}
-                  {detail.error ? ` · ${detail.error}` : ` · ${t('settingsPanels.toolRuns.resultNotReady')}`}
+                  {detail.error ? ` · ${toolRunError(detail)}` : ` · ${t('settingsPanels.toolRuns.resultNotReady')}`}
                 </p>
               )}
             </div>
@@ -296,19 +306,19 @@ export default function SettingsToolRunsPanel() {
               {detail.params?.mode ? (
                 <div>
                   <dt>{t('settingsPanels.toolRuns.meta.mode')}</dt>
-                  <dd>{detail.params.mode}</dd>
+                  <dd>{chipDisplayLabel(detail.params.mode, m)}</dd>
                 </div>
               ) : null}
               {detail.params?.pack ? (
                 <div>
                   <dt>{t('settingsPanels.toolRuns.meta.pack')}</dt>
-                  <dd>{detail.params.pack}</dd>
+                  <dd>{chipDisplayLabel(detail.params.pack, m)}</dd>
                 </div>
               ) : null}
               {detail.error ? (
                 <div className="is-block">
                   <dt>{t('settingsPanels.toolRuns.meta.error')}</dt>
-                  <dd className="pf-error">{detail.error}</dd>
+                  <dd className="pf-error">{toolRunError(detail)}</dd>
                 </div>
               ) : null}
             </dl>

@@ -4,6 +4,13 @@ export const viDramaAssets = {
   dramaAssets: {
     common: {
       untitled: 'Chưa đặt tên',
+      untitledVoice: 'Giọng chưa đặt tên',
+      nodeNo: 'Nút {n}',
+      assetNo: 'Tư liệu {n}',
+      voice: 'Giọng',
+      voiceOf: 'Giọng {name}',
+      narratorVoice: 'Giọng lời dẫn',
+      characterVoice: 'Giọng nhân vật',
       preview: 'Xem trước',
       clickToZoom: 'Bấm để phóng to',
       projectNo: 'Dự án #{id}',
@@ -211,6 +218,7 @@ export const viDramaAssets = {
       speakerHint: ' (mỗi nhân vật sẽ tự khớp với một giọng TTS khác nhau)',
       synthButton: 'Tạo giọng nghe thử theo prompt',
       suggestFailed: 'AI không viết được mô tả giọng',
+      promptEmpty: 'AI chưa viết ra mô tả giọng, vui lòng thử lại',
       synthFailed: 'Không tạo được giọng',
       resynthFailed: 'Không tạo lại được giọng',
       selectRequired: 'Hãy chọn một giọng đã tạo để nghe thử',

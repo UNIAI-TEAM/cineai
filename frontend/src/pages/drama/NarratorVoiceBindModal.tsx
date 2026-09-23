@@ -8,6 +8,8 @@ import { dramaApi, resolveDramaMediaUrl, type DramaAsset, type DramaProject } fr
 import Modal from '../../components/ui/Modal'
 import type { VoiceBinding } from './CharacterVoiceBindModal'
 import { useI18n } from '../../i18n/context'
+import { displayDramaAssetName } from '../../lib/dramaLibraryAssets'
+import { translate } from '../../i18n/translate'
 
 type Props = {
   project: DramaProject
@@ -24,7 +26,8 @@ function readNarrationVoiceBinding(project: DramaProject): VoiceBinding | null {
   const data = raw as Record<string, unknown>
   const sourceAssetId = typeof data.sourceAssetId === 'number' ? data.sourceAssetId : null
   const url = typeof data.url === 'string' ? data.url : ''
-  const label = typeof data.label === 'string' ? data.label : '旁白音色'
+  const label =
+    typeof data.label === 'string' ? displayDramaAssetName(data.label) : translate('dramaAssets.common.narratorVoice')
   if (!sourceAssetId || !url) return null
   return {
     sourceAssetId,
@@ -77,7 +80,8 @@ export function NarratorVoiceBindModal({ project, open, onClose, onUpdated, onEr
       const binding: VoiceBinding = {
         sourceAssetId: selectedVoice.id,
         url: selectedVoice.url,
-        label: selectedVoice.name || '旁白音色',
+        // 无名称时按当前界面语言写入默认标签（展示时 displayDramaAssetName 兼容旧的中文值）
+        label: selectedVoice.name || t('dramaAssets.common.narratorVoice'),
         // Narrator 端当前不依赖 voicePrompt；但保留字段给后续扩展
         voicePrompt:
           selectedVoice.params && typeof selectedVoice.params === 'object' && typeof (selectedVoice.params as any).voicePrompt === 'string'
@@ -172,7 +176,7 @@ export function NarratorVoiceBindModal({ project, open, onClose, onUpdated, onEr
                   onChange={() => setSelectedId(voice.id)}
                 />
                 <span>
-                  {voice.name || t('dramaAssets.common.voiceNumbered', { id: voice.id })}{' '}
+                  {voice.name ? displayDramaAssetName(voice.name) : t('dramaAssets.common.voiceNumbered', { id: voice.id })}{' '}
                   <small>
                     {hasAudio
                       ? t('dramaAssets.common.synthesized')

@@ -34,6 +34,7 @@ export const enShell = {
     pageSizeAfter: 'per page',
     pageSummary: 'Page {page} of {pageCount} · {total} items',
     loginRequired: 'Please sign in',
+    sessionExpired: 'Your session has expired. Please sign in again.',
     generateFailed: 'Generation failed',
     queryFailed: 'Query failed',
     requestFailed: 'Request failed',

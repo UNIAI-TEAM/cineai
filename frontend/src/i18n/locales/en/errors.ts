@@ -151,6 +151,7 @@ export const enErrors = {
     slotNamed: '{kind} “{name}”',
     contentItem: 'item {n} of the request / content[{idx}]',
     genericFailed: 'Generation failed',
+    unknownMessage: 'Something went wrong during generation.',
     empty: {
       message: 'The task didn’t finish and no error details were recorded.',
       suggestion:
@@ -158,11 +159,13 @@ export const enErrors = {
     },
     timeout: {
       title: 'The model provider timed out',
+      message: 'The model provider took too long to respond.',
       suggestion:
         'The model provider was reachable, but the image or video took longer than the limit. Try again later. If text works and only images or videos time out, the provider queue is probably slow; your network is fine.',
     },
     network: {
       title: 'Can’t reach the image/video service',
+      message: 'The server couldn’t reach the image/video service.',
       suggestion:
         'This server can’t reach the model provider right now (often a blocked proxy or a network outage). Check the network or proxy and try again, and make sure the provider key in the admin panel is valid.',
     },
@@ -194,6 +197,7 @@ export const enErrors = {
     },
     retryExhausted: {
       title: 'Still failing after several tries',
+      message: 'This generation was retried automatically several times and still failed.',
       suggestion:
         'The automatic retries inside this task ran out; you can still click Generate again. Fix the real cause first (often the real-person check on reference images), then generate again.',
     },
@@ -250,6 +254,7 @@ export const enErrors = {
     },
     videoFailed: {
       title: 'Video generation failed',
+      message: 'The model provider couldn’t generate this video.',
       suggestion: 'Try this shot again later. If it keeps failing, change the reference images or simplify the script.',
     },
     duplicateSkipped: {

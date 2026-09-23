@@ -10,5 +10,4 @@
   <circle cx="140" cy="88" r="6" fill="#2a2a2a"/>
   <circle cx="180" cy="88" r="6" fill="#2a2a2a"/>
   <path d="M146 110 Q160 122 174 110" stroke="#2a2a2a" stroke-width="3" fill="none" stroke-linecap="round"/>
-  <text x="160" y="28" text-anchor="middle" fill="#fff" font-family="sans-serif" font-size="16" font-weight="700">3D 动画</text>
 </svg>

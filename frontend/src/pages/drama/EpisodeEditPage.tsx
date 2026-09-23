@@ -91,6 +91,7 @@ import {
 import { DramaAssetDetailModal } from './DramaAssetDetailModal'
 import { buildEpisodeDirItems, DramaEpisodeDir } from './DramaEpisodeDir'
 import RequireAuth from './RequireAuth'
+import { displayEpisodeName } from '../../lib/dramaWorkflow'
 import { useI18n } from '../../i18n/context'
 import { translate } from '../../i18n/translate'
 import './drama.css'
@@ -606,7 +607,7 @@ function EpisodeEditInner() {
       syncEpisodeVideoJobs({
         projectId: pid,
         episodeId: eid,
-        episodeName: episode?.name,
+        episodeName: displayEpisodeName(episode?.name),
         fragments: next.map((f) => ({
           id: f.id,
           sort_order: f.sort_order,
@@ -959,7 +960,7 @@ function EpisodeEditInner() {
       enqueueEpisodeVideoJobs({
         projectId: pid,
         episodeId: eid,
-        episodeName: ep.name || episode?.name,
+        episodeName: displayEpisodeName(ep.name || episode?.name),
         fragments: (ep.fragments || []).map((f, i) => ({
           id: f.id,
           sort_order: f.sort_order ?? i,
@@ -1108,7 +1109,7 @@ function EpisodeEditInner() {
       enqueueEpisodeVideoJobs({
         projectId: pid,
         episodeId: eid,
-        episodeName: ep.name || episode?.name,
+        episodeName: displayEpisodeName(ep.name || episode?.name),
         fragments: (ep.fragments || []).map((f, i) => ({
           id: f.id,
           sort_order: f.sort_order ?? i,
@@ -1373,7 +1374,7 @@ function EpisodeEditInner() {
       (j) => j.id === videoJobId(frag.id!) || (j.kind === 'video' && j.targetId === frag.id),
     )
     const gen = readFragmentGenerationStatus(frag)
-    const title = `${episode?.name || t('dramaEpisode.thisEpisode')} · ${formatFragLabel(index, frag.duration_sec)}`
+    const title = `${displayEpisodeName(episode?.name) || t('dramaEpisode.thisEpisode')} · ${formatFragLabel(index, frag.duration_sec)}`
     setFailReasonJob({
       id: fromQueue?.id || videoJobId(frag.id),
       kind: 'video',
@@ -1435,7 +1436,7 @@ function EpisodeEditInner() {
           <button type="button" className="drama-ep-icon-btn" aria-label={t('dramaEpisode.page.back')} onClick={handleBack}>
             ‹
           </button>
-          <h1>{episode.name}</h1>
+          <h1>{displayEpisodeName(episode.name)}</h1>
         </div>
         <div className="drama-ep-header-controls">
           <EpisodeEditHeaderControls
@@ -1718,7 +1719,7 @@ function EpisodeEditInner() {
           onPlayingFragmentChange={handlePlayingFragmentChange}
           aspectRatio={aspectRatio}
           episodeId={episode?.id}
-          episodeName={episode?.name || t('dramaEpisode.thisEpisode')}
+          episodeName={displayEpisodeName(episode?.name) || t('dramaEpisode.thisEpisode')}
           subtitleMode={subtitleMode}
           onOpenStoryboard={openEpisodeStoryboard}
           previewVideoUrl={previewVideoUrl}

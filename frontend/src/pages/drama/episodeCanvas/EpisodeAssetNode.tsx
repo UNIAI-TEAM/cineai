@@ -4,6 +4,7 @@ import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import { X } from 'lucide-react'
 import type { EpisodeAssetNodeData } from './buildEpisodeFlow'
 import { useI18n } from '../../../i18n/context'
+import { displayDramaAssetName } from '../../../lib/dramaLibraryAssets'
 
 type Props = NodeProps<Node<EpisodeAssetNodeData>> & {
   onUnlinkAsset?: (fragmentId: number, assetId: number) => void
@@ -13,10 +14,10 @@ type Props = NodeProps<Node<EpisodeAssetNodeData>> & {
 function EpisodeAssetNodeComponent({ data, selected, onUnlinkAsset }: Props) {
   const { t } = useI18n()
   const links = data.linkedFragments || []
-  const name = data.name || t('dramaCanvas.episode.assetFallback', { id: data.assetId })
+  const name = data.name ? displayDramaAssetName(data.name) : t('dramaCanvas.episode.assetFallback', { id: data.assetId })
   const typeLabel = data.typeTab
     ? t(`dramaCanvas.assetTab.${data.typeTab}`)
-    : data.typeLabel || t('dramaCanvas.episode.asset')
+    : (!/[\u4e00-\u9fff]/.test(data.typeLabel) && data.typeLabel) || t('dramaCanvas.episode.asset')
   // 分镜标签为空时按语言兜底
   const linkLabel = (link: { fragmentId: number; label: string }) =>
     link.label || t('dramaCanvas.episode.shotFallback', { id: link.fragmentId })

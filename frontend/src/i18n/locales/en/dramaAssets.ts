@@ -4,6 +4,13 @@ export const enDramaAssets = {
   dramaAssets: {
     common: {
       untitled: 'Untitled',
+      untitledVoice: 'Untitled voice',
+      nodeNo: 'Node {n}',
+      assetNo: 'Asset {n}',
+      voice: 'Voice',
+      voiceOf: '{name} voice',
+      narratorVoice: 'Narrator voice',
+      characterVoice: 'Character voice',
       preview: 'Preview',
       clickToZoom: 'Click to enlarge',
       projectNo: 'Project #{id}',
@@ -211,6 +218,7 @@ export const enDramaAssets = {
       speakerHint: ' (each character gets a different TTS speaker)',
       synthButton: 'Generate preview from prompt',
       suggestFailed: 'AI couldn’t write a voice description',
+      promptEmpty: 'AI returned an empty voice description. Please try again.',
       synthFailed: 'Couldn’t generate voice',
       resynthFailed: 'Couldn’t regenerate voice',
       selectRequired: 'Pick a voice that has a preview',

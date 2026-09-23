@@ -1,5 +1,6 @@
 import type { DramaAsset } from '../api/drama'
 import { getActiveLocale } from '../i18n/detect'
+import { interpolate } from '../i18n/lookup'
 import { messages } from '../i18n/messages'
 
 /** 后端落库的中文默认资产名（画布新建节点 / 导入未命名）→ 展示用文案 key */
@@ -37,7 +38,22 @@ export function filterDramaLibraryAssets(assets: DramaAsset[]): DramaAsset[] {
 export function displayDramaAssetName(name: string | null | undefined): string {
   const raw = (name || '').trim()
   const m = messages[getActiveLocale()]
-  if (!raw || raw === '未命名') return m.dramaAssets.common.untitled
+  const c = m.dramaAssets.common
+  if (!raw || raw === '未命名' || raw === '未命名资产') return c.untitled
   const key = DEFAULT_ASSET_NAME_KEYS[raw]
-  return key ? m.dramaCanvas.defaultLabel[key] : raw
+  if (key) return m.dramaCanvas.defaultLabel[key]
+  // 音色类默认名（前端 / 后端生成时写入的中文）
+  if (raw === '未命名音色') return c.untitledVoice
+  if (raw === '音色') return c.voice
+  if (raw === '旁白音色') return c.narratorVoice
+  if (raw === '角色音色') return c.characterVoice
+  // 画布 / 后端编号默认名：「节点 3」「资产 12」
+  const node = raw.match(/^节点 (\d+)$/)
+  if (node) return interpolate(c.nodeNo, { n: Number(node[1]) })
+  const asset = raw.match(/^资产 (\d+)$/)
+  if (asset) return interpolate(c.assetNo, { n: Number(asset[1]) })
+  // 「{角色名}音色」：角色名是用户数据，原样保留
+  const voiceOf = raw.match(/^(.+)音色$/)
+  if (voiceOf) return interpolate(c.voiceOf, { name: voiceOf[1].trim() })
+  return raw
 }

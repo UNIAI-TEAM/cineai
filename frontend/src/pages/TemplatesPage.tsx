@@ -14,9 +14,11 @@ import { useI18n } from '../i18n'
 export default function TemplatesPage() {
   const nav = useNavigate()
   const { t, m, locale } = useI18n()
-  // 分类展示名随界面语言变化；未登记的分类键原样显示
+  // 分类展示名随界面语言变化；未登记的分类键原样显示（非中文界面下含汉字的显示「其他」）
   const categoryMap = m.categories as Record<string, string>
-  const labelOf = (key: string) => categoryMap[key] || key
+  const labelOf = (key: string) =>
+    categoryMap[key] ||
+    (locale !== 'zh' && /[\u4e00-\u9fff]/.test(key) ? t('settingsPanels.templates.categoryOther') : key)
   const [templates, setTemplates] = useState<Template[]>([])
   const [error, setError] = useState('')
   const [category, setCategory] = useState('全部')

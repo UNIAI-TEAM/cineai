@@ -86,7 +86,7 @@ function detailText(detail: unknown): string {
 
 /**
  * 解析接口错误响应体。
- * 文案优先级：已翻译的 code → detail → fallback → 通用「请求失败」。
+ * 文案优先级：已翻译的 code →（401）重新登录 → detail → fallback → 通用「请求失败」。
  */
 export function parseApiError(status: number, body: unknown, fallback?: string): ApiError {
   const data = (body && typeof body === 'object' ? body : {}) as {
@@ -97,8 +97,11 @@ export function parseApiError(status: number, body: unknown, fallback?: string):
   const code = typeof data.code === 'string' ? data.code : undefined
   const params =
     data.params && typeof data.params === 'object' ? (data.params as ErrorParams) : undefined
+  // 401 且无已登记错误码（后端 deps 的「未登录」「登录已失效」）：统一提示重新登录，不显示原文
+  const sessionText = status === 401 ? apiErrorText('sessionExpired') : ''
   const message =
     translateErrorCode(code, params) ||
+    sessionText ||
     detailText(data.detail) ||
     fallback ||
     apiErrorText('requestFailed')
