@@ -13,7 +13,7 @@ export function useAdminModelSettings() {
     try {
       setForm(await api<AdminModelSettings>("/api/admin/settings/models"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "加载配置失败");
+      toast.error(err instanceof Error ? err.message : "Không tải được cấu hình");
     } finally {
       setLoading(false);
     }
@@ -27,14 +27,14 @@ export function useAdminModelSettings() {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
-  async function save(body: Record<string, unknown>, successMessage = "配置已保存") {
+  async function save(body: Record<string, unknown>, successMessage = "Đã lưu cấu hình") {
     setSaving(true);
     try {
       await api("/api/admin/settings/models", { method: "PATCH", body: JSON.stringify(body) });
       await load();
       toast.success(successMessage);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败");
+      toast.error(err instanceof Error ? err.message : "Không lưu được");
     } finally {
       setSaving(false);
     }

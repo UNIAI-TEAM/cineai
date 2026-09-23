@@ -33,17 +33,17 @@ function buildHref(kind: EntityKind, id: number): string {
 function defaultLabel(kind: EntityKind, id: number): string {
   switch (kind) {
     case "user":
-      return `ID：${formatAccountId(id)}`;
+      return `ID: ${formatAccountId(id)}`;
     case "project":
-      return `科普#${id}`;
+      return `Video kiến thức #${id}`;
     case "drama":
-      return `漫剧#${id}`;
+      return `Phim ngắn #${id}`;
     case "drama_asset":
-      return `资产#${id}`;
+      return `Tư liệu #${id}`;
     case "task":
-      return `任务#${id}`;
+      return `Tác vụ #${id}`;
     case "order":
-      return `订单#${id}`;
+      return `Đơn nạp #${id}`;
     default:
       return String(id);
   }

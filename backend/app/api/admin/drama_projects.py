@@ -187,7 +187,7 @@ async def get_drama_project(
         )
     ).first()
     if not row:
-        raise HTTPException(status_code=404, detail="漫剧项目不存在")
+        raise HTTPException(status_code=404, detail="Không tìm thấy dự án phim ngắn")
     project, email = row
 
     usage = await aggregate_usage_summary(db, drama_project_id=project_id)
@@ -211,7 +211,7 @@ async def get_drama_project(
     data.episodes = [
         AdminDramaEpisodeBriefOut(
             id=ep.id,
-            name=ep.name or f"集 #{ep.id}",
+            name=ep.name or f"Tập #{ep.id}",
             fragment_count=len(ep.fragments or []),
             fragment_plan_status=(
                 str((ep.params or {}).get("fragment_plan_status"))

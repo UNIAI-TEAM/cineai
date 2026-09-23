@@ -39,7 +39,7 @@ export function PaymentSettingsPanel() {
 
   // 记账单位（分）字段的换算提示
   function fenHint(fen: number, prefix = ""): string {
-    return `${prefix}${fen} 分 ≈ ${format(fen)}`;
+    return `${prefix}${fen} fen ≈ ${format(fen)}`;
   }
 
   async function handleSave() {
@@ -87,7 +87,7 @@ export function PaymentSettingsPanel() {
         smtp_from: form.smtp_from,
         smtp_use_tls: form.smtp_use_tls,
       },
-      "支付与汇率已保存",
+      "Đã lưu thanh toán và tỷ giá",
     );
     setSmtpPasswordInput("");
     setClearSmtpPassword(false);
@@ -100,35 +100,35 @@ export function PaymentSettingsPanel() {
   return (
     <SettingsTabShell onSave={() => void handleSave()} saving={saving || rates.saving}>
       <SettingsStatusBar
-        title="支付就绪状态"
+        title="Tình trạng thanh toán"
         items={[
           {
             id: "bank",
-            label: "银行转账",
+            label: "Chuyển khoản ngân hàng",
             ready: bankReady,
-            readyText: "已配置",
-            pendingText: "未填收款信息",
+            readyText: "Đã cấu hình",
+            pendingText: "Chưa nhập tài khoản nhận tiền",
           },
           {
             id: "billing",
-            label: "Token 计费",
+            label: "Tính phí theo token",
             ready: form.billing_enabled,
-            readyText: "已开启",
-            pendingText: "已关闭",
+            readyText: "Đang bật",
+            pendingText: "Đang tắt",
           },
           {
             id: "rates",
-            label: "模型价目",
+            label: "Bảng giá mô hình",
             ready: !rates.loadError && (rates.data?.unpriced_models.length ?? 0) === 0,
-            readyText: "已覆盖全部模型",
-            pendingText: rates.loadError ? "加载失败" : `${rates.data?.unpriced_models.length ?? 0} 个模型未定价`,
+            readyText: "Đã có giá cho mọi mô hình",
+            pendingText: rates.loadError ? "Không tải được" : `${rates.data?.unpriced_models.length ?? 0} mô hình chưa có giá`,
           },
           {
             id: "smtp",
             label: "SMTP",
             ready: smtpReady,
-            readyText: "已配置",
-            pendingText: form.smtp_enabled ? "不完整" : "未启用",
+            readyText: "Đã cấu hình",
+            pendingText: form.smtp_enabled ? "Chưa đủ thông tin" : "Chưa bật",
           },
         ]}
       />
@@ -136,67 +136,67 @@ export function PaymentSettingsPanel() {
       <div className="settings-routing-grid">
         <SettingsPanel
           className="settings-panel--compact"
-          title="1. 银行转账收款"
-          description="用户充值时展示的收款账户；未填写则定价页提示「充值暂未开放」"
+          title="1. Nhận tiền qua chuyển khoản"
+          description="Tài khoản hiện cho người dùng khi nạp tiền. Để trống thì trang bảng giá báo “Chưa mở nạp tiền”"
         >
           <div className="settings-field-grid">
-            <LabeledControl label="银行名称">
+            <LabeledControl label="Tên ngân hàng">
               <input
                 className="settings-input"
-                placeholder="例如 Vietcombank"
+                placeholder="Vd. Vietcombank"
                 value={form.topup_bank_name}
                 onChange={(e) => patchField("topup_bank_name", e.target.value)}
               />
             </LabeledControl>
-            <LabeledControl label="收款账号">
+            <LabeledControl label="Số tài khoản">
               <input
                 className="settings-input"
                 value={form.topup_bank_account}
                 onChange={(e) => patchField("topup_bank_account", e.target.value)}
               />
             </LabeledControl>
-            <LabeledControl label="户名">
+            <LabeledControl label="Chủ tài khoản">
               <input
                 className="settings-input"
                 value={form.topup_bank_holder}
                 onChange={(e) => patchField("topup_bank_holder", e.target.value)}
               />
             </LabeledControl>
-            <LabeledControl label="银行 BIN" hint="可选；填写后为用户生成 VietQR 转账二维码">
+            <LabeledControl label="Mã BIN ngân hàng" hint="Không bắt buộc. Có mã BIN thì người dùng được tạo mã VietQR để chuyển khoản">
               <input
                 className="settings-input"
-                placeholder="例如 970436"
+                placeholder="Vd. 970436"
                 value={form.topup_bank_bin}
                 onChange={(e) => patchField("topup_bank_bin", e.target.value)}
               />
             </LabeledControl>
           </div>
           <p className="settings-field-hint mt-2">
-            银行 BIN 可在{" "}
+            Tra mã BIN ngân hàng tại{" "}
             <a className="text-[#409eff] hover:underline" href="https://vietqr.io" target="_blank" rel="noreferrer">
               vietqr.io
-            </a>{" "}
-            查询；用户转账时需在备注填写商户单号，管理员在「订单流水」核对后点击「确认到账」。
+            </a>
+            . Khi chuyển khoản, người dùng phải ghi mã đơn vào nội dung; quản trị viên đối chiếu ở mục “Đơn nạp tiền” rồi bấm “Xác nhận đã nhận tiền”.
           </p>
         </SettingsPanel>
 
         <SettingsPanel
           className="settings-panel--compact"
-          title="2. 汇率与展示货币"
-          description="钱包内部按记账单位（分）核算，界面按汇率折算为 VND / USD 展示"
+          title="2. Tỷ giá và tiền tệ hiển thị"
+          description="Ví tính nội bộ theo đơn vị ghi sổ (fen), giao diện quy đổi sang VND / USD theo tỷ giá"
         >
           <div className="settings-field-grid">
-            <LabeledControl label="默认展示货币" hint="用户端与管理端未手动切换时的默认货币">
+            <LabeledControl label="Tiền tệ hiển thị mặc định" hint="Dùng cho trang người dùng và trang quản trị khi chưa tự chọn tiền tệ">
               <select
                 className="settings-select"
                 value={form.billing_display_currency}
                 onChange={(e) => patchField("billing_display_currency", e.target.value as "VND" | "USD")}
               >
-                <option value="VND">VND（越南盾）</option>
-                <option value="USD">USD（美元）</option>
+                <option value="VND">VND (Việt Nam đồng)</option>
+                <option value="USD">USD (đô la Mỹ)</option>
               </select>
             </LabeledControl>
-            <LabeledControl label="待支付单有效期（小时）" hint="超时未确认的银行转账订单自动关闭">
+            <LabeledControl label="Hạn đơn chờ thanh toán (giờ)" hint="Đơn chuyển khoản quá hạn chưa xác nhận sẽ tự đóng">
               <input
                 className="settings-input"
                 type="number"
@@ -205,7 +205,7 @@ export function PaymentSettingsPanel() {
                 onChange={(e) => patchField("topup_order_expire_hours", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="VND 汇率（1 记账元 = ? VND）" hint={`当前：100 分 ≈ ${format(100)}`}>
+            <LabeledControl label="Tỷ giá VND (1 đơn vị ghi sổ = ? VND)" hint={`Hiện tại: 100 fen ≈ ${format(100)}`}>
               <input
                 className="settings-input"
                 type="number"
@@ -215,7 +215,7 @@ export function PaymentSettingsPanel() {
                 onChange={(e) => patchField("billing_cny_vnd", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="USD 汇率（1 USD = ? 记账元）" hint="也用于把模型价目（美元）折算为记账单位">
+            <LabeledControl label="Tỷ giá USD (1 USD = ? đơn vị ghi sổ)" hint="Cũng dùng để quy đổi bảng giá mô hình (USD) sang đơn vị ghi sổ">
               <input
                 className="settings-input"
                 type="number"
@@ -227,7 +227,7 @@ export function PaymentSettingsPanel() {
             </LabeledControl>
           </div>
           <p className="settings-field-hint mt-2">
-            汇率变更只影响之后的展示与新建订单；已建订单保留下单时记录的应付金额与币种。保存后需刷新页面以更新前端缓存的汇率。
+            Đổi tỷ giá chỉ ảnh hưởng đến hiển thị và đơn tạo sau đó; đơn đã tạo giữ số tiền cần trả và loại tiền lúc đặt. Sau khi lưu, tải lại trang để cập nhật tỷ giá đang lưu trên trình duyệt.
           </p>
         </SettingsPanel>
       </div>
@@ -235,18 +235,18 @@ export function PaymentSettingsPanel() {
       <div className="settings-routing-grid">
         <SettingsPanel
           className="settings-panel--compact"
-          title="3. Token 计费"
-          description="按模型价目表（美元）折算成本 1:1 扣费，不加价"
+          title="3. Tính phí theo token"
+          description="Trừ tiền đúng bằng chi phí quy đổi từ bảng giá mô hình (USD), không cộng thêm"
         >
           <div className="settings-toggle-row">
             <div>
-              <strong>启用 Token 计费</strong>
-              <span>关闭后生成不扣余额</span>
+              <strong>Bật tính phí theo token</strong>
+              <span>Tắt thì tạo nội dung không trừ số dư</span>
             </div>
             <Switch checked={form.billing_enabled} onCheckedChange={(v) => patchField("billing_enabled", v)} />
           </div>
           <div className="settings-field-grid mt-3">
-            <LabeledControl label="预估缓冲系数">
+            <LabeledControl label="Hệ số dự phòng khi ước tính">
               <input
                 className="settings-input"
                 type="number"
@@ -256,7 +256,7 @@ export function PaymentSettingsPanel() {
                 onChange={(e) => patchField("billing_estimate_buffer", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="注册赠送（分）" hint={fenHint(form.billing_signup_grant_fen)}>
+            <LabeledControl label="Tặng khi đăng ký (fen)" hint={fenHint(form.billing_signup_grant_fen)}>
               <input
                 className="settings-input"
                 type="number"
@@ -267,8 +267,8 @@ export function PaymentSettingsPanel() {
             </LabeledControl>
           </div>
 
-          <div className="settings-subsection-title">兜底单价（未匹配价目表时，记账元 / 百万 token）</div>
-          <p className="settings-field-hint">1 记账元 = 100 分 ≈ {format(100)}</p>
+          <div className="settings-subsection-title">Đơn giá dự phòng (khi không khớp bảng giá, đơn vị ghi sổ / 1 triệu token)</div>
+          <p className="settings-field-hint">1 đơn vị ghi sổ = 100 fen ≈ {format(100)}</p>
           <div className="settings-field-grid">
             <LabeledControl label="LLM">
               <input
@@ -279,7 +279,7 @@ export function PaymentSettingsPanel() {
                 onChange={(e) => patchField("billing_llm_per_m", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="Seedream 生图">
+            <LabeledControl label="Seedream tạo ảnh">
               <input
                 className="settings-input"
                 type="number"
@@ -288,7 +288,7 @@ export function PaymentSettingsPanel() {
                 onChange={(e) => patchField("billing_seedream_per_m", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="TTS 语音">
+            <LabeledControl label="TTS giọng đọc">
               <input
                 className="settings-input"
                 type="number"
@@ -317,9 +317,9 @@ export function PaymentSettingsPanel() {
             </LabeledControl>
           </div>
 
-          <div className="settings-subsection-title">估算 token（缺 usage 时）</div>
+          <div className="settings-subsection-title">Token ước tính (khi thiếu usage)</div>
           <div className="settings-field-grid">
-            <LabeledControl label="LLM 估算">
+            <LabeledControl label="LLM ước tính">
               <input
                 className="settings-input"
                 type="number"
@@ -327,7 +327,7 @@ export function PaymentSettingsPanel() {
                 onChange={(e) => patchField("billing_est_llm_tokens", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="Seedream 估算">
+            <LabeledControl label="Seedream ước tính">
               <input
                 className="settings-input"
                 type="number"
@@ -335,7 +335,7 @@ export function PaymentSettingsPanel() {
                 onChange={(e) => patchField("billing_est_seedream_tokens", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="TTS 估算">
+            <LabeledControl label="TTS ước tính">
               <input
                 className="settings-input"
                 type="number"
@@ -343,7 +343,7 @@ export function PaymentSettingsPanel() {
                 onChange={(e) => patchField("billing_est_tts_tokens", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="Seedance token/秒">
+            <LabeledControl label="Seedance token/giây">
               <input
                 className="settings-input"
                 type="number"
@@ -356,13 +356,13 @@ export function PaymentSettingsPanel() {
 
         <SettingsPanel
           className="settings-panel--compact"
-          title="4. 额度告警与 SMTP"
-          description="用户消费提醒与平台费用邮件"
+          title="4. Cảnh báo chi tiêu và SMTP"
+          description="Nhắc người dùng về chi tiêu và gửi email chi phí nền tảng"
         >
           <div className="settings-toggle-row">
             <div>
-              <strong>用户弹窗提醒</strong>
-              <span>累计扣费达间隔档位时弹一次（跨多档也不连弹）</span>
+              <strong>Hiện thông báo cho người dùng</strong>
+              <span>Hiện một lần khi tổng tiền đã trừ chạm mỗi mốc (vượt nhiều mốc cùng lúc vẫn chỉ hiện một lần)</span>
             </div>
             <Switch
               checked={form.billing_user_alert_enabled}
@@ -371,8 +371,8 @@ export function PaymentSettingsPanel() {
           </div>
           <div className="settings-field-grid mt-2">
             <LabeledControl
-              label="提醒间隔（分）"
-              hint={`${fenHint(form.billing_user_alert_interval_fen)}；每笔结算最多弹一次`}
+              label="Khoảng cách mốc nhắc (fen)"
+              hint={`${fenHint(form.billing_user_alert_interval_fen)}; mỗi lần quyết toán hiện tối đa một lần`}
             >
               <input
                 className="settings-input"
@@ -386,8 +386,8 @@ export function PaymentSettingsPanel() {
 
           <div className="settings-toggle-row mt-3">
             <div>
-              <strong>管理员邮件告警</strong>
-              <span>按上游 cost 汇总达阈值后发信</span>
+              <strong>Email cảnh báo cho quản trị viên</strong>
+              <span>Gửi email khi tổng giá gốc nhà cung cấp chạm ngưỡng</span>
             </div>
             <Switch
               checked={form.billing_admin_cost_alert_enabled}
@@ -395,7 +395,7 @@ export function PaymentSettingsPanel() {
             />
           </div>
           <div className="settings-field-grid mt-2">
-            <LabeledControl label="告警阈值（分）" hint={fenHint(form.billing_admin_cost_alert_threshold_fen)}>
+            <LabeledControl label="Ngưỡng cảnh báo (fen)" hint={fenHint(form.billing_admin_cost_alert_threshold_fen)}>
               <input
                 className="settings-input"
                 type="number"
@@ -406,18 +406,18 @@ export function PaymentSettingsPanel() {
                 }
               />
             </LabeledControl>
-            <LabeledControl label="统计周期">
+            <LabeledControl label="Chu kỳ tính">
               <select
                 className="settings-select"
                 value={form.billing_admin_cost_alert_period}
                 onChange={(e) => patchField("billing_admin_cost_alert_period", e.target.value)}
               >
-                <option value="daily">每日</option>
-                <option value="monthly">每月</option>
-                <option value="all_time">累计</option>
+                <option value="daily">Hằng ngày</option>
+                <option value="monthly">Hằng tháng</option>
+                <option value="all_time">Cộng dồn</option>
               </select>
             </LabeledControl>
-            <LabeledControl label="收件邮箱" hint="逗号分隔" className="settings-field-span-full">
+            <LabeledControl label="Email nhận" hint="Cách nhau bằng dấu phẩy" className="settings-field-span-full">
               <input
                 className="settings-input"
                 placeholder="admin@example.com"
@@ -429,13 +429,13 @@ export function PaymentSettingsPanel() {
 
           <div className="settings-toggle-row mt-3">
             <div>
-              <strong>启用 SMTP</strong>
-              <span>邮件告警依赖 SMTP</span>
+              <strong>Bật SMTP</strong>
+              <span>Email cảnh báo cần SMTP để gửi</span>
             </div>
             <Switch checked={form.smtp_enabled} onCheckedChange={(v) => patchField("smtp_enabled", v)} />
           </div>
           <div className="settings-field-grid mt-2">
-            <LabeledControl label="SMTP 主机">
+            <LabeledControl label="Máy chủ SMTP">
               <input
                 className="settings-input"
                 placeholder="smtp.example.com"
@@ -443,7 +443,7 @@ export function PaymentSettingsPanel() {
                 onChange={(e) => patchField("smtp_host", e.target.value)}
               />
             </LabeledControl>
-            <LabeledControl label="端口">
+            <LabeledControl label="Cổng">
               <input
                 className="settings-input"
                 type="number"
@@ -452,14 +452,14 @@ export function PaymentSettingsPanel() {
                 onChange={(e) => patchField("smtp_port", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="发件人">
+            <LabeledControl label="Người gửi">
               <input
                 className="settings-input"
                 value={form.smtp_from}
                 onChange={(e) => patchField("smtp_from", e.target.value)}
               />
             </LabeledControl>
-            <LabeledControl label="用户名">
+            <LabeledControl label="Tên đăng nhập">
               <input
                 className="settings-input"
                 value={form.smtp_user}
@@ -467,7 +467,7 @@ export function PaymentSettingsPanel() {
               />
             </LabeledControl>
             <SecretField
-              label="SMTP 密码"
+              label="Mật khẩu SMTP"
               value={smtpPasswordInput}
               configured={form.has_smtp_password && !clearSmtpPassword}
               onChange={setSmtpPasswordInput}
@@ -476,7 +476,7 @@ export function PaymentSettingsPanel() {
                 setClearSmtpPassword(true);
               }}
             />
-            <LabeledControl label="使用 TLS">
+            <LabeledControl label="Dùng TLS">
               <div className="settings-inline-switch">
                 <Switch checked={form.smtp_use_tls} onCheckedChange={(v) => patchField("smtp_use_tls", v)} />
               </div>

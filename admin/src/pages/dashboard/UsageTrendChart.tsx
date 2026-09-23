@@ -17,9 +17,9 @@ type UsageTrendChartProps = {
 };
 
 function metricLabel(metric: DashboardMetric): string {
-  if (metric === "cost") return "上游成本";
-  if (metric === "calls") return "调用次数";
-  return "扣费金额";
+  if (metric === "cost") return "Chi phí nhà cung cấp";
+  if (metric === "calls") return "Số lượt gọi";
+  return "Số tiền đã trừ";
 }
 
 function readMetric(row: AdminDailyUsage, metric: DashboardMetric): number {
@@ -32,13 +32,19 @@ type MoneyFormatter = (fen: number) => string;
 
 // 按指标格式化数值（金额走当前展示货币）
 function formatMetric(value: number, metric: DashboardMetric, format: MoneyFormatter): string {
-  if (metric === "calls") return String(value);
+  if (metric === "calls") return value.toLocaleString("vi-VN");
   return format(value);
 }
 
 function shortDate(iso: string): string {
   const parts = iso.split("-");
-  return parts.length === 3 ? `${parts[1]}/${parts[2]}` : iso;
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}` : iso;
+}
+
+// YYYY-MM-DD → DD/MM/YYYY（提示框用）
+function fullDate(iso: string): string {
+  const parts = iso.split("-");
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
 }
 
 /** 用量趋势面积图 */
@@ -51,7 +57,7 @@ export function UsageTrendChart({ data, metric }: UsageTrendChartProps) {
   }));
 
   if (chartData.length === 0) {
-    return <div className="admin-chart-empty">暂无趋势数据</div>;
+    return <div className="admin-chart-empty">Chưa có dữ liệu xu hướng</div>;
   }
 
   return (
@@ -88,7 +94,7 @@ export function UsageTrendChart({ data, metric }: UsageTrendChartProps) {
             }}
             labelFormatter={(_, payload) => {
               const row = payload?.[0]?.payload as { date?: string } | undefined;
-              return row?.date ?? "";
+              return row?.date ? fullDate(row.date) : "";
             }}
             formatter={(value) => [formatMetric(Number(value ?? 0), metric, format), metricLabel(metric)]}
           />

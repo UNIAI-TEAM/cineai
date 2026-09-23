@@ -11,10 +11,10 @@ import { useCurrency } from "@/lib/currency";
 type FinanceDays = "7" | "14" | "30" | "90";
 
 const DAY_OPTIONS = [
-  { value: "7", label: "近 7 日" },
-  { value: "14", label: "近 14 日" },
-  { value: "30", label: "近 30 日" },
-  { value: "90", label: "近 90 日" },
+  { value: "7", label: "7 ngày qua" },
+  { value: "14", label: "14 ngày qua" },
+  { value: "30", label: "30 ngày qua" },
+  { value: "90", label: "90 ngày qua" },
 ];
 
 function profitClass(profitFen: number): string {
@@ -37,7 +37,7 @@ export function FinanceListPage() {
       setData(res);
     } catch (err) {
       setData(null);
-      toast.error(err instanceof Error ? err.message : "财务列表加载失败");
+      toast.error(err instanceof Error ? err.message : "Không tải được dữ liệu tài chính");
     } finally {
       setLoading(false);
     }
@@ -53,11 +53,11 @@ export function FinanceListPage() {
 
   return (
     <div className="admin-page">
-      <PageHeader description="按日汇总扣费、成本（按模型价目表计算）与利润" />
+      <PageHeader description="Tổng hợp theo ngày: tiền đã trừ, chi phí (tính theo bảng giá mô hình) và lợi nhuận" />
 
       <AdminFilterBar>
         <AdminChipFilter
-          label="时间范围"
+          label="Khoảng thời gian"
           value={days}
           options={DAY_OPTIONS}
           onChange={(v) => setDays(v as FinanceDays)}
@@ -66,9 +66,9 @@ export function FinanceListPage() {
       </AdminFilterBar>
 
       <PageSection
-        title="财务列表"
+        title="Tài chính theo ngày"
         description={
-          rangeMismatch ? "数据与当前时间范围不一致，请重新加载" : `近 ${days} 日 · 成本 = 按模型价目表计算的上游成本`
+          rangeMismatch ? "Dữ liệu không khớp khoảng thời gian đang chọn, hãy tải lại" : `${days} ngày qua · Chi phí = giá gốc nhà cung cấp tính theo bảng giá mô hình`
         }
         bodyClassName="!pt-0"
       >
@@ -76,24 +76,24 @@ export function FinanceListPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>日期</TableHead>
-                <TableHead>扣费</TableHead>
-                <TableHead>成本</TableHead>
+                <TableHead>Ngày</TableHead>
+                <TableHead>Đã trừ</TableHead>
+                <TableHead>Chi phí</TableHead>
                 <TableHead>Token</TableHead>
-                <TableHead>利润</TableHead>
+                <TableHead>Lợi nhuận</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
                   <TableCell colSpan={5} className="!text-center text-[var(--admin-muted)]">
-                    加载中…
+                    Đang tải…
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="!text-center text-[var(--admin-muted)]">
-                    暂无数据
+                    Chưa có dữ liệu
                   </TableCell>
                 </TableRow>
               ) : (
@@ -103,7 +103,7 @@ export function FinanceListPage() {
                       <TableCell className="font-mono text-xs">{row.date}</TableCell>
                       <TableCell>{format(row.charge_fen)}</TableCell>
                       <TableCell>{format(row.cost_fen)}</TableCell>
-                      <TableCell>{row.tokens.toLocaleString()}</TableCell>
+                      <TableCell>{row.tokens.toLocaleString("vi-VN")}</TableCell>
                       <TableCell className={profitClass(row.profit_fen)}>
                         {format(row.profit_fen)}
                         {row.profit_pct != null ? ` (${row.profit_pct}%)` : ""}
@@ -112,10 +112,10 @@ export function FinanceListPage() {
                   ))}
                   {totals ? (
                     <TableRow className="bg-[rgba(15,45,32,0.04)] font-medium">
-                      <TableCell>合计</TableCell>
+                      <TableCell>Tổng</TableCell>
                       <TableCell>{format(totals.charge_fen)}</TableCell>
                       <TableCell>{format(totals.cost_fen)}</TableCell>
-                      <TableCell>{totals.tokens.toLocaleString()}</TableCell>
+                      <TableCell>{totals.tokens.toLocaleString("vi-VN")}</TableCell>
                       <TableCell className={profitClass(totals.profit_fen)}>
                         {format(totals.profit_fen)}
                         {totals.profit_pct != null ? ` (${totals.profit_pct}%)` : ""}

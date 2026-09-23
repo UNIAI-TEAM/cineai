@@ -19,7 +19,7 @@ export function SiteSettingsPanel() {
         ffmpeg_path: form.ffmpeg_path,
         ffprobe_path: form.ffprobe_path,
       },
-      "站点配置已保存",
+      "Đã lưu cấu hình trang",
     );
   }
 
@@ -34,28 +34,28 @@ export function SiteSettingsPanel() {
   return (
     <SettingsTabShell onSave={() => void handleSave()} saving={saving}>
       <SettingsStatusBar
-        title="站点工具状态"
+        title="Trạng thái trang và công cụ"
         items={[
           {
             id: "public",
-            label: "公网地址",
+            label: "Địa chỉ công khai",
             ready: hasPublic,
-            readyText: "已配置",
-            pendingText: "未填写",
+            readyText: "Đã cấu hình",
+            pendingText: "Chưa điền",
           },
           {
             id: "ffmpeg",
             label: "ffmpeg",
             ready: hasFfmpeg,
-            readyText: form.ffmpeg_path || "已配置",
-            pendingText: "使用默认 PATH",
+            readyText: form.ffmpeg_path || "Đã cấu hình",
+            pendingText: "Dùng PATH mặc định",
           },
           {
             id: "ffprobe",
             label: "ffprobe",
             ready: hasFfprobe,
-            readyText: form.ffprobe_path || "已配置",
-            pendingText: "使用默认 PATH",
+            readyText: form.ffprobe_path || "Đã cấu hình",
+            pendingText: "Dùng PATH mặc định",
           },
         ]}
       />
@@ -63,13 +63,13 @@ export function SiteSettingsPanel() {
       <div className="settings-routing-grid">
         <SettingsPanel
           className="settings-panel--compact"
-          title="1. 公网地址"
-          description="支付回调、分享链接与 OSS 回填"
+          title="1. Địa chỉ công khai"
+          description="Dùng cho callback thanh toán, link chia sẻ và URL OSS trả về"
         >
           <div className="settings-field-grid">
             <LabeledControl
-              label="后端公网基址"
-              hint="例：https://cineai.vn"
+              label="URL công khai của backend"
+              hint="Ví dụ: https://cineai.vn"
               className="settings-field-span-full"
             >
               <input
@@ -80,17 +80,17 @@ export function SiteSettingsPanel() {
             </LabeledControl>
           </div>
           <p className="settings-panel-footnote">
-            数据库、Redis、SECRET_KEY 等基础设施仍通过服务器环境变量配置，不在此页修改。
+            Cơ sở dữ liệu, Redis, SECRET_KEY và các cấu hình hạ tầng khác vẫn đặt qua biến môi trường trên máy chủ, không sửa ở trang này.
           </p>
         </SettingsPanel>
 
         <SettingsPanel
           className="settings-panel--compact"
-          title="2. 媒体工具"
-          description="合成与抽帧依赖本机 ffmpeg / ffprobe"
+          title="2. Công cụ media"
+          description="Dựng video và trích khung hình cần ffmpeg / ffprobe trên máy chủ"
         >
           <div className="settings-field-grid">
-            <LabeledControl label="ffmpeg 路径">
+            <LabeledControl label="Đường dẫn ffmpeg">
               <input
                 className="settings-input"
                 placeholder="ffmpeg"
@@ -98,7 +98,7 @@ export function SiteSettingsPanel() {
                 onChange={(e) => patchField("ffmpeg_path", e.target.value)}
               />
             </LabeledControl>
-            <LabeledControl label="ffprobe 路径">
+            <LabeledControl label="Đường dẫn ffprobe">
               <input
                 className="settings-input"
                 placeholder="ffprobe"

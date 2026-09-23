@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 
 type TemplateCardProps = {
   template: AdminTemplate;
+  /** 分类键 → 展示名 */
+  categoryLabels?: Record<string, string>;
   onEdit: (tpl: AdminTemplate) => void;
   onDelete: (id: string) => void;
   onToggleActive: (id: string, value: boolean) => void;
@@ -22,13 +24,18 @@ function coverSrc(url: string): string {
 // 模板卡片：封面 + 元信息 + 快捷开关
 export function TemplateCard({
   template,
+  categoryLabels = {},
   onEdit,
   onDelete,
   onToggleActive,
   onTogglePremium,
 }: TemplateCardProps) {
   const src = coverSrc(template.preview_cover);
-  const categories = template.category?.length ? template.category : ["未分类"];
+  const categories = template.category?.length ? template.category : [];
+  const vi = template.i18n?.vi;
+  const viName = vi?.name?.trim() || "";
+  const displayName = viName || template.name;
+  const displayDesc = vi?.description?.trim() || template.description;
 
   return (
     <article
@@ -41,10 +48,10 @@ export function TemplateCard({
         type="button"
         className="template-card-cover"
         onClick={() => onEdit(template)}
-        aria-label={`编辑模板 ${template.name}`}
+        aria-label={`Sửa mẫu ${displayName}`}
       >
         {src ? (
-          <img src={src} alt={template.name} loading="lazy" className="template-card-cover-img" />
+          <img src={src} alt={displayName} loading="lazy" className="template-card-cover-img" />
         ) : (
           <div className="template-card-cover-fallback">
             <ImageOff className="h-8 w-8 text-white/70" />
@@ -60,7 +67,7 @@ export function TemplateCard({
             </span>
           ) : null}
           {!template.is_active ? (
-            <span className="template-card-badge template-card-badge--off">已下架</span>
+            <span className="template-card-badge template-card-badge--off">Đã ẩn</span>
           ) : null}
         </div>
       </button>
@@ -68,34 +75,44 @@ export function TemplateCard({
       <div className="template-card-body">
         <div className="template-card-head">
           <div className="min-w-0 flex-1">
-            <h3 className="template-card-title">{template.name}</h3>
+            <h3 className="template-card-title" title={viName && viName !== template.name ? template.name : undefined}>
+              {displayName}
+            </h3>
+            {viName && viName !== template.name ? (
+              <p className="template-card-id">{template.name}</p>
+            ) : null}
             <p className="template-card-id">{template.id}</p>
           </div>
           <div className="template-card-actions">
-            <button type="button" className="template-card-icon-btn" onClick={() => onEdit(template)} title="编辑">
+            <button type="button" className="template-card-icon-btn" onClick={() => onEdit(template)} title="Sửa">
               <Pencil className="h-4 w-4" />
             </button>
             <button
               type="button"
               className="template-card-icon-btn template-card-icon-btn--danger"
               onClick={() => onDelete(template.id)}
-              title="删除"
+              title="Xoá"
             >
               <Trash2 className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        {template.description ? (
-          <p className="template-card-desc">{template.description}</p>
+        {displayDesc ? (
+          <p className="template-card-desc" title={displayDesc !== template.description ? template.description : undefined}>
+            {displayDesc}
+          </p>
         ) : (
-          <p className="template-card-desc template-card-desc--empty">暂无描述</p>
+          <p className="template-card-desc template-card-desc--empty">Chưa có mô tả</p>
         )}
 
         <div className="template-card-tags">
+          {categories.length === 0 ? (
+            <span className="template-card-tag">Chưa phân loại</span>
+          ) : null}
           {categories.slice(0, 3).map((tag) => (
-            <span key={tag} className="template-card-tag">
-              {tag}
+            <span key={tag} className="template-card-tag" title={tag}>
+              {categoryLabels[tag] ?? tag}
             </span>
           ))}
           <span className="template-card-tag template-card-tag--muted">{template.default_ratio}</span>
@@ -103,7 +120,7 @@ export function TemplateCard({
 
         <div className="template-card-foot">
           <label className="template-card-toggle">
-            <span>上架</span>
+            <span>Hiển thị</span>
             <Switch
               checked={template.is_active}
               onCheckedChange={(v) => onToggleActive(template.id, v)}

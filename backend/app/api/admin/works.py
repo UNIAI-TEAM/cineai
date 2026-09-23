@@ -69,18 +69,18 @@ async def patch_work(
     # Update visibility / audit_status
     work = await db.get(Work, work_id)
     if not work:
-        raise HTTPException(status_code=404, detail="作品不存在")
+        raise HTTPException(status_code=404, detail="Không tìm thấy tác phẩm")
 
     if body.visibility is not None:
         vis = body.visibility.strip()
         if vis not in ("public", "private", "unlisted"):
-            raise HTTPException(status_code=400, detail="visibility 无效")
+            raise HTTPException(status_code=400, detail="visibility không hợp lệ")
         work.visibility = vis
 
     if body.audit_status is not None:
         audit = body.audit_status.strip()
         if audit not in ("pending", "passed", "rejected"):
-            raise HTTPException(status_code=400, detail="audit_status 无效")
+            raise HTTPException(status_code=400, detail="audit_status không hợp lệ")
         work.audit_status = audit
 
     await db.commit()

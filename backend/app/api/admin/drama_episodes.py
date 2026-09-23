@@ -120,7 +120,7 @@ async def list_drama_episodes(
             project_title=project.title,
             user_id=project.user_id,
             user_email=email,
-            name=ep.name or f"集 #{ep.id}",
+            name=ep.name or f"Tập #{ep.id}",
             fragment_count=int(fcount or 0),
             fragment_plan_status=_episode_plan_status(ep),
             created_at=ep.created_at,
@@ -150,7 +150,7 @@ async def get_drama_episode(
         )
     ).first()
     if not row:
-        raise HTTPException(status_code=404, detail="漫剧分集不存在")
+        raise HTTPException(status_code=404, detail="Không tìm thấy tập phim")
     episode, project, email = row
     fragments = sorted(episode.fragments or [], key=lambda f: (f.sort_order, f.id))
     return AdminDramaEpisodeDetailOut(
@@ -159,7 +159,7 @@ async def get_drama_episode(
         project_title=project.title,
         user_id=project.user_id,
         user_email=email,
-        name=episode.name or f"集 #{episode.id}",
+        name=episode.name or f"Tập #{episode.id}",
         fragment_count=len(fragments),
         fragment_plan_status=_episode_plan_status(episode),
         created_at=episode.created_at,

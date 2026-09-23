@@ -64,7 +64,7 @@ export function UsageDistributionChart({
     .filter((row) => row.value > 0);
 
   if (chartData.length === 0) {
-    return <div className="admin-chart-empty">暂无分布数据</div>;
+    return <div className="admin-chart-empty">Chưa có dữ liệu phân bổ</div>;
   }
 
   if (variant === "donut") {
@@ -136,7 +136,7 @@ export function UsageDistributionChart({
               borderRadius: "10px",
               fontSize: "12px",
             }}
-            formatter={(value) => [formatMetric(Number(value ?? 0), metric, format), "数值"]}
+            formatter={(value) => [formatMetric(Number(value ?? 0), metric, format), "Giá trị"]}
           />
           <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={18}>
             {chartData.map((row, idx) => (

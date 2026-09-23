@@ -165,7 +165,7 @@ async def get_drama_fragment(
         )
     ).first()
     if not row:
-        raise HTTPException(status_code=404, detail="漫剧分镜不存在")
+        raise HTTPException(status_code=404, detail="Không tìm thấy phân cảnh")
     frag, episode, project, email = row
     asset_ids = [int(ref.asset_id) for ref in (frag.asset_references or [])]
     return AdminDramaFragmentDetailOut(

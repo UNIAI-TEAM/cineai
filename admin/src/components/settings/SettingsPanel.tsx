@@ -36,7 +36,7 @@ type SettingsTabShellProps = {
 };
 
 // Tab 内容区：把保存动作注册到页头，不再单独占一行工具条
-export function SettingsTabShell({ children, onSave, saving, saveLabel = "保存" }: SettingsTabShellProps) {
+export function SettingsTabShell({ children, onSave, saving, saveLabel = "Lưu" }: SettingsTabShellProps) {
   const { registerSave } = useSettingsSaveSlot();
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
@@ -62,7 +62,7 @@ export function SettingsTabShell({ children, onSave, saving, saveLabel = "保存
 }
 
 // 加载占位
-export function SettingsLoading({ label = "加载中…" }: { label?: string }) {
+export function SettingsLoading({ label = "Đang tải…" }: { label?: string }) {
   return (
     <div className="settings-loading">
       <Loader2 className="h-4 w-4 animate-spin" />
@@ -136,7 +136,7 @@ export function SettingsStatusBar({
           <div key={item.id} className={cn("settings-readiness-item", item.ready && "is-ready")}>
             <span className={cn("settings-readiness-dot", item.ready ? "is-on" : "is-off")} />
             <span>{item.label}</span>
-            <em>{item.ready ? item.readyText ?? "已配置" : item.pendingText ?? "未就绪"}</em>
+            <em>{item.ready ? item.readyText ?? "Đã cấu hình" : item.pendingText ?? "Chưa sẵn sàng"}</em>
           </div>
         ))}
       </div>

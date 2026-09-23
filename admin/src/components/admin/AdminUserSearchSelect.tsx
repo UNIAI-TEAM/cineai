@@ -16,7 +16,7 @@ type AdminUserSearchSelectProps = {
 export function AdminUserSearchSelect({
   value,
   onChange,
-  placeholder = "搜索用户邮箱 / 账号 ID",
+  placeholder = "Tìm theo email / ID tài khoản",
   className,
 }: AdminUserSearchSelectProps) {
   const [query, setQuery] = useState("");
@@ -94,16 +94,16 @@ export function AdminUserSearchSelect({
             setQuery("");
             setSelectedLabel("");
           }}
-          aria-label="清除用户"
+          aria-label="Bỏ chọn người dùng"
         >
           ×
         </button>
       ) : null}
       {open && (query.trim() || options.length > 0) ? (
         <div className="admin-user-search-dropdown">
-          {loading ? <div className="admin-user-search-empty">搜索中…</div> : null}
+          {loading ? <div className="admin-user-search-empty">Đang tìm…</div> : null}
           {!loading && options.length === 0 ? (
-            <div className="admin-user-search-empty">无匹配用户</div>
+            <div className="admin-user-search-empty">Không có người dùng phù hợp</div>
           ) : null}
           {options.map((u) => (
             <button

@@ -29,7 +29,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PageHeader } from "@/components/ui/page";
 import { useAdminDetailQuery } from "@/hooks/useAdminDetailQuery";
 import { useCurrency } from "@/lib/currency";
-import { ledgerKindLabel, orderStatusLabel, payTypeLabel, taskDomainLabel } from "@/lib/statusLabels";
+import { billingBasisLabel, ledgerKindLabel, orderStatusLabel, payTypeLabel, taskDomainLabel } from "@/lib/statusLabels";
 
 type OrderRes = { items: AdminOrder[]; meta: PageMeta };
 type LedgerRes = { items: AdminLedger[]; meta: PageMeta };
@@ -44,7 +44,7 @@ function ledgerRefLink(row: AdminLedger) {
   if (row.ref_type === "order" && row.ref_id) {
     const id = Number(row.ref_id);
     if (Number.isFinite(id) && id > 0) {
-      return <AdminEntityLink kind="order" id={id} label={`订单#${id}`} />;
+      return <AdminEntityLink kind="order" id={id} label={`Đơn #${id}`} />;
     }
     return (
       <Link
@@ -118,12 +118,12 @@ export function OrdersPage() {
     setActionBusy(true);
     try {
       const updated = await confirmAdminOrder(confirmTarget.out_trade_no, confirmNote);
-      toast.success("已确认到账，余额已入账");
+      toast.success("Đã xác nhận nhận tiền, số dư đã được cộng");
       setConfirmTarget(null);
       setConfirmNote("");
       applyOrderResult(updated);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "确认到账失败");
+      toast.error(err instanceof Error ? err.message : "Không xác nhận được");
     } finally {
       setActionBusy(false);
     }
@@ -135,11 +135,11 @@ export function OrdersPage() {
     setActionBusy(true);
     try {
       const updated = await closeAdminOrder(closeTarget.out_trade_no);
-      toast.success("订单已关闭");
+      toast.success("Đã đóng đơn");
       setCloseTarget(null);
       applyOrderResult(updated);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "关闭订单失败");
+      toast.error(err instanceof Error ? err.message : "Không đóng được đơn");
     } finally {
       setActionBusy(false);
     }
@@ -160,7 +160,7 @@ export function OrdersPage() {
             setConfirmTarget(order);
           }}
         >
-          确认到账
+          Xác nhận đã nhận tiền
         </Button>
         <Button
           size={size}
@@ -171,7 +171,7 @@ export function OrdersPage() {
             setCloseTarget(order);
           }}
         >
-          关闭订单
+          Đóng đơn
         </Button>
       </div>
     );
@@ -184,7 +184,7 @@ export function OrdersPage() {
       if (orderUserId) params.set("user_id", String(orderUserId));
       setOrders(await api<OrderRes>(`/api/admin/orders?${params}`));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "加载订单失败");
+      toast.error(err instanceof Error ? err.message : "Không tải được danh sách đơn");
     }
   }
 
@@ -195,7 +195,7 @@ export function OrdersPage() {
       if (ledgerUserId) params.set("user_id", String(ledgerUserId));
       setLedger(await api<LedgerRes>(`/api/admin/ledger?${params}`));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "加载流水失败");
+      toast.error(err instanceof Error ? err.message : "Không tải được biến động số dư");
     }
   }
 
@@ -217,7 +217,7 @@ export function OrdersPage() {
       if (usageDateTo) params.set("created_to", `${usageDateTo}T23:59:59`);
       setUsage(await api<AdminUsageEventListRes>(`/api/admin/usage-events?${params}`));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "加载用量失败");
+      toast.error(err instanceof Error ? err.message : "Không tải được lượng sử dụng");
     }
   }
 
@@ -278,28 +278,28 @@ export function OrdersPage() {
   async function copyText(text: string) {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("已复制");
+      toast.success("Đã sao chép");
     } catch {
-      toast.error("复制失败");
+      toast.error("Không sao chép được");
     }
   }
 
   return (
     <div className="admin-list-page">
-      <PageHeader description="查看充值单、钱包流水与 AI 用量明细" />
+      <PageHeader description="Xem đơn nạp tiền, biến động số dư ví và chi tiết lượng sử dụng AI" />
       <Tabs value={tab} onValueChange={onTabChange}>
         <TabsList>
-          <TabsTrigger value="orders">充值订单</TabsTrigger>
-          <TabsTrigger value="ledger">钱包流水</TabsTrigger>
-          <TabsTrigger value="usage">用量明细</TabsTrigger>
+          <TabsTrigger value="orders">Đơn nạp tiền</TabsTrigger>
+          <TabsTrigger value="ledger">Biến động số dư</TabsTrigger>
+          <TabsTrigger value="usage">Lượng sử dụng</TabsTrigger>
         </TabsList>
         <TabsContent value="orders" className="space-y-4">
           <AdminFilterBar>
             <Select value={orderStatus} onChange={(e) => setOrderStatus(e.target.value)}>
-              <option value="">全部状态</option>
-              <option value="pending">待支付</option>
-              <option value="paid">已支付</option>
-              <option value="closed">已关闭</option>
+              <option value="">Tất cả trạng thái</option>
+              <option value="pending">Chờ thanh toán</option>
+              <option value="paid">Đã thanh toán</option>
+              <option value="closed">Đã đóng</option>
             </Select>
             <AdminUserSearchSelect value={orderUserId} onChange={(id) => setOrderUserId(id)} />
             <Button
@@ -311,7 +311,7 @@ export function OrdersPage() {
                 void loadOrders(1);
               }}
             >
-              筛选
+              Lọc
             </Button>
           </AdminFilterBar>
           <div className="rounded-lg border bg-background">
@@ -319,18 +319,18 @@ export function OrdersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>ID</TableHead>
-                  <TableHead>商户单号</TableHead>
-                  <TableHead>用户</TableHead>
+                  <TableHead>Mã đơn</TableHead>
+                  <TableHead>Người dùng</TableHead>
                   <TableHead>SKU</TableHead>
-                  <TableHead className="whitespace-nowrap">应付</TableHead>
-                  <TableHead className="whitespace-nowrap">入账</TableHead>
-                  <TableHead className="whitespace-nowrap">支付方式</TableHead>
-                  <TableHead className="whitespace-nowrap">状态</TableHead>
-                  <TableHead className="whitespace-nowrap">操作</TableHead>
-                  <TableHead className="whitespace-nowrap">渠道单号</TableHead>
-                  <TableHead>备注</TableHead>
-                  <TableHead className="whitespace-nowrap">支付时间</TableHead>
-                  <TableHead className="whitespace-nowrap">创建时间</TableHead>
+                  <TableHead className="whitespace-nowrap">Cần trả</TableHead>
+                  <TableHead className="whitespace-nowrap">Cộng số dư</TableHead>
+                  <TableHead className="whitespace-nowrap">Phương thức thanh toán</TableHead>
+                  <TableHead className="whitespace-nowrap">Trạng thái</TableHead>
+                  <TableHead className="whitespace-nowrap">Thao tác</TableHead>
+                  <TableHead className="whitespace-nowrap">Mã giao dịch</TableHead>
+                  <TableHead>Ghi chú</TableHead>
+                  <TableHead className="whitespace-nowrap">Thanh toán lúc</TableHead>
+                  <TableHead className="whitespace-nowrap">Tạo lúc</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -363,10 +363,10 @@ export function OrdersPage() {
                       {o.note || "—"}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {o.paid_at ? new Date(o.paid_at).toLocaleString() : "—"}
+                      {o.paid_at ? new Date(o.paid_at).toLocaleString("vi-VN") : "—"}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {new Date(o.created_at).toLocaleString()}
+                      {new Date(o.created_at).toLocaleString("vi-VN")}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -385,14 +385,14 @@ export function OrdersPage() {
         <TabsContent value="ledger" className="space-y-4">
           <AdminFilterBar>
             <Select value={ledgerKind} onChange={(e) => setLedgerKind(e.target.value)}>
-              <option value="">全部类型</option>
-              <option value="topup">充值</option>
-              <option value="grant">赠送</option>
-              <option value="adjust">调账</option>
-              <option value="freeze">冻结</option>
-              <option value="unfreeze">解冻</option>
-              <option value="settle">结算</option>
-              <option value="refund">退款</option>
+              <option value="">Tất cả loại</option>
+              <option value="topup">Nạp tiền</option>
+              <option value="grant">Tặng</option>
+              <option value="adjust">Điều chỉnh số dư</option>
+              <option value="freeze">Tạm giữ</option>
+              <option value="unfreeze">Hoàn tạm giữ</option>
+              <option value="settle">Quyết toán</option>
+              <option value="refund">Hoàn tiền</option>
             </Select>
             <AdminUserSearchSelect value={ledgerUserId} onChange={(id) => setLedgerUserId(id)} />
             <Button
@@ -404,7 +404,7 @@ export function OrdersPage() {
                 void loadLedger(1);
               }}
             >
-              筛选
+              Lọc
             </Button>
           </AdminFilterBar>
           <div className="rounded-lg border bg-background">
@@ -412,13 +412,13 @@ export function OrdersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>ID</TableHead>
-                  <TableHead>用户</TableHead>
-                  <TableHead>变动</TableHead>
-                  <TableHead>余额后</TableHead>
-                  <TableHead>类型</TableHead>
-                  <TableHead>关联</TableHead>
-                  <TableHead>备注</TableHead>
-                  <TableHead>时间</TableHead>
+                  <TableHead>Người dùng</TableHead>
+                  <TableHead>Biến động</TableHead>
+                  <TableHead>Số dư sau</TableHead>
+                  <TableHead>Loại</TableHead>
+                  <TableHead>Liên kết</TableHead>
+                  <TableHead>Ghi chú</TableHead>
+                  <TableHead>Thời gian</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -439,7 +439,7 @@ export function OrdersPage() {
                     <TableCell>{ledgerRefLink(e)}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{e.note}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {new Date(e.created_at).toLocaleString()}
+                      {new Date(e.created_at).toLocaleString("vi-VN")}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -458,13 +458,13 @@ export function OrdersPage() {
         <TabsContent value="usage" className="space-y-4">
           <AdminFilterBar>
             <AdminUserSearchSelect value={usageUserId} onChange={(id) => setUsageUserId(id)} />
-            <Input placeholder="任务 ID" value={usageTaskId} onChange={(e) => setUsageTaskId(e.target.value)} />
+            <Input placeholder="ID tác vụ" value={usageTaskId} onChange={(e) => setUsageTaskId(e.target.value)} />
             <Select value={usageDomain} onChange={(e) => setUsageDomain(e.target.value)}>
-              <option value="">全部领域</option>
-              <option value="kepu">科普</option>
-              <option value="drama">漫剧</option>
-              <option value="studio">工作室</option>
-              <option value="api">开放 API</option>
+              <option value="">Tất cả mảng</option>
+              <option value="kepu">Video ngắn AI</option>
+              <option value="drama">Phim ngắn AI</option>
+              <option value="studio">Studio</option>
+              <option value="api">API mở</option>
             </Select>
             <Input
               placeholder="billing_key"
@@ -472,18 +472,18 @@ export function OrdersPage() {
               onChange={(e) => setUsageBillingKey(e.target.value)}
             />
             <Select value={usageCapability} onChange={(e) => setUsageCapability(e.target.value)}>
-              <option value="">全部能力</option>
-              <option value="llm">LLM 文本</option>
-              <option value="image">生图</option>
-              <option value="video">视频</option>
-              <option value="tts">配音</option>
+              <option value="">Tất cả loại tạo</option>
+              <option value="llm">LLM văn bản</option>
+              <option value="image">Tạo ảnh</option>
+              <option value="video">Tạo video</option>
+              <option value="tts">Giọng đọc</option>
             </Select>
             <Select value={usageBasis} onChange={(e) => setUsageBasis(e.target.value)}>
-              <option value="">全部计费依据</option>
-              <option value="estimate">估算</option>
-              <option value="upstream">实测（上游）</option>
-              <option value="upstream_usage">实测(token)</option>
-              <option value="upstream_cost">实测(费用)</option>
+              <option value="">Tất cả cơ sở tính phí</option>
+              <option value="estimate">Ước tính</option>
+              <option value="upstream">Thực tế (nhà cung cấp)</option>
+              <option value="upstream_usage">Thực tế (token)</option>
+              <option value="upstream_cost">Thực tế (chi phí)</option>
             </Select>
             <AdminDateRangeFilter
               from={usageDateFrom}
@@ -504,7 +504,7 @@ export function OrdersPage() {
                 void loadUsage(1, { billing_key: "llm_chat", capability: "llm" });
               }}
             >
-              LLM 用量
+              Lượng sử dụng LLM
             </Button>
             <Button
               size="sm"
@@ -515,31 +515,31 @@ export function OrdersPage() {
                 void loadUsage(1);
               }}
             >
-              筛选
+              Lọc
             </Button>
           </AdminFilterBar>
           <div className="rounded-lg border bg-background">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>时间</TableHead>
-                  <TableHead>用户</TableHead>
-                  <TableHead>任务</TableHead>
-                  <TableHead>项目</TableHead>
-                  <TableHead>领域</TableHead>
-                  <TableHead>能力</TableHead>
-                  <TableHead>模型</TableHead>
+                  <TableHead>Thời gian</TableHead>
+                  <TableHead>Người dùng</TableHead>
+                  <TableHead>Tác vụ</TableHead>
+                  <TableHead>Dự án</TableHead>
+                  <TableHead>Mảng</TableHead>
+                  <TableHead>Năng lực</TableHead>
+                  <TableHead>Mô hình</TableHead>
                   <TableHead>Tokens</TableHead>
-                  <TableHead>扣费</TableHead>
-                  <TableHead>上游成本</TableHead>
-                  <TableHead>计费依据</TableHead>
+                  <TableHead>Đã trừ</TableHead>
+                  <TableHead>Giá gốc nhà cung cấp</TableHead>
+                  <TableHead>Cách tính phí</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(usage?.items ?? []).map((row) => (
                   <TableRow key={row.id}>
                     <TableCell className="text-xs text-muted-foreground">
-                      {row.created_at ? new Date(row.created_at).toLocaleString() : "—"}
+                      {row.created_at ? new Date(row.created_at).toLocaleString("vi-VN") : "—"}
                     </TableCell>
                     <TableCell>
                       <AdminEntityLink kind="user" id={row.user_id} label={row.user_email ?? undefined} />
@@ -548,7 +548,7 @@ export function OrdersPage() {
                       {row.task_run_id ? (
                         <AdminEntityLink kind="task" id={row.task_run_id} />
                       ) : (
-                        "历史/未关联"
+                        "Cũ / không liên kết"
                       )}
                     </TableCell>
                     <TableCell className="text-xs">
@@ -575,13 +575,13 @@ export function OrdersPage() {
                         }
                         title={
                           row.billing_basis === "upstream_cost"
-                            ? "按模型价目表与实际用量算出的费用扣费"
+                            ? "Trừ tiền theo chi phí tính từ bảng giá mô hình và lượng sử dụng thực tế"
                             : row.billing_basis === "upstream_usage"
-                              ? "按上游返回的 usage token × 价目表单价扣费"
-                              : "上游未返回 usage，按配置估算 token 扣费"
+                              ? "Trừ tiền theo số token (usage) nhà cung cấp trả về × đơn giá trong bảng giá"
+                              : "Nhà cung cấp không trả usage, trừ tiền theo số token ước tính trong cấu hình"
                         }
                       >
-                        {row.billing_basis_label ?? (row.estimated ? "估算" : "实测")}
+                        {billingBasisLabel(row.billing_basis, row.estimated)}
                       </Badge>
                     </TableCell>
                   </TableRow>
@@ -609,13 +609,13 @@ export function OrdersPage() {
           }
         }}
         size="md"
-        title={orderDetail ? `订单明细 #${orderDetail.id}` : "订单明细"}
+        title={orderDetail ? `Chi tiết đơn #${orderDetail.id}` : "Chi tiết đơn"}
         subtitle={orderDetail?.out_trade_no}
         footer={
           orderDetail ? (
             <div className="flex w-full flex-wrap items-center justify-between gap-2">
               <Button size="sm" variant="outline" onClick={() => void copyText(orderDetail.out_trade_no)}>
-                复制商户单号
+                Sao chép mã đơn
               </Button>
               {renderOrderActions(orderDetail)}
             </div>
@@ -627,7 +627,7 @@ export function OrdersPage() {
             <AdminDetailMeta
               items={[
                 {
-                  label: "用户",
+                  label: "Người dùng",
                   value: (
                     <AdminEntityLink
                       kind="user"
@@ -637,25 +637,25 @@ export function OrdersPage() {
                   ),
                 },
                 { label: "SKU", value: orderDetail.sku_id },
-                { label: "金额", value: format(orderDetail.amount_fen) },
-                { label: "入账", value: format(orderDetail.credit_fen) },
+                { label: "Số tiền", value: format(orderDetail.amount_fen) },
+                { label: "Cộng số dư", value: format(orderDetail.credit_fen) },
                 {
-                  label: "应付",
+                  label: "Cần trả",
                   value: orderDetail.pay_amount != null
                     ? `${payAmountLabel(orderDetail)}（${orderDetail.pay_currency || "VND"}）`
                     : "—",
                 },
-                { label: "支付方式", value: payTypeLabel(orderDetail.pay_type) },
-                { label: "状态", value: orderStatusLabel(orderDetail.status) },
-                { label: "渠道单号", value: orderDetail.trade_no || "—" },
-                { label: "备注", value: orderDetail.note || "—", full: true },
+                { label: "Phương thức thanh toán", value: payTypeLabel(orderDetail.pay_type) },
+                { label: "Trạng thái", value: orderStatusLabel(orderDetail.status) },
+                { label: "Mã giao dịch", value: orderDetail.trade_no || "—" },
+                { label: "Ghi chú", value: orderDetail.note || "—", full: true },
                 {
-                  label: "支付时间",
-                  value: orderDetail.paid_at ? new Date(orderDetail.paid_at).toLocaleString() : "—",
+                  label: "Thanh toán lúc",
+                  value: orderDetail.paid_at ? new Date(orderDetail.paid_at).toLocaleString("vi-VN") : "—",
                 },
                 {
-                  label: "创建时间",
-                  value: new Date(orderDetail.created_at).toLocaleString(),
+                  label: "Tạo lúc",
+                  value: new Date(orderDetail.created_at).toLocaleString("vi-VN"),
                   full: true,
                 },
               ]}
@@ -668,14 +668,14 @@ export function OrdersPage() {
         open={!!ledgerDetail}
         onOpenChange={(open) => !open && setLedgerDetail(null)}
         size="md"
-        title={ledgerDetail ? `流水明细 #${ledgerDetail.id}` : "流水明细"}
+        title={ledgerDetail ? `Chi tiết biến động #${ledgerDetail.id}` : "Chi tiết biến động"}
       >
         {ledgerDetail ? (
           <AdminDetailSection>
             <AdminDetailMeta
               items={[
                 {
-                  label: "用户",
+                  label: "Người dùng",
                   value: (
                     <AdminEntityLink
                       kind="user"
@@ -684,14 +684,14 @@ export function OrdersPage() {
                     />
                   ),
                 },
-                { label: "类型", value: ledgerKindLabel(ledgerDetail.kind) },
-                { label: "变动", value: format(ledgerDetail.delta_fen) },
-                { label: "余额后", value: format(ledgerDetail.balance_after) },
-                { label: "关联", value: ledgerRefLink(ledgerDetail) },
-                { label: "备注", value: ledgerDetail.note || "—" },
+                { label: "Loại", value: ledgerKindLabel(ledgerDetail.kind) },
+                { label: "Biến động", value: format(ledgerDetail.delta_fen) },
+                { label: "Số dư sau", value: format(ledgerDetail.balance_after) },
+                { label: "Liên kết", value: ledgerRefLink(ledgerDetail) },
+                { label: "Ghi chú", value: ledgerDetail.note || "—" },
                 {
-                  label: "时间",
-                  value: new Date(ledgerDetail.created_at).toLocaleString(),
+                  label: "Thời gian",
+                  value: new Date(ledgerDetail.created_at).toLocaleString("vi-VN"),
                   full: true,
                 },
               ]}
@@ -709,32 +709,32 @@ export function OrdersPage() {
           }
         }}
         size="md"
-        title="确认到账"
+        title="Xác nhận đã nhận tiền"
         subtitle={
           confirmTarget
-            ? `订单 ${confirmTarget.out_trade_no} · 应付 ${payAmountLabel(confirmTarget)} · 入账 ${format(confirmTarget.credit_fen)}`
+            ? `Đơn ${confirmTarget.out_trade_no} · Cần trả ${payAmountLabel(confirmTarget)} · Cộng số dư ${format(confirmTarget.credit_fen)}`
             : undefined
         }
         footer={
           <>
             <Button variant="outline" disabled={actionBusy} onClick={() => setConfirmTarget(null)}>
-              取消
+              Huỷ
             </Button>
             <Button disabled={actionBusy} onClick={() => void handleConfirmOrder()}>
-              {actionBusy ? "处理中…" : "确认到账并入账"}
+              {actionBusy ? "Đang xử lý…" : "Xác nhận và cộng số dư"}
             </Button>
           </>
         }
       >
         <div className="admin-form-grid">
           <p className="text-sm text-muted-foreground">
-            请先在银行流水中核对转账备注（商户单号）与金额一致；确认后将立即给用户入账，且不可撤销。
+            Đối chiếu sao kê ngân hàng trước: nội dung chuyển khoản (mã đơn) và số tiền phải khớp. Sau khi xác nhận, tiền được cộng ngay vào số dư của người dùng. Thao tác này không hoàn tác được.
           </p>
-          <AdminField label="备注" hint="可选，如银行流水号或核对说明">
+          <AdminField label="Ghi chú" hint="Không bắt buộc, vd. mã giao dịch ngân hàng hoặc ghi chú đối chiếu">
             <Input
               value={confirmNote}
               maxLength={255}
-              placeholder="例如：VCB 流水 123456"
+              placeholder="Vd. VCB mã GD 123456"
               onChange={(e) => setConfirmNote(e.target.value)}
             />
           </AdminField>
@@ -743,13 +743,13 @@ export function OrdersPage() {
 
       <AdminConfirmDialog
         open={!!closeTarget}
-        title="关闭订单"
+        title="Đóng đơn"
         description={
           closeTarget
-            ? `订单 ${closeTarget.out_trade_no} 将被关闭，用户无法再凭此单转账入账。`
+            ? `Đơn ${closeTarget.out_trade_no} sẽ bị đóng. Người dùng không thể chuyển khoản theo đơn này để nạp tiền nữa.`
             : undefined
         }
-        confirmLabel="关闭订单"
+        confirmLabel="Đóng đơn"
         destructive
         loading={actionBusy}
         onOpenChange={(open) => {

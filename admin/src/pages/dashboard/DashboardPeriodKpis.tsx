@@ -24,31 +24,31 @@ export function DashboardPeriodKpis({ stats, filters, loading }: DashboardPeriod
   return (
     <div className="admin-dashboard-kpi-grid admin-dashboard-kpi-grid--secondary">
       <DashboardKpiCard
-        label={`${rangeLabel}调用`}
-        value={stats ? period.calls.toLocaleString() : placeholder}
-        hint={stats ? `累计 ${stats.usage_calls_total ?? 0} 次` : "调用次数"}
+        label={`Lượt gọi ${rangeLabel.toLowerCase()}`}
+        value={stats ? period.calls.toLocaleString("vi-VN") : placeholder}
+        hint={stats ? `Tổng ${stats.usage_calls_total ?? 0} lượt` : "Số lượt gọi"}
         icon={Activity}
         tone="mint"
       />
       <DashboardKpiCard
-        label={`${rangeLabel}扣费`}
+        label={`Tiền đã trừ ${rangeLabel.toLowerCase()}`}
         value={stats ? format(period.charge_fen) : placeholder}
-        hint={stats ? `本月 ${format(stats.usage_charge_month_fen ?? 0)}` : "用户扣费"}
+        hint={stats ? `Tháng này ${format(stats.usage_charge_month_fen ?? 0)}` : "Tiền đã trừ của người dùng"}
         icon={TrendingUp}
         tone="blue"
       />
       <DashboardKpiCard
-        label={`${rangeLabel}毛利`}
+        label={`Lợi nhuận gộp ${rangeLabel.toLowerCase()}`}
         value={stats ? format(profitFen) : placeholder}
-        hint={stats ? `成本 ${format(period.cost_fen)}` : "扣费减成本"}
+        hint={stats ? `Chi phí ${format(period.cost_fen)}` : "Tiền đã trừ − chi phí"}
         icon={Percent}
         tone="rose"
-        trend={profitPct ? `毛利率 ${profitPct}` : undefined}
+        trend={profitPct ? `Biên lợi nhuận ${profitPct}` : undefined}
       />
       <DashboardKpiCard
-        label="漫剧项目"
+        label="Dự án phim ngắn"
         value={stats ? stats.drama_project_count ?? 0 : placeholder}
-        hint={stats ? `用户 ${stats.user_count}` : "项目规模"}
+        hint={stats ? `${stats.user_count} người dùng` : "Số dự án"}
         icon={Film}
         tone="slate"
       />

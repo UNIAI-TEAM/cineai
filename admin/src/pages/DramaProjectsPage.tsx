@@ -33,7 +33,7 @@ export function DramaProjectsPage() {
       if (assetsSeedStatus.trim()) params.set("assets_seed_status", assetsSeedStatus.trim());
       setData(await api<ListRes>(`/api/admin/drama-projects?${params}`));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "加载失败");
+      toast.error(err instanceof Error ? err.message : "Không tải được dữ liệu");
     }
   }
 
@@ -44,13 +44,13 @@ export function DramaProjectsPage() {
 
   return (
     <div className="admin-list-page">
-      <PageHeader description="漫剧项目：集数、资产、生产状态与费用；点击详情进入二级页" />
+      <PageHeader description="Dự án phim ngắn: số tập, tư liệu, trạng thái sản xuất và chi phí. Bấm Chi tiết để xem sâu hơn" />
       <AdminFilterBar>
-        <Input placeholder="标题 / 描述" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input placeholder="Tiêu đề / mô tả" value={q} onChange={(e) => setQ(e.target.value)} />
         <AdminUserSearchSelect value={userId} onChange={(id) => setUserId(id)} />
-        <Input placeholder="摘要状态" value={summaryStatus} onChange={(e) => setSummaryStatus(e.target.value)} />
+        <Input placeholder="Trạng thái tóm tắt" value={summaryStatus} onChange={(e) => setSummaryStatus(e.target.value)} />
         <Input
-          placeholder="资产抽取状态"
+          placeholder="Trạng thái trích xuất tư liệu"
           value={assetsSeedStatus}
           onChange={(e) => setAssetsSeedStatus(e.target.value)}
         />
@@ -63,7 +63,7 @@ export function DramaProjectsPage() {
             void load(1);
           }}
         >
-          筛选
+          Lọc
         </Button>
       </AdminFilterBar>
       <div className="admin-table-wrap">
@@ -71,14 +71,14 @@ export function DramaProjectsPage() {
           <thead>
             <tr>
               <th>ID</th>
-              <th>标题</th>
-              <th>用户</th>
-              <th>集数</th>
-              <th>资产</th>
-              <th>费用</th>
-              <th>摘要</th>
-              <th>资产抽取</th>
-              <th>更新时间</th>
+              <th>Tiêu đề</th>
+              <th>Người dùng</th>
+              <th>Số tập</th>
+              <th>Tư liệu</th>
+              <th>Chi phí</th>
+              <th>Tóm tắt</th>
+              <th>Trích xuất tư liệu</th>
+              <th>Cập nhật lúc</th>
               <th></th>
             </tr>
           </thead>
@@ -100,11 +100,11 @@ export function DramaProjectsPage() {
                 <td className="text-xs text-[var(--admin-muted)]">{row.summary_status || "—"}</td>
                 <td className="text-xs text-[var(--admin-muted)]">{row.assets_seed_status || "—"}</td>
                 <td className="text-xs text-[var(--admin-muted)]">
-                  {row.updated_at ? new Date(row.updated_at).toLocaleString() : "—"}
+                  {row.updated_at ? new Date(row.updated_at).toLocaleString("vi-VN") : "—"}
                 </td>
                 <td>
                   <Button size="sm" variant="outline" asChild>
-                    <Link to={`/drama-projects/${row.id}`}>详情</Link>
+                    <Link to={`/drama-projects/${row.id}`}>Chi tiết</Link>
                   </Button>
                 </td>
               </tr>
@@ -112,7 +112,7 @@ export function DramaProjectsPage() {
             {(data?.items.length ?? 0) === 0 ? (
               <tr>
                 <td colSpan={10} className="!text-center text-[var(--admin-muted)]">
-                  暂无项目
+                  Chưa có dự án
                 </td>
               </tr>
             ) : null}

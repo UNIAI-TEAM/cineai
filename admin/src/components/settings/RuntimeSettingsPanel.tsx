@@ -23,7 +23,7 @@ export function RuntimeSettingsPanel() {
       const data = await api<AdminModelSettings>("/api/admin/settings/models");
       setForm(data);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "加载失败");
+      toast.error(err instanceof Error ? err.message : "Không tải được tham số chạy");
     } finally {
       setLoading(false);
     }
@@ -73,9 +73,9 @@ export function RuntimeSettingsPanel() {
       };
       await api("/api/admin/settings/models", { method: "PATCH", body: JSON.stringify(body) });
       await load();
-      toast.success("运行参数已保存");
+      toast.success("Đã lưu tham số chạy");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败");
+      toast.error(err instanceof Error ? err.message : "Không lưu được");
     } finally {
       setSaving(false);
     }
@@ -171,11 +171,11 @@ export function RuntimeSettingsPanel() {
 
         <SettingsPanel
           className="settings-panel--compact"
-          title="2. 并发与限制"
-          description="管线并发、任务槽位与漫剧分镜上限"
+          title="2. Chạy song song và giới hạn"
+          description="Số luồng song song của quy trình, suất chạy tác vụ và giới hạn phân cảnh phim ngắn"
         >
           <div className="settings-field-grid">
-            <LabeledControl label="生图并发">
+            <LabeledControl label="Số luồng tạo ảnh">
               <input
                 className="settings-input"
                 type="number"
@@ -184,7 +184,7 @@ export function RuntimeSettingsPanel() {
                 onChange={(e) => patchField("pipeline_image_concurrency", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="视频并发">
+            <LabeledControl label="Số luồng tạo video">
               <input
                 className="settings-input"
                 type="number"
@@ -193,7 +193,7 @@ export function RuntimeSettingsPanel() {
                 onChange={(e) => patchField("pipeline_video_concurrency", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="配音并发">
+            <LabeledControl label="Số luồng giọng đọc">
               <input
                 className="settings-input"
                 type="number"
@@ -202,7 +202,7 @@ export function RuntimeSettingsPanel() {
                 onChange={(e) => patchField("pipeline_audio_concurrency", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="任务平台槽位（全站）">
+            <LabeledControl label="Suất chạy tác vụ (toàn hệ thống)">
               <input
                 className="settings-input"
                 type="number"
@@ -211,7 +211,7 @@ export function RuntimeSettingsPanel() {
                 onChange={(e) => patchField("task_runtime_max_concurrency", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="单用户任务槽位">
+            <LabeledControl label="Suất chạy tác vụ mỗi người dùng">
               <input
                 className="settings-input"
                 type="number"
@@ -220,7 +220,7 @@ export function RuntimeSettingsPanel() {
                 onChange={(e) => patchField("task_user_max_concurrency", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="Selector 轮询并发">
+            <LabeledControl label="Số luồng kiểm tra kết quả (Selector)">
               <input
                 className="settings-input"
                 type="number"
@@ -229,7 +229,7 @@ export function RuntimeSettingsPanel() {
                 onChange={(e) => patchField("task_poll_max_concurrency", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="单用户漫剧视频在途上限">
+            <LabeledControl label="Số video phim ngắn đang tạo tối đa mỗi người dùng">
               <input
                 className="settings-input"
                 type="number"
@@ -238,7 +238,7 @@ export function RuntimeSettingsPanel() {
                 onChange={(e) => patchField("drama_user_video_job_limit", Number(e.target.value))}
               />
             </LabeledControl>
-            <LabeledControl label="分镜视频最大尝试次数">
+            <LabeledControl label="Số lần thử tối đa cho video phân cảnh">
               <input
                 className="settings-input"
                 type="number"
@@ -258,17 +258,17 @@ export function RuntimeSettingsPanel() {
         </SettingsPanel>
       </div>
 
-      <SettingsPanel className="settings-panel--compact" title="3. 运行时摘要" description="当前生效的 Worker / Selector 槽位">
+      <SettingsPanel className="settings-panel--compact" title="3. Tóm tắt khi chạy" description="Suất Worker / Selector đang áp dụng">
         <div className="settings-runtime-summary">
           <div className="settings-runtime-summary-row">
             <Activity className="h-4 w-4 text-[var(--admin-forest)]" />
             <span>
-              Worker 槽位 <strong>{form.task_runtime_max_concurrency}</strong> · 单用户{" "}
+              Suất Worker <strong>{form.task_runtime_max_concurrency}</strong> · mỗi người dùng{" "}
               <strong>{form.task_user_max_concurrency}</strong>
             </span>
           </div>
           <p className="settings-runtime-summary-hint">
-            Selector 每轮最多 {form.task_poll_max_concurrency} 路上游非阻塞查询；awaiting_poll 不计入 Worker 占用。
+            Mỗi vòng, Selector kiểm tra không chặn tối đa {form.task_poll_max_concurrency} tác vụ ở nhà cung cấp mô hình; tác vụ awaiting_poll không chiếm suất Worker.
           </p>
         </div>
       </SettingsPanel>

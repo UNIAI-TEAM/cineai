@@ -75,7 +75,7 @@ async def confirm_order(
     try:
         order = await topup.confirm_order(db, out_trade_no, admin_id=int(admin.id), note=note)
     except LookupError as exc:
-        raise HTTPException(status_code=404, detail="订单不存在") from exc
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn nạp tiền") from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return await _order_out(db, order)
@@ -93,7 +93,7 @@ async def close_order(
     try:
         order = await topup.close_order_by_admin(db, out_trade_no, note=note)
     except LookupError as exc:
-        raise HTTPException(status_code=404, detail="订单不存在") from exc
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn nạp tiền") from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return await _order_out(db, order)

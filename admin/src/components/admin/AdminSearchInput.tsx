@@ -13,7 +13,7 @@ type AdminSearchInputProps = {
 export function AdminSearchInput({
   value,
   onChange,
-  placeholder = "搜索…",
+  placeholder = "Tìm kiếm…",
   className,
   onKeyDown,
 }: AdminSearchInputProps) {

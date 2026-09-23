@@ -29,14 +29,14 @@ export function DramaEpisodeDetailPage() {
     void api<AdminDramaEpisode>(`/api/admin/drama-episodes/${id}`)
       .then(setDetail)
       .catch((err) => {
-        toast.error(err instanceof Error ? err.message : "加载失败");
+        toast.error(err instanceof Error ? err.message : "Không tải được dữ liệu");
         navigate("/drama-episodes", { replace: true });
       })
       .finally(() => setLoading(false));
   }, [id, navigate]);
 
   if (loading && !detail) {
-    return <div className="admin-detail-page-loading">加载中…</div>;
+    return <div className="admin-detail-page-loading">Đang tải…</div>;
   }
   if (!detail) return null;
 
@@ -46,12 +46,12 @@ export function DramaEpisodeDetailPage() {
         <Button variant="ghost" size="sm" className="admin-detail-back" asChild>
           <Link to="/drama-episodes">
             <ArrowLeft className="h-4 w-4" />
-            返回分集列表
+            Về danh sách tập
           </Link>
         </Button>
         <div className="admin-detail-page-heading">
           <h2 className="admin-detail-page-title">
-            分集 #{detail.id} · {detail.name}
+            Tập #{detail.id} · {detail.name}
           </h2>
           <p className="admin-detail-page-sub">
             <AdminEntityLink kind="drama" id={detail.project_id} label={detail.project_title ?? undefined} />
@@ -59,19 +59,19 @@ export function DramaEpisodeDetailPage() {
         </div>
         <div className="admin-detail-page-actions">
           <Button size="sm" variant="outline" asChild>
-            <Link to={`/drama-projects/${detail.project_id}?tab=episodes`}>打开项目</Link>
+            <Link to={`/drama-projects/${detail.project_id}?tab=episodes`}>Mở dự án</Link>
           </Button>
           <Button size="sm" variant="outline" asChild>
-            <Link to={`/drama-fragments?episode_id=${detail.id}`}>全部分镜</Link>
+            <Link to={`/drama-fragments?episode_id=${detail.id}`}>Tất cả phân cảnh</Link>
           </Button>
         </div>
       </div>
 
-      <AdminDetailSection title="基本信息">
+      <AdminDetailSection title="Thông tin cơ bản">
         <AdminDetailMeta
           items={[
             {
-              label: "用户",
+              label: "Người dùng",
               value: detail.user_id ? (
                 <AdminEntityLink kind="user" id={detail.user_id} label={detail.user_email ?? undefined} />
               ) : (
@@ -79,30 +79,30 @@ export function DramaEpisodeDetailPage() {
               ),
             },
             {
-              label: "所属项目",
+              label: "Thuộc dự án",
               value: <AdminEntityLink kind="drama" id={detail.project_id} label={detail.project_title ?? undefined} />,
             },
-            { label: "分镜数", value: detail.fragment_count },
-            { label: "分镜计划", value: detail.fragment_plan_status || "—" },
+            { label: "Số phân cảnh", value: detail.fragment_count },
+            { label: "Kế hoạch phân cảnh", value: detail.fragment_plan_status || "—" },
             {
-              label: "更新时间",
-              value: detail.updated_at ? new Date(detail.updated_at).toLocaleString() : "—",
+              label: "Cập nhật lúc",
+              value: detail.updated_at ? new Date(detail.updated_at).toLocaleString("vi-VN") : "—",
             },
           ]}
         />
       </AdminDetailSection>
 
-      <AdminDetailSection title={`分镜列表（${(detail.fragments ?? []).length}）`}>
+      <AdminDetailSection title={`Danh sách phân cảnh (${(detail.fragments ?? []).length})`}>
         <AdminDetailTableWrap>
           <table>
             <thead>
               <tr>
-                <th>序号</th>
+                <th>Thứ tự</th>
                 <th>ID</th>
-                <th>内容</th>
-                <th>时长</th>
-                <th>生成</th>
-                <th>资产引用</th>
+                <th>Nội dung</th>
+                <th>Thời lượng</th>
+                <th>Trạng thái tạo</th>
+                <th>Tư liệu dùng</th>
                 <th></th>
               </tr>
             </thead>
@@ -110,7 +110,7 @@ export function DramaEpisodeDetailPage() {
               {(detail.fragments ?? []).length === 0 ? (
                 <tr>
                   <td colSpan={7} className="!text-center text-[var(--admin-muted)]">
-                    暂无分镜
+                    Chưa có phân cảnh
                   </td>
                 </tr>
               ) : (
@@ -126,7 +126,7 @@ export function DramaEpisodeDetailPage() {
                     <td>{f.asset_ref_count}</td>
                     <td>
                       <Button size="sm" variant="outline" asChild>
-                        <Link to={`/drama-fragments/${f.id}`}>查看</Link>
+                        <Link to={`/drama-fragments/${f.id}`}>Xem</Link>
                       </Button>
                     </td>
                   </tr>

@@ -20,10 +20,41 @@ import { PageHeader } from "@/components/ui/page";
 type ListRes = { items: AdminTemplate[]; meta: PageMeta };
 type MetaRes = { categories: string[] };
 
+/** 分类键（后端中文值）→ 越南语展示名；未登记的键原样显示 */
+const TEMPLATE_CATEGORY_LABELS: Record<string, string> = {
+  开源: "Mã nguồn mở",
+  科普: "Video kiến thức",
+  获客: "Bán hàng",
+  纪录片: "Phim tài liệu",
+  写实感: "Chân thực",
+  真人感: "Người thật",
+  电影感: "Điện ảnh",
+  儿童: "Thiếu nhi",
+  动漫: "Anime",
+  国风: "Cổ phong",
+  科幻: "Viễn tưởng",
+  奇幻: "Kỳ ảo",
+  悬疑: "Ly kỳ bí ẩn",
+  商业: "Marketing",
+  复古: "Hoài cổ",
+  图文: "Ảnh + lời dẫn",
+  故事: "Kể chuyện",
+  像素: "Pixel art",
+  剪纸: "Cắt giấy",
+  手绘: "Vẽ tay",
+  拼贴: "Cắt dán",
+  摄影: "Nhiếp ảnh",
+  极简: "Tối giản",
+  水墨: "Thuỷ mặc",
+  绘本: "Sách tranh",
+  胶片: "Phim nhựa",
+  赛博: "Cyberpunk",
+};
+
 const STATUS_OPTIONS = [
-  { value: "", label: "全部状态" },
-  { value: "active", label: "已上架" },
-  { value: "inactive", label: "已下架" },
+  { value: "", label: "Tất cả trạng thái" },
+  { value: "active", label: "Đang hiển thị" },
+  { value: "inactive", label: "Đã ẩn" },
   { value: "premium", label: "Premium" },
 ];
 
@@ -82,7 +113,7 @@ export function TemplatesPage() {
       if (statusFilter === "inactive") params.set("is_active", "false");
       setData(await api<ListRes>(`/api/admin/templates?${params}`));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "加载失败");
+      toast.error(err instanceof Error ? err.message : "Không tải được danh sách mẫu");
     } finally {
       setLoading(false);
     }
@@ -112,10 +143,10 @@ export function TemplatesPage() {
     const countFor = (cat: string) =>
       items.filter((t) => (t.category || []).includes(cat)).length;
     return [
-      { value: "", label: "全部分类", count: items.length },
+      { value: "", label: "Tất cả", count: items.length },
       ...categories.map((cat) => ({
         value: cat,
-        label: cat,
+        label: TEMPLATE_CATEGORY_LABELS[cat] ?? cat,
         count: countFor(cat),
       })),
     ];
@@ -159,7 +190,7 @@ export function TemplatesPage() {
       });
       setOpen(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "加载模板详情失败");
+      toast.error(err instanceof Error ? err.message : "Không tải được chi tiết mẫu");
     }
   }
 
@@ -196,7 +227,7 @@ export function TemplatesPage() {
           }),
         });
       } else {
-        if (!form.id.trim()) throw new Error("请填写模板 ID");
+        if (!form.id.trim()) throw new Error("Nhập ID mẫu");
         await api(`/api/admin/templates`, {
           method: "POST",
           body: JSON.stringify({
@@ -224,11 +255,11 @@ export function TemplatesPage() {
           }),
         });
       }
-      toast.success("已保存");
+      toast.success("Đã lưu");
       setOpen(false);
       await Promise.all([load(), loadMeta()]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败");
+      toast.error(err instanceof Error ? err.message : "Không lưu được");
     } finally {
       setSaving(false);
     }
@@ -240,7 +271,7 @@ export function TemplatesPage() {
       await api(`/api/admin/templates/${id}`, { method: "PATCH", body: JSON.stringify(body) });
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "更新失败");
+      toast.error(err instanceof Error ? err.message : "Không cập nhật được");
     }
   }
 
@@ -250,11 +281,11 @@ export function TemplatesPage() {
     setDeleting(true);
     try {
       await api(`/api/admin/templates/${deleteTarget}`, { method: "DELETE" });
-      toast.success("已删除");
+      toast.success("Đã xoá");
       setDeleteTarget(null);
       await Promise.all([load(), loadMeta()]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "删除失败");
+      toast.error(err instanceof Error ? err.message : "Không xoá được");
     } finally {
       setDeleting(false);
     }
@@ -263,11 +294,11 @@ export function TemplatesPage() {
   return (
     <div className="admin-list-page">
       <PageHeader
-        description="风格 / 角色 / 提示词以本页为准；已创建项目需在分镜页恢复模板后才会跟随。"
+        description="Phong cách, nhân vật và prompt lấy theo trang này. Dự án đã tạo chỉ cập nhật theo sau khi khôi phục mẫu ở trang phân cảnh."
         actions={
           <Button onClick={openCreate} className="gap-2">
             <Plus className="h-4 w-4" />
-            新建模板
+            Tạo mẫu
           </Button>
         }
       />
@@ -276,13 +307,13 @@ export function TemplatesPage() {
         trailing={
           <>
             <LayoutGrid className="h-4 w-4" />
-            {filteredItems.length} / {data?.meta.total ?? 0} 项
+            {filteredItems.length} / {data?.meta.total ?? 0} mẫu
           </>
         }
       >
         <AdminSearchInput
           className="min-w-[220px] flex-1 max-w-md"
-          placeholder="搜索名称 / ID / 描述 / 分类"
+          placeholder="Tìm theo tên / ID / mô tả / phân loại"
           value={q}
           onChange={setQ}
           onKeyDown={(e) => {
@@ -302,7 +333,7 @@ export function TemplatesPage() {
           }}
         />
         <AdminChipFilter
-          label="分类"
+          label="Phân loại"
           value={categoryFilter}
           options={categoryOptions}
           onChange={(v) => {
@@ -318,20 +349,20 @@ export function TemplatesPage() {
             void load(1);
           }}
         >
-          筛选
+          Lọc
         </Button>
       </AdminFilterBar>
 
       {loading ? (
         <div className="template-grid-loading">
           <Loader2 className="h-6 w-6 animate-spin text-[#67c23a]" />
-          <span>加载模板…</span>
+          <span>Đang tải mẫu…</span>
         </div>
       ) : filteredItems.length === 0 ? (
         <div className="template-grid-empty">
-          <p>暂无匹配的模板</p>
+          <p>Không có mẫu nào khớp</p>
           <Button variant="outline" size="sm" onClick={openCreate}>
-            新建第一个模板
+            Tạo mẫu đầu tiên
           </Button>
         </div>
       ) : (
@@ -340,6 +371,7 @@ export function TemplatesPage() {
             <TemplateCard
               key={t.id}
               template={t}
+              categoryLabels={TEMPLATE_CATEGORY_LABELS}
               onEdit={(tpl) => void openEdit(tpl)}
               onDelete={(id) => setDeleteTarget(id)}
               onToggleActive={(id, v) => void quickPatch(id, { is_active: v })}
@@ -364,6 +396,7 @@ export function TemplatesPage() {
         editing={editing}
         form={form}
         categorySuggestions={categories}
+        categoryLabels={TEMPLATE_CATEGORY_LABELS}
         onOpenChange={setOpen}
         onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
         onSave={() => void save()}
@@ -371,9 +404,9 @@ export function TemplatesPage() {
 
       <AdminConfirmDialog
         open={Boolean(deleteTarget)}
-        title="删除模板"
-        description={deleteTarget ? `确认删除模板「${deleteTarget}」？已被项目引用的模板无法删除。` : undefined}
-        confirmLabel="删除"
+        title="Xoá mẫu"
+        description={deleteTarget ? `Xoá mẫu “${deleteTarget}”? Mẫu đang được dự án dùng thì không xoá được. Thao tác này không hoàn tác được.` : undefined}
+        confirmLabel="Xoá"
         loading={deleting}
         destructive
         onOpenChange={(next) => {

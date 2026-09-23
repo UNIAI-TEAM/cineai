@@ -53,7 +53,7 @@ export function UsersPage() {
       const res = await api<ListRes>(`/api/admin/users?${params}`);
       setData(res);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "加载失败");
+      toast.error(err instanceof Error ? err.message : "Không tải được dữ liệu");
     } finally {
       setLoading(false);
     }
@@ -69,7 +69,7 @@ export function UsersPage() {
       .then(setStats)
       .catch((err) => {
         setStats(null);
-        toast.error(err instanceof Error ? err.message : "统计加载失败");
+        toast.error(err instanceof Error ? err.message : "Không tải được thống kê");
       });
   }, []);
 
@@ -97,7 +97,7 @@ export function UsersPage() {
       const balanceFen = balanceUnchanged
         ? editing.balance_fen
         : toFen(parseFloat(form.balance_amount || "0"));
-      if (Number.isNaN(balanceFen)) throw new Error("余额格式无效");
+      if (Number.isNaN(balanceFen)) throw new Error("Số dư không hợp lệ");
       await api(`/api/admin/users/${editing.id}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -106,11 +106,11 @@ export function UsersPage() {
           balance_note: form.balance_note || undefined,
         }),
       });
-      toast.success("已保存");
+      toast.success("Đã lưu");
       setEditing(null);
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败");
+      toast.error(err instanceof Error ? err.message : "Không lưu được");
     } finally {
       setSaving(false);
     }
@@ -123,37 +123,37 @@ export function UsersPage() {
 
   return (
     <div className="admin-list-page">
-      <PageHeader description="搜索用户，调整角色与余额" />
+      <PageHeader description="Tìm người dùng, chỉnh vai trò và số dư" />
 
       <AdminFilterBar>
         <AdminSearchInput
           value={q}
           onChange={setQ}
-          placeholder="搜索邮箱 / 昵称 / 账号 ID"
+          placeholder="Tìm theo email / tên hiển thị / ID tài khoản"
           onKeyDown={(e) => {
             if (e.key === "Enter") applyFilters();
           }}
         />
         <Select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-          <option value="">全部角色</option>
+          <option value="">Tất cả vai trò</option>
           <option value="user">user</option>
           <option value="admin">admin</option>
         </Select>
         <Button size="sm" className="admin-filter-action" onClick={applyFilters} disabled={loading}>
-          {loading ? "加载中…" : "搜索"}
+          {loading ? "Đang tải…" : "Tìm kiếm"}
         </Button>
       </AdminFilterBar>
 
       <AdminListStats
         items={[
-          { label: "总用户数", value: stats?.user_count ?? (loading ? "…" : "—") },
+          { label: "Tổng người dùng", value: stats?.user_count ?? (loading ? "…" : "—") },
           {
-            label: "本月调用",
+            label: "Lượt gọi tháng này",
             value: stats != null ? (stats.usage_calls_month ?? 0) : loading ? "…" : "—",
-            hint: stats ? `今日 ${stats.usage_calls_today ?? 0} 次` : undefined,
+            hint: stats ? `Hôm nay ${stats.usage_calls_today ?? 0} lượt` : undefined,
           },
           {
-            label: "累计调用",
+            label: "Tổng lượt gọi",
             value: stats != null ? (stats.usage_calls_total ?? 0) : loading ? "…" : "—",
           },
         ]}
@@ -163,15 +163,15 @@ export function UsersPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>账号 ID</TableHead>
-              <TableHead>邮箱</TableHead>
-              <TableHead>昵称</TableHead>
-              <TableHead>手机</TableHead>
-              <TableHead>余额</TableHead>
-              <TableHead>冻结</TableHead>
-              <TableHead>角色</TableHead>
-              <TableHead>注册时间</TableHead>
-              <TableHead className="w-[140px]">操作</TableHead>
+              <TableHead>ID tài khoản</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Tên hiển thị</TableHead>
+              <TableHead>Số điện thoại</TableHead>
+              <TableHead>Số dư</TableHead>
+              <TableHead>Tạm giữ</TableHead>
+              <TableHead>Vai trò</TableHead>
+              <TableHead>Đăng ký lúc</TableHead>
+              <TableHead className="w-[140px]">Thao tác</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -187,7 +187,7 @@ export function UsersPage() {
                   <Badge variant={u.role === "admin" ? "success" : "secondary"}>{u.role}</Badge>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {u.created_at ? new Date(u.created_at).toLocaleString() : "—"}
+                  {u.created_at ? new Date(u.created_at).toLocaleString("vi-VN") : "—"}
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1">
@@ -199,10 +199,10 @@ export function UsersPage() {
                         userDetail.open(u.id);
                       }}
                     >
-                      查看
+                      Xem
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => openEdit(u)}>
-                      编辑
+                      Sửa
                     </Button>
                   </div>
                 </TableCell>
@@ -211,7 +211,7 @@ export function UsersPage() {
             {!loading && (data?.items.length ?? 0) === 0 && (
               <TableRow>
                 <TableCell colSpan={9} className="p-0">
-                  <EmptyState title="暂无用户" description="试试换个关键词搜索" />
+                  <EmptyState title="Chưa có người dùng" description="Thử tìm bằng từ khoá khác" />
                 </TableCell>
               </TableRow>
             )}
@@ -245,32 +245,32 @@ export function UsersPage() {
         open={!!editing}
         onOpenChange={(open) => !open && setEditing(null)}
         size="md"
-        title="编辑用户"
+        title="Sửa người dùng"
         subtitle={editing?.email}
         footer={
           <Button className="w-full sm:w-auto" disabled={saving} onClick={() => void saveEdit()}>
-            {saving ? "保存中…" : "保存修改"}
+            {saving ? "Đang lưu…" : "Lưu thay đổi"}
           </Button>
         }
       >
         <div className="admin-form-grid admin-form-grid--2">
-          <AdminField label="角色">
+          <AdminField label="Vai trò">
             <Select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}>
               <option value="user">user</option>
               <option value="admin">admin</option>
             </Select>
           </AdminField>
-          <AdminField label={`余额（${currency}）`} hint={`按当前汇率折算入账，当前 ${format(editing?.balance_fen ?? 0)}`}>
+          <AdminField label={`Số dư (${currency})`} hint={`Quy đổi theo tỷ giá hiện tại. Số dư hiện tại: ${format(editing?.balance_fen ?? 0)}`}>
             <Input
               value={form.balance_amount}
               onChange={(e) => setForm((f) => ({ ...f, balance_amount: e.target.value }))}
             />
           </AdminField>
-          <AdminField label="调账备注" hint="可选">
+          <AdminField label="Ghi chú điều chỉnh" hint="Không bắt buộc">
             <Input
               value={form.balance_note}
               onChange={(e) => setForm((f) => ({ ...f, balance_note: e.target.value }))}
-              placeholder="管理员备注"
+              placeholder="Ghi chú của quản trị viên"
             />
           </AdminField>
         </div>

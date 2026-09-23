@@ -82,7 +82,7 @@ async def get_template(
 ) -> AdminTemplateOut:
     tpl = await db.get(Template, template_id)
     if not tpl:
-        raise HTTPException(status_code=404, detail="模板不存在")
+        raise HTTPException(status_code=404, detail="Không tìm thấy mẫu")
     return AdminTemplateOut.model_validate(tpl)
 
 
@@ -95,7 +95,7 @@ async def create_template(
     # Create a new template row
     existing = await db.get(Template, body.id)
     if existing:
-        raise HTTPException(status_code=400, detail="模板 ID 已存在")
+        raise HTTPException(status_code=400, detail="ID mẫu đã tồn tại")
     tpl = Template(**body.model_dump())
     db.add(tpl)
     await db.commit()
@@ -113,7 +113,7 @@ async def patch_template(
     # Partial update including is_active / is_premium
     tpl = await db.get(Template, template_id)
     if not tpl:
-        raise HTTPException(status_code=404, detail="模板不存在")
+        raise HTTPException(status_code=404, detail="Không tìm thấy mẫu")
     data = body.model_dump(exclude_unset=True)
     for key, value in data.items():
         setattr(tpl, key, value)
@@ -131,7 +131,7 @@ async def delete_template(
     # Refuse delete when projects still reference the template
     tpl = await db.get(Template, template_id)
     if not tpl:
-        raise HTTPException(status_code=404, detail="模板不存在")
+        raise HTTPException(status_code=404, detail="Không tìm thấy mẫu")
     used = int(
         (
             await db.execute(
@@ -141,7 +141,7 @@ async def delete_template(
         or 0
     )
     if used > 0:
-        raise HTTPException(status_code=400, detail=f"模板仍被 {used} 个项目引用，无法删除")
+        raise HTTPException(status_code=400, detail=f"Mẫu đang được {used} dự án sử dụng, không xoá được")
     await db.delete(tpl)
     await db.commit()
     return {"ok": True}

@@ -23,25 +23,25 @@ export function SecretField({
   return (
     <LabeledControl
       label={label}
-      hint={hint ?? (configured ? "已配置；留空保存则不修改" : undefined)}
+      hint={hint ?? (configured ? "Đã cấu hình. Để trống khi lưu thì giữ nguyên." : undefined)}
     >
       <div className="admin-secret-field">
         <div className="admin-secret-field-row">
           <input
             type="password"
             className="settings-input is-secret"
-            placeholder={placeholder ?? (configured ? "留空则不修改" : "填写密钥")}
+            placeholder={placeholder ?? (configured ? "Để trống để giữ nguyên" : "Nhập khoá bí mật")}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             autoComplete="new-password"
           />
           {configured && onClear ? (
             <button type="button" className="admin-btn admin-btn-secondary settings-mini-btn" onClick={onClear}>
-              清除
+              Xoá khoá
             </button>
           ) : null}
         </div>
-        {configured ? <span className="admin-secret-status">已配置</span> : null}
+        {configured ? <span className="admin-secret-status">Đã cấu hình</span> : null}
       </div>
     </LabeledControl>
   );

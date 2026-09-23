@@ -27,8 +27,8 @@ type EmptyStateProps = {
 
 // 空列表占位
 export function EmptyState({
-  title = "暂无数据",
-  description = "换个筛选条件再试试",
+  title = "Chưa có dữ liệu",
+  description = "Thử đổi điều kiện lọc xem sao",
   className,
 }: EmptyStateProps) {
   return (

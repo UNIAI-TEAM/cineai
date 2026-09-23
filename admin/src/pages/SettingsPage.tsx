@@ -15,10 +15,10 @@ type SettingsTab = "routing" | "runtime" | "oss" | "payment" | "site";
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "routing", label: "Mô hình" },
-  { id: "runtime", label: "运行参数" },
-  { id: "oss", label: "存储 OSS" },
-  { id: "payment", label: "支付与汇率" },
-  { id: "site", label: "站点工具" },
+  { id: "runtime", label: "Tham số chạy" },
+  { id: "oss", label: "Lưu trữ (OSS)" },
+  { id: "payment", label: "Thanh toán và tỉ giá" },
+  { id: "site", label: "Trang và công cụ" },
 ];
 
 // 页头：标题 + 统一保存按钮
@@ -27,9 +27,9 @@ function SettingsPageHeader() {
   return (
     <header className="settings-page-hero">
       <div className="min-w-0">
-        <h1 className="settings-page-title">系统设置</h1>
+        <h1 className="settings-page-title">Cài đặt hệ thống</h1>
         <p className="settings-head-desc">
-          模型服务商与功能分配、运行参数、OSS / 银行转账收款 / 汇率与计费与站点配置；密钥加密存库，留空保存不修改。
+          Nhà cung cấp mô hình và phân bổ theo chức năng, tham số chạy, OSS, tài khoản nhận chuyển khoản, tỉ giá, tính phí và thông tin trang. Khoá bí mật được mã hoá khi lưu; để trống thì giữ nguyên.
         </p>
       </div>
       {action ? (
@@ -40,7 +40,7 @@ function SettingsPageHeader() {
           onClick={() => void action.onSave()}
         >
           {action.saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          {action.label ?? "保存"}
+          {action.label ?? "Lưu"}
         </button>
       ) : null}
     </header>
@@ -55,7 +55,7 @@ function SettingsPageInner() {
     <div className="settings-page admin-page">
       <SettingsPageHeader />
 
-      <div className="settings-tabs" role="tablist" aria-label="系统设置分区">
+      <div className="settings-tabs" role="tablist" aria-label="Các mục cài đặt hệ thống">
         {TABS.map(({ id, label }) => (
           <button
             key={id}

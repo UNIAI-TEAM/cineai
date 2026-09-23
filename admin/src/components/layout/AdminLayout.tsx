@@ -76,26 +76,26 @@ const navGroups: NavGroup[] = [
 
   {
 
-    label: "概览",
+    label: "Tổng quan",
 
-    items: [{ to: "/", label: "仪表盘", icon: LayoutDashboard, end: true }],
+    items: [{ to: "/", label: "Tổng quan", icon: LayoutDashboard, end: true }],
 
   },
 
   {
 
-    label: "业务",
+    label: "Kinh doanh",
 
     items: [
 
-      { to: "/users", label: "用户管理", icon: Users },
+      { to: "/users", label: "Người dùng", icon: Users },
 
-      { to: "/orders", label: "订单流水", icon: Receipt },
-      { to: "/finance", label: "财务列表", icon: Wallet },
+      { to: "/orders", label: "Đơn nạp tiền", icon: Receipt },
+      { to: "/finance", label: "Tài chính", icon: Wallet },
 
-      { to: "/projects", label: "科普项目", icon: Clapperboard },
+      { to: "/projects", label: "Dự án video ngắn", icon: Clapperboard },
 
-      { to: "/works", label: "作品审核", icon: FileVideo },
+      { to: "/works", label: "Duyệt tác phẩm", icon: FileVideo },
 
     ],
 
@@ -103,17 +103,17 @@ const navGroups: NavGroup[] = [
 
   {
 
-    label: "漫剧",
+    label: "Phim ngắn",
 
     items: [
 
-      { to: "/drama-projects", label: "漫剧项目", icon: Film, matchPrefix: true },
+      { to: "/drama-projects", label: "Dự án phim ngắn", icon: Film, matchPrefix: true },
 
-      { to: "/drama-assets", label: "资产库", icon: Image, matchPrefix: true },
+      { to: "/drama-assets", label: "Tư liệu", icon: Image, matchPrefix: true },
 
-      { to: "/drama-episodes", label: "分集管理", icon: ListVideo, matchPrefix: true },
+      { to: "/drama-episodes", label: "Tập phim", icon: ListVideo, matchPrefix: true },
 
-      { to: "/drama-fragments", label: "分镜管理", icon: Layers, matchPrefix: true },
+      { to: "/drama-fragments", label: "Phân cảnh", icon: Layers, matchPrefix: true },
 
     ],
 
@@ -121,13 +121,13 @@ const navGroups: NavGroup[] = [
 
   {
 
-    label: "资源",
+    label: "Tài nguyên",
 
     items: [
 
-      { to: "/templates", label: "模板管理", icon: Shapes },
+      { to: "/templates", label: "Mẫu", icon: Shapes },
 
-      { to: "/queues", label: "任务中心", icon: Layers },
+      { to: "/queues", label: "Trung tâm tác vụ", icon: Layers },
 
     ],
 
@@ -135,9 +135,9 @@ const navGroups: NavGroup[] = [
 
   {
 
-    label: "系统",
+    label: "Hệ thống",
 
-    items: [{ to: "/settings", label: "系统设置", icon: Settings }],
+    items: [{ to: "/settings", label: "Cài đặt", icon: Settings }],
 
   },
 
@@ -147,30 +147,30 @@ const navGroups: NavGroup[] = [
 
 const titles: Record<string, string> = {
 
-  "/": "仪表盘",
+  "/": "Tổng quan",
 
-  "/users": "用户管理",
+  "/users": "Người dùng",
 
-  "/orders": "订单流水",
-  "/finance": "财务列表",
+  "/orders": "Đơn nạp tiền",
+  "/finance": "Tài chính",
 
-  "/projects": "科普项目",
+  "/projects": "Dự án video ngắn",
 
-  "/drama-projects": "漫剧项目",
+  "/drama-projects": "Dự án phim ngắn",
 
-  "/drama-assets": "资产库",
+  "/drama-assets": "Kho tư liệu",
 
-  "/drama-episodes": "分集管理",
+  "/drama-episodes": "Tập phim",
 
-  "/drama-fragments": "分镜管理",
+  "/drama-fragments": "Phân cảnh",
 
-  "/works": "作品审核",
+  "/works": "Duyệt tác phẩm",
 
-  "/templates": "模板管理",
+  "/templates": "Mẫu",
 
-  "/settings": "系统设置",
+  "/settings": "Cài đặt",
 
-  "/queues": "任务中心",
+  "/queues": "Trung tâm tác vụ",
 
 };
 
@@ -178,15 +178,15 @@ const titles: Record<string, string> = {
 
 function resolveTitle(pathname: string): string {
 
-  if (pathname.startsWith("/drama-projects/")) return "漫剧项目详情";
+  if (pathname.startsWith("/drama-projects/")) return "Chi tiết dự án phim ngắn";
 
-  if (pathname.startsWith("/drama-assets/")) return "资产详情";
+  if (pathname.startsWith("/drama-assets/")) return "Chi tiết tư liệu";
 
-  if (pathname.startsWith("/drama-episodes/")) return "分集详情";
+  if (pathname.startsWith("/drama-episodes/")) return "Chi tiết tập";
 
-  if (pathname.startsWith("/drama-fragments/")) return "分镜详情";
+  if (pathname.startsWith("/drama-fragments/")) return "Chi tiết phân cảnh";
 
-  return titles[pathname] ?? "管理后台";
+  return titles[pathname] ?? "Trang quản trị";
 
 }
 
@@ -248,7 +248,7 @@ export function AdminLayout() {
 
               <div className="admin-brand-name">Cine<span className="admin-brand-ai">AI</span></div>
 
-              <div className="admin-brand-sub">管理后台</div>
+              <div className="admin-brand-sub">Trang quản trị</div>
 
             </div>
 
@@ -316,13 +316,13 @@ export function AdminLayout() {
 
               <div className="truncate text-[13px] font-medium text-[#e8f0eb]">{user?.email}</div>
 
-              <div className="text-xs text-[rgba(240,245,242,0.45)]">超级管理员</div>
+              <div className="text-xs text-[rgba(240,245,242,0.45)]">Quản trị viên cấp cao</div>
 
             </div>
 
           )}
 
-          <button type="button" className="admin-icon-btn !text-[rgba(240,245,242,0.55)] hover:!text-[#e8f0eb]" onClick={handleLogout} title="退出登录">
+          <button type="button" className="admin-icon-btn !text-[rgba(240,245,242,0.55)] hover:!text-[#e8f0eb]" onClick={handleLogout} title="Đăng xuất">
 
             <LogOut className="h-4 w-4" />
 
@@ -348,7 +348,7 @@ export function AdminLayout() {
 
               onClick={() => setCollapsed((v) => !v)}
 
-              aria-label="折叠侧栏"
+              aria-label="Thu gọn thanh bên"
 
             >
 
@@ -360,7 +360,7 @@ export function AdminLayout() {
 
               <div className="admin-topbar-title">{title}</div>
 
-              <div className="admin-topbar-crumb">CineAI · 运营管理</div>
+              <div className="admin-topbar-crumb">CineAI · Quản trị vận hành</div>
 
             </div>
 
@@ -368,7 +368,7 @@ export function AdminLayout() {
 
           <div className="flex items-center gap-1">
 
-            <div className="admin-currency-toggle" role="group" aria-label="展示货币" title="全站金额展示货币">
+            <div className="admin-currency-toggle" role="group" aria-label="Tiền tệ hiển thị" title="Tiền tệ hiển thị số tiền trên toàn trang">
 
               {currencyOptions.map((code) => (
 
@@ -394,7 +394,7 @@ export function AdminLayout() {
 
             </div>
 
-            <button type="button" className="admin-icon-btn" title="通知">
+            <button type="button" className="admin-icon-btn" title="Thông báo">
 
               <Bell className="h-4 w-4" />
 
@@ -406,7 +406,7 @@ export function AdminLayout() {
 
               className="admin-icon-btn"
 
-              title="全屏"
+              title="Toàn màn hình"
 
               onClick={() => {
 

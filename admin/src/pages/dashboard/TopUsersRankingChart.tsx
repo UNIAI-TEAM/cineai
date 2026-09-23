@@ -30,7 +30,7 @@ type TopUsersRankingChartProps = {
 export function TopUsersRankingChart({ users, metric }: TopUsersRankingChartProps) {
   const rows = topUsersToBuckets(users);
   if (rows.length === 0) {
-    return <div className="admin-chart-empty">暂无排行</div>;
+    return <div className="admin-chart-empty">Chưa có xếp hạng</div>;
   }
 
   return (

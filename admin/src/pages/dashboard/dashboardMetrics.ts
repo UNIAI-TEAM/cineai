@@ -25,7 +25,7 @@ export function readBucketMetric(row: AdminUsageBucket, metric: DashboardMetric)
 
 /** 格式化指标展示值（金额按传入的格式化器换算为展示货币） */
 export function formatDashboardMetric(value: number, metric: DashboardMetric, format: MoneyFormatter): string {
-  if (metric === "calls") return value.toLocaleString();
+  if (metric === "calls") return value.toLocaleString("vi-VN");
   return format(value);
 }
 
@@ -44,5 +44,5 @@ export function projectScaleHint(stats: AdminStats | null): string | undefined {
   if (!stats) return undefined;
   const kepu = sumProjectStatuses(stats.project_status_counts);
   const drama = stats.drama_project_count ?? 0;
-  return `科普 ${kepu} · 漫剧 ${drama}`;
+  return `Video ngắn ${kepu} · Phim ngắn ${drama}`;
 }
