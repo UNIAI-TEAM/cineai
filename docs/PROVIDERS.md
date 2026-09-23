@@ -243,7 +243,7 @@ Lúc nạp cấu hình (`model_settings._ensure_bootstrapped_channels`):
 - Có cấu hình Volc TTS trong env thì slot `audio` được seed với binding Volc đứng đầu.
 
 Response `AdminRoutingSettingsSaveOut.applied` cho biết những phần nào đã được lưu (`providers`,
-`function_bindings`); lỗi validate (provider không tồn tại, model chưa bật ở provider, model sai
+`function_bindings`); lỗi validate ("nhà cung cấp … không tồn tại", "chưa được bật ở nhà cung cấp …", model sai
 capability…) trả `HTTP 400` với message tiếng Việt từ `function_bindings.validate_function_bindings()`.
 
 `GET /api/media-models?scope=<kepu|drama|tools>` (public, không cần admin) trả danh sách model đang khả
@@ -272,6 +272,13 @@ dụng cho từng nhóm chức năng — dùng để hiển thị dropdown chọ
   `usage_events.model`, không phải model mà `TtsService` thực tế đã dùng (cascade mock → slot → edge-tts
   có thể rơi vào một nhánh khác). Số tiền vẫn bị chặn trên bởi giá ước tính nên không bị tính quá, nhưng
   tên model trên dòng usage có thể sai — hạn chế đã biết, chưa khắc phục.
+- **Mock khi chưa có key**: đặt `ARK_MOCK=true`, hoặc không cấu hình bất kỳ provider nào có `api_key` —
+  `MediaGateway.mock` sẽ tự phát hiện (`get_routing_snapshot().channels` không có channel nào
+  `enabled` + có key) và chuyển toàn bộ ảnh/video/TTS sang sinh dữ liệu giả cục bộ (`static/mock/...`),
+  không gọi upstream. **Mock không bao gồm văn bản của phim ngắn**: `llm_client.chat_completions` không có
+  nhánh mock, nên các luồng văn bản drama (tóm tắt kịch bản, viết tập, tách phân cảnh…) vẫn gọi nhà cung
+  cấp văn bản thật kể cả khi `ARK_MOCK=true` — chưa gán slot `text` thì báo "Chưa gán model văn bản", key
+  sai thì báo lỗi xác thực của nhà cung cấp.
 
 ## 5. Nâng cấp từ bản TokenFree
 
@@ -287,17 +294,29 @@ Checklist cho người vận hành nâng cấp một bản cài đã chạy Toke
   `drama/generation.py:1665`); một tác vụ video mà `provider_channel_id` trỏ vào kênh đã bị xoá (ví dụ
   `tokenfree`) thì poll báo `"Không tìm thấy provider của tác vụ"` (`media_gateway.py::fetch_task_once`).
   Nên deploy lúc ít tác vụ, hoặc chờ hàng đợi video trống.
-- **Cập nhật env trước lần khởi động đầu**: `OPENAI_API_KEY` (+ `OPENAI_BASE_URL`, mặc định
-  `https://api.openai.com/v1`), `ARK_API_KEY` (+ `ARK_BASE_URL`, mặc định mới
-  `https://ark.ap-southeast.bytepluses.com/api/v3`), `VOLC_TTS_*` nếu dùng Seed Speech. Provider chỉ được
-  **seed từ env đúng một lần** — khi DB chưa có provider nào (cờ `app_settings.config_json["providers_seeded"]`,
-  xem mục "Seed provider từ `.env`"); sau đó sửa env không còn tác dụng, mọi thay đổi làm ở admin →
-  **系统设置** → tab **"Mô hình"**. Env còn trỏ `tokenfree.com` sẽ không được seed, key giữ chỗ cũng bị bỏ qua.
-- **`VOLC_TTS_URL` có giá trị mặc định mới**: BytePlus quốc tế
-  (`https://voice.ap-southeast-1.bytepluses.com/api/v3/tts/unidirectional`). Bộ key openspeech Trung Quốc
-  (Volcengine) phải đặt tường minh `VOLC_TTS_URL=https://openspeech.bytedance.com/api/v3/tts/unidirectional`
-  (trong env trước lần khởi động đầu, hoặc làm Base URL của provider Seed Speech ở admin), nếu không request
-  sẽ đi nhầm sang endpoint quốc tế và thất bại.
+- **Bản cài nâng cấp không seed provider từ env.** Vì lần khởi động đầu vừa xoá kênh `tokenfree`,
+  `_ensure_bootstrapped_channels` đánh dấu đã seed mà không đọc `OPENAI_API_KEY` / `ARK_API_KEY` /
+  `VOLC_TTS_*` trong env (env cũ chứa key TokenFree). Sửa env trước hay sau khi deploy đều không có tác
+  dụng: sau deploy, admin thêm từng provider (OpenAI, BytePlus ModelArk, Seed Speech — kể cả Base URL của
+  Seed Speech) ở admin → **系统设置** → tab **"Mô hình"**, rồi gán chức năng.
+- **Bản cài mới** (DB chưa có provider, chưa có cờ `app_settings.config_json["providers_seeded"]`) thì seed
+  từ env **đúng một lần**, xem mục "Seed provider từ `.env`": `OPENAI_API_KEY` (+ `OPENAI_BASE_URL`, mặc
+  định `https://api.openai.com/v1`), `ARK_API_KEY` (+ `ARK_BASE_URL`, mặc định mới
+  `https://ark.ap-southeast.bytepluses.com/api/v3`), `VOLC_TTS_*` nếu dùng Seed Speech. Sau đó sửa env không
+  còn tác dụng với provider; env còn trỏ `tokenfree.com` không được seed, key giữ chỗ cũng bị bỏ qua.
+- **URL Seed Speech lấy theo thứ tự**: Base URL của provider Seed Speech ở admin → `volc_tts_url` trong cấu
+  hình phẳng đã lưu DB (`app_settings.config_json["flat"]`, phủ lên env qua overlay) → mặc định mới
+  `https://voice.ap-southeast-1.bytepluses.com/api/v3/tts/unidirectional` (`volc_tts_adapter.py`). Cấu hình
+  phẳng chỉ được chụp từ env ở lần khởi động đầu của DB, nên:
+  - Bản cài nâng cấp giữ `volc_tts_url` đã lưu từ trước (thường là địa chỉ openspeech Trung Quốc
+    `https://openspeech.bytedance.com/api/v3/tts/unidirectional`, mặc định cũ); đổi `VOLC_TTS_URL` trong
+    env không có tác dụng. Hãy điền Base URL đúng cho provider Seed Speech ở tab "Mô hình": key BytePlus
+    quốc tế dùng địa chỉ `voice.ap-southeast-1.bytepluses.com` ở trên, key openspeech Trung Quốc
+    (Volcengine) dùng `openspeech.bytedance.com`.
+  - Bản cài mới lấy `VOLC_TTS_URL` trong env lúc khởi động đầu (không đặt thì là mặc định quốc tế mới), vừa
+    làm Base URL của provider Seed Speech được seed, vừa lưu vào cấu hình phẳng. Bộ key Trung Quốc phải đặt
+    tường minh `VOLC_TTS_URL=https://openspeech.bytedance.com/api/v3/tts/unidirectional` trước lần khởi động
+    đầu, hoặc sửa Base URL ở admin sau đó.
 - **Key đã lưu không được dùng lại khi đổi host của Base URL** (đổi scheme/host/port): xem mục "Cấu hình
   qua trang quản trị" và "Cấu hình qua curl" ở trên — backend luôn yêu cầu nhập lại API key trong trường
   hợp này, kể cả qua API.
@@ -322,7 +341,3 @@ Checklist cho người vận hành nâng cấp một bản cài đã chạy Toke
 - **Đối chiếu dùng lượng upstream (upstream-usage reconciliation) và đồng bộ tài chính (finance sync) kiểu
   TokenFree đã bị gỡ bỏ** — không còn job định kỳ gọi API "dùng lượng" của TokenFree hay endpoint đồng bộ
   tài chính cũ; số liệu tài chính giờ tính hoàn toàn từ `usage_events` nội bộ theo `provider_rates`.
-- **Mock khi chưa có key**: đặt `ARK_MOCK=true`, hoặc không cấu hình bất kỳ provider nào có `api_key` —
-  `MediaGateway.mock` sẽ tự phát hiện (`get_routing_snapshot().channels` không có channel nào
-  `enabled` + có key) và chuyển toàn bộ ảnh/video/TTS sang sinh dữ liệu giả cục bộ (`static/mock/...`),
-  không gọi upstream.
