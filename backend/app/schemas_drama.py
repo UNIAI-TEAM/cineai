@@ -26,6 +26,8 @@ class DramaProjectUpdate(BaseModel):
     description: str | None = None
     content: dict | list | None = None
     params: dict[str, Any] | None = None
+    # AI 生成内容语言 zh|en|vi（写入 params.content_lang）
+    content_lang: str | None = None
 
 
 class DramaScriptOut(BaseModel):
@@ -124,6 +126,8 @@ class DramaProjectOut(BaseModel):
     episode_count: int = 0
     # script | canvas
     workflow: str = "script"
+    # AI 生成内容语言 zh|en|vi（params.content_lang，老项目按内容推断）
+    content_lang: str = "vi"
     usage: DramaProjectUsageStats = Field(default_factory=lambda: DramaProjectUsageStats())
     active_tasks: list[TaskRunBriefOut] = Field(default_factory=list)
 

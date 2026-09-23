@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -21,6 +21,7 @@ from app.schemas_drama import (
     DramaProjectUsageStats,
     DramaScriptOut,
 )
+from app.services.content_lang import normalize_lang, project_content_lang, request_lang
 from app.services.drama.access import get_owned_drama_project
 from app.services.drama.generation import project_link_last_frame_enabled
 from app.services.drama.project_cover import resolve_drama_project_cover
@@ -53,6 +54,7 @@ def _project_out(project: DramaProject, usage: DramaProjectUsageStats | None = N
         asset_count=len(project.assets) if project.assets is not None else 0,
         episode_count=len(project.episodes) if project.episodes is not None else 0,
         workflow=resolve_drama_workflow(project),
+        content_lang=project_content_lang(project),
         usage=usage or empty_usage_stats(),
     )
 
@@ -102,6 +104,7 @@ async def list_projects(
 @router.post("/projects", response_model=DramaProjectOut)
 async def create_project(
     body: DramaProjectCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> DramaProjectOut:
@@ -121,6 +124,10 @@ async def create_project(
         image_style_id=body.image_style_id,
         extra=body.params,
     )
+    # 内容语言：显式传入优先，否则取界面语言；后台任务只读这里
+    project_params["content_lang"] = normalize_lang(
+        (body.params or {}).get("content_lang")
+    ) or request_lang(request)
     project = DramaProject(
         user_id=user.id,
         title=title or ("自由画布项目" if workflow == "canvas" else "未命名漫剧"),
@@ -178,7 +185,16 @@ async def update_project(
     if body.content is not None:
         project.content = body.content
     if body.params is not None:
-        project.params = body.params
+        prev_lang = (project.params or {}).get("content_lang")
+        next_params = dict(body.params)
+        # 前端整包回写 params 时可能不带 content_lang：保留原值
+        if not normalize_lang(next_params.get("content_lang")) and prev_lang:
+            next_params["content_lang"] = prev_lang
+        project.params = next_params
+    if body.content_lang is not None:
+        lang = normalize_lang(body.content_lang)
+        if lang:
+            project.params = {**(project.params or {}), "content_lang": lang}
     await db.commit()
 
     # 镜间衔接开关变化时，动态重排仍排队的分镜视频任务

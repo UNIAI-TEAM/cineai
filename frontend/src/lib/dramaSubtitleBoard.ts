@@ -198,6 +198,27 @@ function parseSubtitleLine(
 }
 
 const DRAMA_SUBTITLE_CUE = '【字幕：底部居中·简体中文·逐句轮换·与口播同步】'
+/* 字幕 cue 按台词语言选择（与后端 seedance_segments.DRAMA_SUBTITLE_CUES_BY_LANG 一致）：
+   框架是给视频模型的协议标记，保持中文；只把语言词换成越南语 / 英语 */
+const DRAMA_SUBTITLE_CUES_BY_LANG: Record<'zh' | 'vi' | 'en', string> = {
+  zh: DRAMA_SUBTITLE_CUE,
+  vi: '【字幕：底部居中·越南语·逐句轮换·与口播同步】',
+  en: '【字幕：底部居中·英语·逐句轮换·与口播同步】',
+}
+const CJK_RE = /[\u3040-\u30ff\u3400-\u9fff]/
+const VI_CHARS_RE = /[ăâđêôơưàảãáạằẳẵắặầẩẫấậèẻẽéẹềểễếệìỉĩíịòỏõóọồổỗốộờởỡớợùủũúụừửữứựỳỷỹýỵ]/i
+
+// 去掉【…】协议标记、@引用后按台词文字判断字幕语言；已有非中文 cue 时沿用。
+export function detectSubtitleLang(content: string): 'zh' | 'vi' | 'en' {
+  const source = String(content || '')
+  if (source.includes(DRAMA_SUBTITLE_CUES_BY_LANG.vi)) return 'vi'
+  if (source.includes(DRAMA_SUBTITLE_CUES_BY_LANG.en)) return 'en'
+  const spoken = source.replace(/【[^】]*】/g, ' ').replace(/@\w+:\S+/g, ' ').replace(/[△Δ]/g, ' ')
+  if (CJK_RE.test(spoken)) return 'zh'
+  if (VI_CHARS_RE.test(spoken)) return 'vi'
+  if (/[A-Za-z]/.test(spoken)) return 'en'
+  return 'zh'
+}
 const LEGACY_SUBTITLE_CUES = [
   '【字幕：底部居中·简体中文·仅标记段落同步】',
   '【字幕：底部居中·简体中文】',
@@ -247,10 +268,11 @@ export function stripSubtitlePromptsFromContent(content: string): string {
   return next.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()
 }
 
-// 为单条分镜正文补回模型字幕提示词（已有则不重复）。
-export function applySubtitlePromptsToContent(content: string): string {
+// 为单条分镜正文补回模型字幕提示词（已有则不重复）；lang 缺省时按台词文字判断字幕语言。
+export function applySubtitlePromptsToContent(content: string, lang?: 'zh' | 'vi' | 'en'): string {
   const source = String(content || '').replace(/\r\n/g, '\n')
   if (!source.trim()) return source
+  const cue = DRAMA_SUBTITLE_CUES_BY_LANG[lang ?? detectSubtitleLang(source)]
   const lines = source.split('\n')
   const next: string[] = []
   let hasCue = false
@@ -262,7 +284,7 @@ export function applySubtitlePromptsToContent(content: string): string {
     }
     if (isSubtitleCueLine(trimmed)) {
       if (!hasCue) {
-        next.push(DRAMA_SUBTITLE_CUE)
+        next.push(cue)
         hasCue = true
       }
       continue
@@ -278,8 +300,8 @@ export function applySubtitlePromptsToContent(content: string): string {
   }
   if (!hasCue) {
     const insertAt = next.findIndex((line) => line.trim().startsWith('【BGM'))
-    if (insertAt >= 0) next.splice(insertAt, 0, DRAMA_SUBTITLE_CUE)
-    else next.unshift(DRAMA_SUBTITLE_CUE)
+    if (insertAt >= 0) next.splice(insertAt, 0, cue)
+    else next.unshift(cue)
   }
   return next.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()
 }
@@ -289,8 +311,8 @@ export function applySubtitleModeToFragments<T extends { content?: string | null
   fragments: T[],
   mode: DramaSubtitleMode,
 ): T[] {
-  const transform =
-    mode === 'model' ? applySubtitlePromptsToContent : stripSubtitlePromptsFromContent
+  const transform = (content: string) =>
+    mode === 'model' ? applySubtitlePromptsToContent(content) : stripSubtitlePromptsFromContent(content)
   return fragments.map((fragment) => {
     const prev = String(fragment.content || '')
     const next = transform(prev)

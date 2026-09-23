@@ -139,8 +139,9 @@ async def llm_enrich_character_intros(
     summary: dict[str, Any] | None = None,
     episode_bodies: list[str] | None = None,
     story_type: str | None = None,
+    lang: str | None = None,
 ) -> dict[str, str]:
-    """批量 LLM 生成人物介绍叠字；失败时返回空 dict。"""
+    """批量 LLM 生成人物介绍叠字；失败时返回空 dict。lang：叠字语言（内容语言）。"""
     unique: list[str] = []
     seen: set[str] = set()
     for name in names:
@@ -162,6 +163,7 @@ async def llm_enrich_character_intros(
             user,
             temperature=0.35,
             max_tokens=1024,
+            lang=lang,
         )
         parsed = _parse_intro_response(raw, unique)
         logger.info("LLM 人物介绍补齐 count=%s names=%s", len(parsed), list(parsed.keys()))
@@ -202,6 +204,7 @@ async def prepare_character_intro_overrides(
     summary: dict[str, Any] | None = None,
     episode_bodies: list[str] | None = None,
     story_type: str | None = None,
+    lang: str | None = None,
 ) -> dict[str, str]:
     """先规则推断，缺的再一次性 LLM 补齐。"""
     names = collect_names_needing_intro(
@@ -216,4 +219,5 @@ async def prepare_character_intro_overrides(
         summary=summary,
         episode_bodies=episode_bodies,
         story_type=story_type,
+        lang=lang,
     )

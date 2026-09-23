@@ -77,8 +77,12 @@ async def optimize_prompt_with_skills(
     prompt: str,
     skill_ids: list[int],
     task: str = "video_prompt",
+    lang: str | None = None,
 ) -> str:
-    """用勾选 Skill 改写提示词；空 skill 时原样返回。"""
+    """用勾选 Skill 改写提示词；空 skill 时原样返回。
+
+    lang：内容语言；None / zh 输出中文画面描述，vi / en 输出英文画面描述（台词保持原语言）。
+    """
     source = (prompt or "").strip()
     if not source:
         return ""
@@ -93,5 +97,7 @@ async def optimize_prompt_with_skills(
         temperature=0.4,
         max_tokens=2048,
         skill_ids=skill_ids,
+        lang=lang,
+        lang_kind="visual",
     )
     return restore_asset_tokens(source, rewritten)

@@ -8,7 +8,7 @@ from datetime import datetime
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,6 +51,7 @@ from app.services.tasks.service import (
     create_task,
     list_active_tasks_for_owner,
 )
+from app.services.content_lang import is_zh, kepu_content_lang, request_lang
 from app.services.voices import ensure_voice_preview, list_voices
 from app.services.kepu_stages import resolve_kepu_billing_phase
 
@@ -98,12 +99,13 @@ async def get_media_models(scope: str | None = Query(default=None)) -> dict:
 @router.post("/voices/preview", response_model=VoicePreviewOut)
 async def preview_voice(
     body: VoicePreviewRequest,
+    request: Request,
     user: User = Depends(get_current_user),
 ) -> VoicePreviewOut:
-    """Generate a short cached TTS sample for audition."""
+    """Generate a short cached TTS sample for audition（试听句按界面语言）。"""
     _ = user
     try:
-        url = await ensure_voice_preview(body.voice_id)
+        url = await ensure_voice_preview(body.voice_id, request_lang(request))
     except Exception as exc:  # noqa: BLE001
         logger.exception("voice preview failed")
         raise AppError("project.voice_preview_failed") from exc
@@ -113,6 +115,7 @@ async def preview_voice(
 @router.post("/content/expand", response_model=ContentExpandOut)
 async def expand_content(
     body: ContentExpandRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> ContentExpandOut:
@@ -123,7 +126,8 @@ async def expand_content(
 
     async def _do_expand() -> dict[str, str]:
         try:
-            result = await get_ark().expand_content(topic, body.mode)
+            lang = kepu_content_lang(topic, request_lang(request))
+            result = await get_ark().expand_content(topic, body.mode, lang=lang)
         except Exception as exc:  # noqa: BLE001
             logger.exception("ai generate failed")
             raise AppError("project.ai_generate_failed") from exc
@@ -300,6 +304,7 @@ async def list_active_tasks_for_user_rows(
 @router.post("/projects", response_model=ProjectOut)
 async def create_project(
     body: ProjectCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> Project:
@@ -325,6 +330,8 @@ async def create_project(
         image_model=(body.image_model or "").strip(),
         video_model=(body.video_model or "").strip(),
         ref_image_url=body.ref_image_url,
+        # 界面语言：主题过短 / 无法判断语言时，拆镜输出跟随它（见 content_lang.kepu_content_lang）
+        content_lang=request_lang(request),
         status=ProjectStatus.DRAFT,
     )
     db.add(project)
@@ -849,6 +856,12 @@ async def project_events(
     return EventSourceResponse(event_generator())
 
 
+def _new_shot_title(project: Project, shot_no: int) -> str:
+    """新增空白镜的叠字标题（越南语 / 英文）。"""
+    lang = kepu_content_lang(project.source_text, getattr(project, "content_lang", ""))
+    return f"Scene {shot_no:02d}" if lang == "en" else f"Cảnh {shot_no:02d}"
+
+
 @router.post("/projects/{project_id}/shots", response_model=ShotOut)
 async def create_shot(
     project_id: int,
@@ -863,7 +876,9 @@ async def create_shot(
     from app.services.seedance_segments import SegmentBeat, build_segment_script
 
     bgm = clip_shot_bgm(getattr(project, "bgm_lock", None))
-    visual = "画面轻微动态，保持主体稳定"
+    zh = is_zh(kepu_content_lang(project.source_text, getattr(project, "content_lang", "")))
+    # 画面提示词：中文项目用中文，其余用英文（生图/视频模型对英文理解更好）
+    visual = "画面轻微动态，保持主体稳定" if zh else "Subtle motion, keep the main subject stable"
     script = build_segment_script(
         [SegmentBeat(duration=4, kind="visual", text=visual)],
         bgm_mood=bgm,
@@ -873,7 +888,7 @@ async def create_shot(
         shot_no=next_no,
         duration=4,
         narration="",
-        overlay_title=f"场景 {next_no:02d}",
+        overlay_title=f"场景 {next_no:02d}" if zh else _new_shot_title(project, next_no),
         overlay_subtitle="",
         img_prompt=visual,
         video_prompt=script,

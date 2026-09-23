@@ -17,6 +17,7 @@ from app.services.drama.voice_design import (
     voice_design_enabled,
 )
 from app.services.drama.voice_reference_audio import finalize_voice_reference_url
+from app.services.content_lang import is_zh, project_content_lang
 from app.services.voices import infer_drama_speaker_from_prompt
 logger = logging.getLogger(__name__)
 NAME_SUFFIX_PATTERN = re.compile(r"(音色|的声音|语音)$")
@@ -24,10 +25,19 @@ NAME_SUFFIX_PATTERN = re.compile(r"(音色|的声音|语音)$")
 def normalize_character_name(name: str | None) -> str:
     raw = (name or "我").strip() or "我"
     return NAME_SUFFIX_PATTERN.sub("", raw).strip() or "我"
+# 越南语 / 英文试听句（须 ≥2s；与中文句长相当）
+_SAMPLE_LINES = {
+    "vi": "Xin chào, tôi là {name}. Hãy nghe giọng nói và ngữ điệu của tôi, tôi sẽ dùng giọng này để kể câu chuyện.",
+    "en": "Hello, I'm {name}. Listen to my tone and voice; this is how I'll sound when telling the story.",
+}
+
+
 # 生成 Seedance 参考音试听句（须 ≥2s，避免 r2v 拒收过短音频）
-def build_voice_sample_line_short(character_name: str | None = None) -> str:
+def build_voice_sample_line_short(character_name: str | None = None, lang: str | None = None) -> str:
     name = normalize_character_name(character_name)
     display = name[:8] if len(name) > 8 else name
+    if lang and not is_zh(lang):
+        return _SAMPLE_LINES.get(lang, _SAMPLE_LINES["vi"]).format(name=display)
     return (
         f"你好，我是{display}。"
         "请听我的语气与声线，之后我会用这样的声音来讲述故事。"
@@ -38,9 +48,11 @@ def build_voice_sample_text(
     character_name: str | None = None,
     *,
     short: bool = False,
+    lang: str | None = None,
 ) -> str:
-    if short:
-        return build_voice_sample_line_short(character_name)
+    # vi / en 项目：统一用该语言的试听句（中文关键词规则只适用于中文角色设定）
+    if short or (lang and not is_zh(lang)):
+        return build_voice_sample_line_short(character_name, lang)
     name = normalize_character_name(character_name)
     prompt = (voice_prompt or "").strip()
     blob = f"{name} {prompt}"
@@ -161,7 +173,9 @@ async def synthesize_voice_asset(
         raise ValueError("缺少音色描述 prompt")
     display_name = normalize_character_name(character_name or asset.name)
     # Seedance reference_audio 须 ≥1.8s（落盘目标 ≥2s）；默认用较长试听句
-    text = (sample_text or "").strip() or build_voice_sample_text(prompt, display_name, short=False)
+    text = (sample_text or "").strip() or build_voice_sample_text(
+        prompt, display_name, short=False, lang=project_content_lang(project)
+    )
     image_url = resolve_character_image_url(character_asset)
     audio_url: str | None = None
     resolved_speaker = (speaker or "").strip()

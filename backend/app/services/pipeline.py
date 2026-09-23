@@ -16,6 +16,7 @@ from app.database import AsyncSessionLocal
 from app.errors import AppError
 from app.models import PipelineJob, Project, ProjectStatus, Shot, ShotStatus
 from app.services.ark import get_ark
+from app.services.content_lang import kepu_content_lang
 from app.services.ffmpeg_compose import (
     ComposeOptions,
     FfmpegInterrupted,
@@ -712,6 +713,7 @@ async def _script_stage(project_id: int) -> None:
             output_ratio=_project_output_ratio(project),
             shot_range_override=template_shot_range(tpl),
             allow_source_names=template_allow_source_names(tpl),
+            lang=kepu_content_lang(project.source_text, getattr(project, "content_lang", "")),
         )
         plans = plans_result.shots
         project.character_bible = resolve_script_character_bible(

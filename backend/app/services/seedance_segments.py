@@ -34,6 +34,14 @@ LEGACY_DRAMA_SUBTITLE_CUES = (
     "【字幕：底部居中·简体中文·仅标记段落同步】",
     "【字幕：底部居中·简体中文】",
 )
+# 字幕语言：越南语 / 英文项目的 cue（框架不变，只换语言词；script_is_drama_mixed 按「逐句轮换」识别）
+DRAMA_SUBTITLE_CUES_BY_LANG = {
+    "zh": DRAMA_SUBTITLE_CUE,
+    "vi": "【字幕：底部居中·越南语·逐句轮换·与口播同步】",
+    "en": "【字幕：底部居中·英语·逐句轮换·与口播同步】",
+}
+_SUBTITLE_LANG_NAMES = {"zh": "简体中文", "vi": "越南语", "en": "英语"}
+_MARKER_RE = re.compile(r"【[^】]*】|@\w+:\S+|^\s*[△Δ]", re.M)
 DEFAULT_BGM_MOOD = "贴合内容的轻量配乐，情绪平稳，不抢旁白"
 SEEDANCE_PRODUCTION_SECTION_HEADER = "【强制约束：音频、字幕与配乐】"
 
@@ -96,6 +104,24 @@ def is_visual_description_body(text: str) -> bool:
     if body.startswith("空镜") or body.startswith("△") or body.startswith("Δ"):
         return True
     return False
+
+
+def spoken_text_lang(content: str) -> str:
+    """去掉【…】协议标记后按口播/正文文字判断语言 zh|vi|en（无文字时 zh，保持旧行为）。"""
+    from app.services.content_lang import guess_text_lang
+
+    cue_lang = next(
+        (lang for lang, cue in DRAMA_SUBTITLE_CUES_BY_LANG.items() if lang != "zh" and cue in (content or "")),
+        None,
+    )
+    if cue_lang:
+        return cue_lang
+    return guess_text_lang(_MARKER_RE.sub(" ", content or "")) or "zh"
+
+
+def drama_subtitle_cue(lang: str | None) -> str:
+    """漫剧字幕 cue：按内容语言选（未知语言用中文 cue）。"""
+    return DRAMA_SUBTITLE_CUES_BY_LANG.get(lang or "zh", DRAMA_SUBTITLE_CUE)
 
 
 def normalize_kepu_subtitle_cue(content: str) -> str:
@@ -469,6 +495,8 @@ def build_seedance_production_section(
     has_vo = script_has_narration_cue(segment_script)
     has_dialogue = script_has_dialogue_cue(segment_script)
     drama_mixed = script_is_drama_mixed(segment_script)
+    # 烧录字幕语言跟随口播文字（越南语 / 英文项目不要让模型烧中文字幕）
+    sub_lang = _SUBTITLE_LANG_NAMES.get(spoken_text_lang(segment_script), "简体中文")
     bgm_mood = script_bgm_mood(segment_script)
 
     if "音量低于人声" not in bgm_mood:
@@ -490,7 +518,7 @@ def build_seedance_production_section(
                 f"3. 字幕：{no_burn}"
                 if not burn_subtitles
                 else (
-                    "3. 字幕：仅【旁白·…】【对白·…】口播内容烧录简体中文字幕，底部居中；"
+                    f"3. 字幕：仅【旁白·…】【对白·…】口播内容烧录{sub_lang}字幕，底部居中；"
                     "同一时刻只显示一行（一句），随口播进度逐句轮换，禁止把整段对白一次性叠满屏幕；"
                     "禁止重复字、叠字、口吃式重复；字幕必须与当前正在说的那一句逐字一致；"
                     "画面描述段不出现字幕。"
@@ -542,7 +570,7 @@ def build_seedance_production_section(
             f"2. 字幕：{no_burn}"
             if not burn_subtitles
             else (
-                "2. 字幕：全程烧录简体中文字幕，位置底部居中，字号清晰可读；"
+                f"2. 字幕：全程烧录{sub_lang}字幕，位置底部居中，字号清晰可读；"
                 "旁白须逐句同步显示，字幕与口播一致。"
             )
         ),

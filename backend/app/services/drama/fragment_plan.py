@@ -38,6 +38,7 @@ from app.services.drama.fragment_content_duration import sum_fragment_content_du
 from app.services.drama.fragment_plan_prompt import (
     FRAGMENT_PLAN_SYSTEM_PROMPT,
     build_fragment_plan_user_prompt,
+    fragment_plan_system_prompt,
 )
 from app.services.agent.runner import run_task_json
 
@@ -582,9 +583,11 @@ async def plan_fragments_with_llm(
     skill_ids: list[int] | None = None,
     include_subtitles: bool = True,
     include_character_intro: bool = True,
+    lang: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     调用 LLM 规划分镜并规范化。
+    lang：内容语言；vi / en 时画面行用英文、对白/旁白用该语言，行首标签（空镜：/旁白（VO）：）保持原样。
     若模型结果为空则抛错，由上层决定是否回退规则切分。
     already_introduced：本剧更早分集已介绍角色。
     locked_summaries：本集已拍分镜摘要；非空时续拆（不开幕）。
@@ -610,10 +613,12 @@ async def plan_fragments_with_llm(
         db,
         user_id,
         task="shot_plan",
-        system=FRAGMENT_PLAN_SYSTEM_PROMPT,
+        system=fragment_plan_system_prompt(lang),
         user=user_prompt,
         temperature=0.4,
         skill_ids=skill_ids,
+        lang=lang,
+        lang_kind="visual",
     )
     items: list[Any] = []
     if isinstance(raw, dict):

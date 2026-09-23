@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -20,6 +20,8 @@ from app.schemas_agent import (
 from app.services.agent.compose import skill_to_public_dict
 from app.services.agent.optimize import optimize_prompt_with_skills
 from app.services.billing import record_llm_chat_line, run_billed_ephemeral
+from app.services.content_lang import request_lang
+from app.services.text_lang import is_cjk_text
 from app.services.billing.http import http_exception_for_value_error
 from app.services.agent.store import (
     create_user_skill,
@@ -49,6 +51,7 @@ async def list_skills(
 @router.post("/skills/optimize", response_model=AgentSkillOptimizeOut)
 async def optimize_prompt(
     body: AgentSkillOptimizeBody,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> AgentSkillOptimizeOut:
@@ -66,6 +69,8 @@ async def optimize_prompt(
             prompt=body.prompt,
             skill_ids=skill_ids,
             task=task_name,
+            # 中文提示词保持中文；否则按界面语言（vi / en → 画面描述用英文）
+            lang="zh" if is_cjk_text(body.prompt or "") else request_lang(request),
         )
         await record_llm_chat_line(
             db,

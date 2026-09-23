@@ -26,8 +26,9 @@ async def test_ark_gateway_delegates_expand_content(monkeypatch):
 
     called = {}
 
-    async def fake(topic, mode="theme", *, mock):
+    async def fake(topic, mode="theme", *, mock, lang=None):
         called["args"] = (topic, mode, mock)
+        called["lang"] = lang
         return {"title": "t", "content": "c"}
 
     monkeypatch.setattr(kepu_text, "expand_content", fake)

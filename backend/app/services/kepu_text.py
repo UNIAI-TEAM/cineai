@@ -10,6 +10,13 @@ from dataclasses import dataclass
 
 from app.services.ark_mock import mock_expand_content as _vi_mock_expand_content
 from app.services.ark_mock import mock_storyboard_items
+from app.services.content_lang import (
+    is_zh,
+    lang_display_name,
+    localize_length_units,
+    output_language_directive,
+    visual_prompt_directive,
+)
 from app.services.drama.llm import _extract_json
 from app.services.llm_client import chat_completions
 from app.services import seedance_segments as segplan
@@ -147,8 +154,10 @@ async def chat_storyboard(
     output_ratio: str = "16:9",
     shot_range_override: tuple[int, int] | None = None,
     allow_source_names: bool = False,
+    lang: str | None = None,
     mock: bool,
 ) -> StoryboardResult:
+    """拆镜。lang：内容语言（None/zh 保持中文输出；vi/en 时旁白/标题按该语言，画面提示词用英文）。"""
     if mock:
         return await asyncio.to_thread(
             mock_storyboard,
@@ -303,6 +312,7 @@ async def chat_storyboard(
             f"{segment_rules}"
             f"{diversity_note}"
         )
+    system = _localize_storyboard_system(system, lang)
     user = (
         f"输入类型：{source_type}。请先理解内容与应用场景，再拆成精确到每一段的分镜"
         f"（{shot_range} 镜，短镜快切，禁止拖腔注水）：\n{source_text}"
@@ -356,6 +366,30 @@ async def chat_storyboard(
         duration_max,
         max_shot_duration,
     )
+
+
+# 拆镜系统提示词里强制中文的片段 → vi / en 版本
+def _localize_storyboard_system(system: str, lang: str | None) -> str:
+    """vi / en：旁白、标题、副标题按内容语言；img_prompt / video_prompt / camera / 人设 / BGM 用英文。"""
+    if lang is None or is_zh(lang):
+        return system
+    name = lang_display_name(lang)
+    rule = (
+        f"title、subtitle、text 以及 segments 中 narration 段的文案使用{name}；"
+        "img_prompt、video_prompt、camera、bgm、bgm_lock、character_bible 以及 segments 中 visual/action 段的"
+        "画面描述用英文（English）。"
+    )
+    out = system
+    out = out.replace(
+        "所有字段必须使用简体中文（包括 title、text、img_prompt、video_prompt、camera、bgm、segments）。", rule
+    )
+    out = out.replace("所有字段必须使用简体中文。", rule)
+    out = out.replace("与首段 visual 一致的中文首帧提示词", "与首段 visual 一致的英文首帧提示词")
+    out = out.replace("img_prompt 与 video_prompt 禁止英文句子，专有名词可保留原文。", "img_prompt 与 video_prompt 用英文书写。")
+    # 口播语速：中文约 5 字/秒 → 越南语 / 英文约 2.5 个词/秒
+    out = out.replace("按约 5 字/秒估 duration", "按约 2.5 个词（word）/秒估 duration")
+    out = localize_length_units(out, lang)
+    return f"{out}\n{output_language_directive(lang)}\n{visual_prompt_directive(lang)}"
 
 
 def mock_storyboard(
@@ -517,8 +551,13 @@ def parse_storyboard(
     )
 
 
-async def expand_content(topic: str, mode: str = "theme", *, mock: bool) -> dict[str, str]:
-    """Expand a short topic into title + theme brief or full narration script."""
+async def expand_content(
+    topic: str, mode: str = "theme", *, mock: bool, lang: str | None = None
+) -> dict[str, str]:
+    """Expand a short topic into title + theme brief or full narration script.
+
+    lang：输出语言（None / zh 保持中文提示；vi / en 时追加输出语言指令并换算字数）。
+    """
     topic = (topic or "").strip() or "人工智能如何改变日常生活"
     mode = "script" if mode == "script" else "theme"
     if mock:
@@ -539,6 +578,8 @@ async def expand_content(topic: str, mode: str = "theme", *, mock: bool) -> dict
             "title：8-18 字。"
             "content：一句话主题，40-90 字，写清受众与要讲清的核心知识点；不要换行。"
         )
+    if lang is not None and not is_zh(lang):
+        system = f"{localize_length_units(system, lang)}{output_language_directive(lang)}"
     content = await chat_completions(
         system,
         f"主题/素材：{topic}",
@@ -592,8 +633,11 @@ def parse_expand_content(raw: str, topic: str, mode: str) -> dict[str, str]:
     content = str(data.get("content") or "").strip()
     if not content:
         return mock_expand_content(topic, mode)
+    # 越南语 / 英文按词截断且放宽长度（同样信息量字符数约为中文的 3–4 倍）
+    latin = not is_cjk_text(f"{title}{content}")
     if mode == "theme":
-        content = content.replace("\n", " ").strip()[:100]
+        flat = content.replace("\n", " ").strip()
+        content = cut_words(flat, 400, ellipsis=False) if latin else flat[:100]
     else:
         content = content[:8000]
-    return {"title": title[:24], "content": content}
+    return {"title": cut_words(title, 80, ellipsis=False) if latin else title[:24], "content": content}

@@ -774,9 +774,11 @@ class MediaGateway:
         """Tách phân cảnh khoa học: uỷ quyền cho kepu_text (giữ nguyên chữ ký cũ)."""
         return await kepu_text.chat_storyboard(*args, mock=self.mock, **kwargs)
 
-    async def expand_content(self, topic: str, mode: str = "theme") -> dict[str, str]:
-        """Mở rộng chủ đề: uỷ quyền cho kepu_text."""
-        return await kepu_text.expand_content(topic, mode, mock=self.mock)
+    async def expand_content(
+        self, topic: str, mode: str = "theme", *, lang: str | None = None
+    ) -> dict[str, str]:
+        """Mở rộng chủ đề: uỷ quyền cho kepu_text (lang = ngôn ngữ đầu ra)."""
+        return await kepu_text.expand_content(topic, mode, mock=self.mock, lang=lang)
 
     # ---- Tham chiếu media & mock ------------------------------------------
 

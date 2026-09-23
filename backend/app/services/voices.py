@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from typing import Any
 
 from app.services.text_lang import is_cjk_text
@@ -153,6 +154,11 @@ MALE_HINTS = (
     "将", "伯", "公", "爷爷", "男孩",
 )
 FEMALE_HINTS = ("女", "少女", "女声", "御姐", "小姐", "娘娘", "萝莉", "姑娘", "妇人", "村妇")
+# 越南语 / 英文音色描述的性别词（整词匹配）
+_LATIN_MALE_HINT_RE = re.compile(r"\b(giọng nam|nam giới|chàng trai|cậu bé|ông|male|man|boy)\b", re.IGNORECASE)
+_LATIN_FEMALE_HINT_RE = re.compile(
+    r"\b(giọng nữ|nữ giới|cô gái|bé gái|nữ|female|woman|girl|lady)\b", re.IGNORECASE
+)
 
 # edge-tts 确认可用的男声仅 Yunxi/Yunjian/Yunyang（Yunxia 实为女童，不给男角色）
 EDGE_TTS_BY_SPEAKER: dict[str, str] = {
@@ -251,8 +257,10 @@ def infer_drama_speaker_from_prompt(
     asset_id: int = 0,
 ) -> str:
     prompt = f"{character_name} {voice_prompt or ''}"
-    male_score = sum(1 for k in MALE_HINTS if k in prompt)
-    female_score = sum(1 for k in FEMALE_HINTS if k in prompt)
+    male_score = sum(1 for k in MALE_HINTS if k in prompt) + len(_LATIN_MALE_HINT_RE.findall(prompt))
+    female_score = sum(1 for k in FEMALE_HINTS if k in prompt) + len(
+        _LATIN_FEMALE_HINT_RE.findall(prompt)
+    )
     if male_score > female_score:
         gender = "male"
     elif female_score > male_score:
@@ -289,12 +297,26 @@ def infer_speaker_from_voice_prompt(voice_prompt: str, *, character_name: str = 
 
 
 PREVIEW_TEXT = "大家好，这是当前音色的试听效果，适合科普短视频旁白讲解。"
+# 按界面语言的试听句（zh 沿用 PREVIEW_TEXT）
+PREVIEW_TEXTS: dict[str, str] = {
+    "zh": PREVIEW_TEXT,
+    "vi": "Xin chào, đây là bản nghe thử của giọng đọc này, phù hợp để thuyết minh video ngắn.",
+    "en": "Hello, this is a preview of this voice, suited for narrating short explainer videos.",
+}
 # 试听缓存文件名后缀：TTS 路由/edge 性别修复后递增，避免继续播放旧错误样例
 PREVIEW_CACHE_TAG = "v3"
 
 
-async def ensure_voice_preview(voice_id: str) -> str:
-    """Generate (or reuse cached) short TTS sample; return public URL."""
+def preview_text_for_lang(lang: str | None) -> str:
+    """试听句：按语言取，未知语言回落越南语。"""
+    return PREVIEW_TEXTS.get(lang or "", PREVIEW_TEXTS["vi"])
+
+
+async def ensure_voice_preview(voice_id: str, lang: str = "zh") -> str:
+    """Generate (or reuse cached) short TTS sample; return public URL.
+
+    lang：试听句语言 zh|vi|en，缓存按 (voice, lang) 区分；zh 沿用旧缓存文件名。
+    """
     import hashlib
     from pathlib import Path
 
@@ -305,13 +327,14 @@ async def ensure_voice_preview(voice_id: str) -> str:
     safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in speaker)[:80]
     cache_dir = Path(__file__).resolve().parents[2] / "static" / "voice_previews"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    dest = cache_dir / f"{safe}_{PREVIEW_CACHE_TAG}.mp3"
+    lang_suffix = "" if lang == "zh" else f"_{lang}"
+    dest = cache_dir / f"{safe}_{PREVIEW_CACHE_TAG}{lang_suffix}.mp3"
     if dest.exists() and dest.stat().st_size > 2000:
         return storage.publish_local(dest)
 
     ark = get_ark()
     shot_no = int(hashlib.md5(speaker.encode()).hexdigest()[:4], 16) % 800 + 100
-    url = await ark.tts(PREVIEW_TEXT, speaker, function_id="kepu.tts", project_id=0, shot_no=shot_no)
+    url = await ark.tts(preview_text_for_lang(lang), speaker, function_id="kepu.tts", project_id=0, shot_no=shot_no)
     src = storage.local_path_from_url(url)
     if src and src.exists():
         dest.write_bytes(src.read_bytes())

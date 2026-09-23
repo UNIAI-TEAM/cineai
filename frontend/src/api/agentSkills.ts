@@ -2,11 +2,12 @@
 
 import { apiErrorText, throwApiError } from '../lib/apiError'
 import { getDramaApiBase } from './drama'
+import { uiLocaleHeaders } from '../lib/uiLocaleHeader'
 
 /** 组装请求头；FormData 时不要强行 JSON */
 function authHeaders(json = true): HeadersInit {
   const token = localStorage.getItem('token')
-  const headers: Record<string, string> = {}
+  const headers: Record<string, string> = { ...uiLocaleHeaders() }
   if (token) headers.Authorization = `Bearer ${token}`
   if (json) headers['Content-Type'] = 'application/json'
   return headers
@@ -59,7 +60,7 @@ export async function uploadAgentSkillFile(file: File) {
   body.append('file', file)
   const res = await fetch(`${getDramaApiBase()}/api/drama/skills/upload`, {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: { ...uiLocaleHeaders(), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body,
   })
   if (!res.ok) {

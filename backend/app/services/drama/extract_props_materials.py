@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.services.content_lang import is_zh, lang_display_name
 from app.services.drama.llm import drama_chat_json
 
 SUMMARY_TEXT_MAX = 4000
@@ -63,8 +64,11 @@ async def extract_props_materials(
     *,
     summary: dict[str, Any] | None,
     episode_bodies: list[str],
+    lang: str | None = None,
 ) -> dict[str, list[dict[str, str]]]:
     """调用 LLM 抽取道具（materials 恒为空，兼容旧调用方）。
+
+    lang：内容语言；vi / en 时 name 用该语言，visualPrompt 用英文（生图提示词）。
 
     Returns:
         {"props": [{"name","visualPrompt"}], "materials": []}
@@ -88,7 +92,10 @@ async def extract_props_materials(
             "请抽取 props（不要输出 materials）。",
         ]
     )
-    raw = await drama_chat_json(SYSTEM_PROMPT, user, max_tokens=4096)
+    system = SYSTEM_PROMPT
+    if lang and not is_zh(lang):
+        system += f"5. name（道具名）使用{lang_display_name(lang)}\n"
+    raw = await drama_chat_json(system, user, max_tokens=4096, lang=lang, lang_kind="visual")
     normalized = _normalize_payload(raw)
     return {
         "props": _dedupe_by_name(normalized["props"]),

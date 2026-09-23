@@ -1,4 +1,5 @@
 import { apiErrorText, throwApiError } from '../lib/apiError'
+import { uiLocaleHeaders } from '../lib/uiLocaleHeader'
 
 function defaultApiBase() {
   if (typeof window !== 'undefined' && window.location?.hostname) {
@@ -48,8 +49,8 @@ export function resolveDramaAssetPreviewUrl(asset: {
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem('token')
   return token
-    ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-    : { 'Content-Type': 'application/json' }
+    ? { ...uiLocaleHeaders(), Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    : { ...uiLocaleHeaders(), 'Content-Type': 'application/json' }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -343,7 +344,7 @@ export const dramaApi = {
     form.append('file', file)
     const res = await fetch(`${API_BASE}/api/drama/assets/${assetId}/upload`, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: { ...uiLocaleHeaders(), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: form,
     })
     if (!res.ok) {

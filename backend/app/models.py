@@ -124,6 +124,8 @@ class Project(Base):
     bgm_lock: Mapped[str] = mapped_column(Text, default="")
     # 科普成片字幕预设：standard | large | split
     subtitle_preset: Mapped[str] = mapped_column(String(32), default="")
+    # 创建时的界面语言 zh|en|vi；文本无法判断语言时拆镜输出跟随它（content_lang.kepu_content_lang）
+    content_lang: Mapped[str] = mapped_column(String(8), default="")
     # User overrides from studio (optional)
     style_prompt: Mapped[str] = mapped_column(Text, default="")
     character_prompt: Mapped[str] = mapped_column(Text, default="")

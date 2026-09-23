@@ -10,7 +10,20 @@ const GENERIC_MARKERS = [
   '影视级写实场景，构图清晰，适合短剧拍摄',
   '影视级写实人物',
   '白底全身定妆照',
+  // 越南语 / 英文项目的规则模板（后端 seed_asset_params.build_scene_params）
+  'cinematic photorealistic environment, clear composition',
 ]
+
+/* 生图提示词语言：中文项目用中文标签；越南语 / 英文项目用英文（生图模型对英文理解更好） */
+type PromptLang = 'zh' | 'vi' | 'en'
+const CJK_RE = /[\u3040-\u30ff\u3400-\u9fff]/
+
+// 未显式给出项目语言时按已有文字判断（含中文 → zh；空内容保持中文旧行为）
+function resolvePromptLang(lang: PromptLang | undefined, sample: string): PromptLang {
+  if (lang) return lang
+  if (!sample.trim() || CJK_RE.test(sample)) return 'zh'
+  return 'en'
+}
 
 const MIN_LEN: Record<string, number> = {
   character: 120,
@@ -43,27 +56,33 @@ function isWeakVisualPrompt(prompt: string, assetName: string, kind: string): bo
   return false
 }
 
-// 按 manju buildCharacterParams 规则拼接
-function manjuJoinCharacterPrompt(params: Record<string, unknown>): string {
+// 按 manju buildCharacterParams 规则拼接（与后端 seed_asset_params.manju_join_character_prompt 一致）
+function manjuJoinCharacterPrompt(params: Record<string, unknown>, lang?: PromptLang): string {
   const visual = String(params.visualImage || params.visualPrompt || '').trim()
-  const title = String(params.title || '').trim()
-  const roleType = String(params.roleType || '').trim()
-  const coreTags = String(params.coreTags || '').trim()
-  const personality = String(params.personality || '').trim()
+  const raw = [params.title, params.roleType, params.coreTags, params.personality].map((v) =>
+    String(v || '').trim(),
+  )
+  const zh = resolvePromptLang(lang, [visual, ...raw].join(' ')) === 'zh'
+  /* 越南语 / 英文项目：丢掉 stub 里的中文占位值（如「出场人物」「配角」） */
+  const [title, roleType, coreTags, personality] = zh ? raw : raw.map((v) => (CJK_RE.test(v) ? '' : v))
+  const labels = zh
+    ? ['身份：', '定位：', '标签：', '性格：']
+    : ['Identity: ', 'Role: ', 'Tags: ', 'Personality: ']
   const parts = [
     visual,
-    title ? `身份：${title}` : '',
-    roleType ? `定位：${roleType}` : '',
-    coreTags ? `标签：${coreTags}` : '',
-    personality ? `性格：${personality}` : '',
+    title ? `${labels[0]}${title}` : '',
+    roleType ? `${labels[1]}${roleType}` : '',
+    coreTags ? `${labels[2]}${coreTags}` : '',
+    personality ? `${labels[3]}${personality}` : '',
   ].filter(Boolean)
-  return parts.join('。')
+  return parts.join(zh ? '。' : '. ')
 }
 
 /**
  * 读取资产视觉提示词：完整描述优先，过短/模板化时从角色字段拼装。
+ * lang：项目内容语言（DramaProject.content_lang）；缺省时按资产文字判断。
  */
-export function readVisualPrompt(asset: DramaAsset): string {
+export function readVisualPrompt(asset: DramaAsset, lang?: PromptLang): string {
   const params = (asset.params || {}) as Record<string, unknown>
   const kind = (asset.type || '').toLowerCase()
   const name = asset.name || ''
@@ -85,12 +104,15 @@ export function readVisualPrompt(asset: DramaAsset): string {
   }
 
   if (kind === 'character') {
-    const composed = manjuJoinCharacterPrompt(params)
+    const composed = manjuJoinCharacterPrompt(params, lang)
     if (composed && !isWeakVisualPrompt(composed, name, kind)) return composed
   }
 
   if (kind === 'scene' && name) {
-    return `场景：${name}，影视级写实场景，构图清晰，适合短剧拍摄`
+    if (resolvePromptLang(lang, name) === 'zh') {
+      return `场景：${name}，影视级写实场景，构图清晰，适合短剧拍摄`
+    }
+    return `Scene: ${name}, cinematic photorealistic environment, clear composition, suitable for short drama filming`
   }
 
   if (stored) return stored
@@ -100,10 +122,10 @@ export function readVisualPrompt(asset: DramaAsset): string {
 /**
  * 画布/编辑用提示词：过滤「character 新角色」等弱占位，避免误填。
  */
-export function readEditableVisualPrompt(asset: DramaAsset): string {
+export function readEditableVisualPrompt(asset: DramaAsset, lang?: PromptLang): string {
   const kind = (asset.type || '').toLowerCase()
   const name = asset.name || ''
-  const prompt = readVisualPrompt(asset).trim()
+  const prompt = readVisualPrompt(asset, lang).trim()
   if (!prompt || isWeakVisualPrompt(prompt, name, kind)) return ''
   return prompt
 }

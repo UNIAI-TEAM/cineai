@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from app.models_drama import DramaAsset, DramaProject
+from app.services.content_lang import is_zh, project_content_lang
 from app.services.drama.llm import drama_chat_text
 from app.services.drama.voice_synthesis import build_voice_sample_text
 from app.services.voices import infer_drama_speaker_from_prompt
@@ -81,13 +82,20 @@ def normalize_voice_prompt_text(raw: str) -> str:
 
 
 # 无 LLM 时的规则兜底
-def fallback_voice_prompt(asset: DramaAsset, summary_char: dict[str, Any] | None = None) -> str:
+def fallback_voice_prompt(
+    asset: DramaAsset,
+    summary_char: dict[str, Any] | None = None,
+    *,
+    lang: str | None = None,
+) -> str:
     params = asset.params if isinstance(asset.params, dict) else {}
     summary = summary_char or {}
     name = asset.name or "角色"
     role = str(params.get("roleType") or summary.get("roleType") or "").strip()
     personality = str(params.get("personality") or summary.get("personality") or "").strip()
     visual = str(params.get("visualImage") or summary.get("visualImage") or "").strip()
+    if lang and not is_zh(lang):
+        return _fallback_voice_prompt_latin(asset.name or "", f"{role} {personality} {visual}", lang)
 
     age_gender = "青年"
     if any(k in f"{role}{personality}{visual}" for k in ("童", "少年", "幼")):
@@ -113,6 +121,23 @@ def fallback_voice_prompt(asset: DramaAsset, summary_char: dict[str, Any] | None
     return f"{name}：{tone}，{mood}，贴合{role or '角色'}身份。"
 
 
+_LATIN_FEMALE_RE = re.compile(r"\b(nữ|cô|bà|chị|female|woman|girl|lady|she)\b", re.IGNORECASE)
+_LATIN_MALE_RE = re.compile(r"\b(nam|ông|anh|chàng|male|man|boy|he)\b", re.IGNORECASE)
+
+
+def _fallback_voice_prompt_latin(name: str, blob: str, lang: str) -> str:
+    """越南语 / 英文角色的规则兜底音色描述（按设定里的性别词粗判）。"""
+    female = bool(_LATIN_FEMALE_RE.search(blob)) or any(k in blob for k in ("女", "娘", "妃"))
+    male = bool(_LATIN_MALE_RE.search(blob)) or any(k in blob for k in ("男", "公", "王"))
+    if lang == "en":
+        voice = "female voice" if female and not male else "male voice" if male else "neutral voice"
+        text = f"Young adult {voice}, clear articulation, natural pace, calm tone, fits the character's role."
+    else:
+        voice = "giọng nữ" if female and not male else "giọng nam" if male else "giọng trung tính"
+        text = f"{voice.capitalize()} trẻ, phát âm rõ, tốc độ vừa phải, giọng điềm tĩnh, hợp với vai diễn."
+    return f"{name}: {text}" if name else text
+
+
 async def suggest_voice_prompt_for_character(
     asset: DramaAsset,
     project: DramaProject,
@@ -131,16 +156,18 @@ async def suggest_voice_prompt_for_character(
         asset.name,
         len(context),
     )
+    lang = project_content_lang(project)
     raw = await drama_chat_text(
         VOICE_PROMPT_SYSTEM,
         f"请为以下角色生成音色描述：\n\n{context}",
         temperature=0.6,
         max_tokens=512,
+        lang=lang,
     )
     prompt = normalize_voice_prompt_text(raw)
     if len(prompt) < 8:
-        prompt = fallback_voice_prompt(asset, summary_char)
+        prompt = fallback_voice_prompt(asset, summary_char, lang=lang)
     name = asset.name or "角色"
     speaker = infer_drama_speaker_from_prompt(prompt, character_name=name, asset_id=asset.id)
-    sample_text = build_voice_sample_text(prompt, name, short=False)
+    sample_text = build_voice_sample_text(prompt, name, short=False, lang=lang)
     return prompt, speaker, sample_text

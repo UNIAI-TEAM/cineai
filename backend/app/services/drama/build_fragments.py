@@ -5,8 +5,11 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.services.text_lang import cut_words, is_cjk_text
 from app.services.seedance_segments import (
     DRAMA_SUBTITLE_CUE,
+    drama_subtitle_cue,
+    spoken_text_lang,
     DIALOGUE_PREFIX,
     VISUAL_PREFIX,
     classify_voice_body,
@@ -600,6 +603,11 @@ def _is_generic_intro_text(text: str) -> bool:
 
 def _shorten_intro(text: str, max_len: int = 24) -> str:
     # 叠字描述截断：去空白、取首句、限长
+    if not is_cjk_text(text or ""):
+        # 越南语 / 英文：保留词间空格，按词截断（同样信息量字符数约为中文的 2–3 倍）
+        latin = re.sub(r"\s+", " ", (text or "").strip())
+        first_latin = re.split(r"[.!?;。！？；]", latin, maxsplit=1)[0].strip()
+        return cut_words(first_latin, max_len * 2)
     cleaned = re.sub(r"\s+", "", (text or "").strip())
     if not cleaned:
         return ""
@@ -867,7 +875,8 @@ def _build_production_cues(
     hint = " ".join(filter(None, [location_line or "", *narrative_lines[:3]]))
     lines = [f"【BGM：{_infer_bgm_mood(hint)}；音量低于人声】"]
     if include_subtitles:
-        lines.insert(0, DRAMA_SUBTITLE_CUE)
+        # 字幕语言跟随台词文字（越南语 / 英文项目用对应语言 cue）
+        lines.insert(0, drama_subtitle_cue(spoken_text_lang("\n".join(narrative_lines))))
     lines.extend(character_intro_lines)
     return lines
 

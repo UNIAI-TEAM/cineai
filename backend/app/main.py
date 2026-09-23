@@ -185,6 +185,9 @@ async def _apply_schema_patches() -> None:
             await conn.execute(text("ALTER TABLE projects ADD COLUMN image_model VARCHAR(128) DEFAULT ''"))
         if "video_model" not in pcols:
             await conn.execute(text("ALTER TABLE projects ADD COLUMN video_model VARCHAR(128) DEFAULT ''"))
+        # --- 内容语言（AI 输出语言）---
+        if "content_lang" not in pcols:
+            await conn.execute(text("ALTER TABLE projects ADD COLUMN content_lang VARCHAR(8) DEFAULT ''"))
         # Tên model upstream mới dài hơn 64 ký tự; nới cột cũ (idempotent)
         for column in ("image_model", "video_model"):
             current = await _pg_varchar_len(conn, "projects", column)

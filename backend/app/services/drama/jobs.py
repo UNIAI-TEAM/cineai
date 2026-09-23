@@ -23,6 +23,7 @@ from app.models_drama import (
     DramaProject,
 )
 from app.services.billing import record_line, record_llm_chat_line
+from app.services.content_lang import project_content_lang
 from app.services.drama.billing_util import record_seed_assets_llm_usage
 from app.services.drama.seed import seed_assets_from_episode_body
 from app.services.drama.agents import (
@@ -242,6 +243,7 @@ async def run_script_summary_job(project_id: int) -> dict[str, Any]:
                 creative,
                 episode_count=int(episode_count) if episode_count else None,
                 image_style_id=str(image_style_id) if image_style_id else None,
+                lang=project_content_lang(project),
             )
         except Exception as exc:  # noqa: BLE001
             params = dict(script.params or {})
@@ -448,7 +450,9 @@ async def run_episode_scripts_job(
                         total,
                     )
 
-            existing, outline_used_llm = await ensure_episode_outline(creative, summary, existing, total)
+            existing, outline_used_llm = await ensure_episode_outline(
+                creative, summary, existing, total, lang=project_content_lang(project)
+            )
             script.episode_content = {"episodes": existing}
             params_outline = dict(script.params or {})
             params_outline["episode_content_status"] = "generating"
@@ -490,6 +494,7 @@ async def run_episode_scripts_job(
                     batch_size=1,
                     total=total,
                     creative=creative,
+                    lang=project_content_lang(project),
                 )
                 existing = merge_episode_bodies(existing, batch)
                 script.episode_content = {"episodes": existing}
@@ -641,6 +646,7 @@ async def _run_single_episode_script_job(
                     project_source=project_source,
                     title=ep_title,
                     character_asset_names=character_asset_names,
+                    lang=project_content_lang(project),
                 )
             elif mode == "body":
                 batch = await run_episode_body_from_brief(
@@ -652,6 +658,7 @@ async def _run_single_episode_script_job(
                     project_source=project_source,
                     title=ep_title,
                     character_asset_names=character_asset_names,
+                    lang=project_content_lang(project),
                 )
             elif mode == "full":
                 if len(ep_creative) < 20:
@@ -664,6 +671,7 @@ async def _run_single_episode_script_job(
                     project_source=project_source,
                     title=ep_title,
                     character_asset_names=character_asset_names,
+                    lang=project_content_lang(project),
                 )
             elif mode == "brief":
                 ep_body = str((current or {}).get("body") or (current or {}).get("content") or "").strip()
@@ -677,6 +685,7 @@ async def _run_single_episode_script_job(
                     project_source=project_source,
                     title=ep_title,
                     character_asset_names=character_asset_names,
+                    lang=project_content_lang(project),
                 )
             else:
                 if not draft or len(draft) < 20:
@@ -688,6 +697,7 @@ async def _run_single_episode_script_job(
                     draft,
                     creative=project_source,
                     character_asset_names=character_asset_names,
+                    lang=project_content_lang(project),
                 )
             if origin == "manual":
                 for item in batch:
@@ -941,6 +951,7 @@ async def run_episode_fragment_plan_job(
                 summary=summary,
                 episode_bodies=all_bodies,
                 story_type=str(summary.get("storyType") or "") or None,
+                lang=project_content_lang(project),
             )
             if include_character_intro
             else {}
@@ -967,6 +978,7 @@ async def run_episode_fragment_plan_job(
                 skill_ids=skill_ids,
                 include_subtitles=include_subtitles,
                 include_character_intro=include_character_intro,
+                lang=project_content_lang(project),
             )
         except (DramaLlmUnavailableError, RuntimeError, Exception) as exc:  # noqa: BLE001
             logger.exception("LLM 分镜失败 episode_id=%s err=%s", episode_id, exc)

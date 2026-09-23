@@ -1,6 +1,7 @@
 /** 独立创作工具 API：/api/tools/* */
 
 import { apiErrorText, parseApiError, throwApiError } from '../lib/apiError'
+import { uiLocaleHeaders } from '../lib/uiLocaleHeader'
 
 function defaultApiBase() {
   if (typeof window !== 'undefined' && window.location?.hostname) {
@@ -41,6 +42,9 @@ export type ToolRunRecord = {
   task_id?: string | null
   params?: Record<string, string> | null
   error?: string | null
+  /** 落库错误码与参数（后端补齐前可能缺省），展示用 localizeStoredError */
+  error_code?: string | null
+  error_params?: Record<string, unknown> | null
   created_at: string
 }
 
@@ -92,7 +96,7 @@ export async function runStudioTool(payload: ToolRunPayload): Promise<ToolRunRes
   }
   const res = await fetch(`${API_BASE}/api/tools/run`, {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: { ...uiLocaleHeaders(), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body,
   })
   if (res.status === 401) throw parseApiError(401, null, apiErrorText('loginRequired'))
@@ -107,7 +111,7 @@ export async function runStudioTool(payload: ToolRunPayload): Promise<ToolRunRes
 export async function pollStudioToolTask(taskId: string): Promise<ToolTaskResult> {
   const token = localStorage.getItem('token')
   const res = await fetch(`${API_BASE}/api/tools/tasks/${encodeURIComponent(taskId)}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: { ...uiLocaleHeaders(), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   })
   if (res.status === 401) throw parseApiError(401, null, apiErrorText('loginRequired'))
   if (!res.ok) {
@@ -122,7 +126,7 @@ export async function listToolRuns(page = 1, pageSize = 8): Promise<ToolRunList>
   const token = localStorage.getItem('token')
   const qs = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
   const res = await fetch(`${API_BASE}/api/tools/runs?${qs}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: { ...uiLocaleHeaders(), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   })
   if (res.status === 401) throw parseApiError(401, null, apiErrorText('loginRequired'))
   if (!res.ok) {
@@ -136,7 +140,7 @@ export async function listToolRuns(page = 1, pageSize = 8): Promise<ToolRunList>
 export async function getToolRun(runId: number): Promise<ToolRunRecord> {
   const token = localStorage.getItem('token')
   const res = await fetch(`${API_BASE}/api/tools/runs/${runId}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: { ...uiLocaleHeaders(), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   })
   if (res.status === 401) throw parseApiError(401, null, apiErrorText('loginRequired'))
   if (!res.ok) {

@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.services.content_lang import is_zh, lang_display_name
+
 FRAGMENT_PLAN_SYSTEM_PROMPT = """你是短剧视频分镜导演，负责把「场记剧本」拆成适合 AI 视频模型（Seedance 2.5）逐条生成的分镜。
 
 ## 输出
@@ -86,6 +88,19 @@ FRAGMENT_PLAN_SYSTEM_PROMPT = """你是短剧视频分镜导演，负责把「�
 对白镜仍须至少 1 条建立/反应画面行，避免「纯对白白板」。
 """
 
+
+
+def fragment_plan_system_prompt(lang: str | None) -> str:
+    """分镜规划系统提示词：vi / en 时补充行首标签与语言规则（标签供 build_fragments 解析，须保持原样）。"""
+    if lang is None or is_zh(lang):
+        return FRAGMENT_PLAN_SYSTEM_PROMPT
+    name = lang_display_name(lang)
+    return (
+        f"{FRAGMENT_PLAN_SYSTEM_PROMPT}\n\n## 语言\n"
+        "1. 行首标签「空镜：」「远景：」「近景：」「特写：」「全景：」「中景：」「旁白（VO）：」及 JSON key 必须原样照写、不要翻译。\n"
+        "2. 画面行（空镜/景别/动作）标签后的描写用英文（English），供视频模型理解。\n"
+        f"3. 对白、旁白内容以及开幕镜的集号集名、背景介绍使用{name}；角色名、地点名与资产目录保持一致。"
+    )
 
 def build_fragment_plan_user_prompt(
     *,

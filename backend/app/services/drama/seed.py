@@ -32,6 +32,7 @@ from app.services.drama.build_fragments import (
 )
 from app.services.drama.access import detach_task_fragment_refs
 from app.services.drama.agents import MIN_EPISODE_CONTENT_CHARS
+from app.services.content_lang import is_zh, project_content_lang
 from app.services.drama.extract_props_materials import extract_props_materials
 from app.services.drama.seed_asset_params import (
     build_character_params,
@@ -445,6 +446,8 @@ async def seed_assets_from_script(
 
     summary = script.summary if isinstance(script.summary, dict) else {}
     story_type = str(summary.get("storyType") or "").strip()
+    # 内容语言：决定生图提示词模板（vi / en 用英文）
+    lang = project_content_lang(project)
     # 先合并历史并发 seed 留下的同名重复，并清掉误入角色的音色名
     merged = await merge_duplicate_library_assets(db, int(project.id))
     purged = await purge_voice_like_character_assets(db, int(project.id))
@@ -500,7 +503,7 @@ async def seed_assets_from_script(
             if asset:
                 asset.params = _merge_preserved_asset_params(
                     dict(asset.params or {}),
-                    build_character_params(ch),
+                    build_character_params(ch, lang),
                 )
 
     # Extract scene names from episode bodies
@@ -539,7 +542,7 @@ async def seed_assets_from_script(
             if asset:
                 asset.params = _merge_preserved_asset_params(
                     dict(asset.params or {}),
-                    build_scene_params(scene, story_type),
+                    build_scene_params(scene, story_type, lang),
                 )
 
     for name in character_names:
@@ -550,14 +553,14 @@ async def seed_assets_from_script(
         if char_key in existing_by_key:
             continue
         ch = summary_by_name.get(name) or summary_by_name.get(norm) or _character_stub_from_cast(
-            norm, story_type, summary=summary, bodies=bodies,
+            norm, story_type, summary=summary, bodies=bodies, lang=lang,
         )
         asset = DramaAsset(
             project_id=project.id,
             type="character",
             asset_type="image",
             name=norm,
-            params=build_character_params(ch),
+            params=build_character_params(ch, lang),
         )
         db.add(asset)
         created.append(asset)
@@ -575,7 +578,7 @@ async def seed_assets_from_script(
             type="scene",
             asset_type="image",
             name=norm,
-            params=build_scene_params(norm, story_type),
+            params=build_scene_params(norm, story_type, lang),
         )
         db.add(asset)
         created.append(asset)
@@ -587,7 +590,9 @@ async def seed_assets_from_script(
     if should_extract_props:
         llm_calls_props = 1
         try:
-            extracted = await extract_props_materials(summary=summary, episode_bodies=bodies)
+            extracted = await extract_props_materials(
+                summary=summary, episode_bodies=bodies, lang=lang
+            )
         except Exception:
             if reextract_props:
                 raise
@@ -740,6 +745,7 @@ async def seed_assets_from_episode_body(
 
     summary = script.summary if isinstance(script.summary, dict) else {}
     story_type = str(summary.get("storyType") or "").strip()
+    lang = project_content_lang(project)
     bodies_list = _normalize_episode_list(script.episode_content)
     target = next(
         (
@@ -792,14 +798,14 @@ async def seed_assets_from_episode_body(
             result.reused.append({"type": "character", "name": norm})
             continue
         ch = summary_by_name.get(name) or summary_by_name.get(norm) or _character_stub_from_cast(
-            norm, story_type, summary=summary, bodies=bodies_for_stub,
+            norm, story_type, summary=summary, bodies=bodies_for_stub, lang=lang,
         )
         asset = DramaAsset(
             project_id=project.id,
             type="character",
             asset_type="image",
             name=norm,
-            params=build_character_params(ch),
+            params=build_character_params(ch, lang),
         )
         db.add(asset)
         existing_by_key[char_key] = asset
@@ -826,7 +832,7 @@ async def seed_assets_from_episode_body(
             type="scene",
             asset_type="image",
             name=norm,
-            params=build_scene_params(norm, story_type),
+            params=build_scene_params(norm, story_type, lang),
         )
         db.add(asset)
         existing_by_key[scene_key] = asset
@@ -1467,19 +1473,31 @@ def _character_stub_from_cast(
     story_type: str = "",
     summary: dict[str, Any] | None = None,
     bodies: list[str] | None = None,
+    lang: str | None = None,
 ) -> dict[str, Any]:
-    """分集出场但摘要未写小传时的角色 stub（供建资产 + 后续 AI 补提示词）。"""
+    """分集出场但摘要未写小传时的角色 stub（供建资产 + 后续 AI 补提示词）。
+
+    title / roleType / coreTags 等中文占位值是占位识别标记（build_fragments 按其判断次要角色），保持中文；
+    visualImage 是生图提示词，vi / en 项目用英文。
+    """
     from app.services.drama.build_fragments import infer_character_intro_text
 
     genre = (story_type or "").strip() or "短剧"
+    if lang and not is_zh(lang):
+        visual_stub = (
+            f"{name}, {(story_type or '').strip() or 'short drama'} character look, recognizable face and costume, "
+            "posture and temperament matching the role, cinematic photorealistic, full body on white background"
+        )
+    else:
+        visual_stub = (
+            f"{name}，{genre}人物定妆，可辨识面容与服饰，体态与气质贴合身份，"
+            "影视级写实，白底全身可拍摄"
+        )
     stub_params = {
         "name": name,
         "title": "出场人物",
         "roleType": "配角",
-        "visualImage": (
-            f"{name}，{genre}人物定妆，可辨识面容与服饰，体态与气质贴合身份，"
-            "影视级写实，白底全身可拍摄"
-        ),
+        "visualImage": visual_stub,
         "coreTags": "出场人物",
         "personality": "",
         "identityBackground": f"剧本分集出场人物「{name}」",

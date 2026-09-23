@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models_drama import DramaAsset, DramaProject
 from app.services.billing import record_llm_chat_line
+from app.services.content_lang import is_zh, project_content_lang
 from app.services.drama.llm import drama_chat_text
 from app.services.llm_client import LlmUnavailableError
 from app.services.drama.seed import _episode_bodies
@@ -35,6 +36,9 @@ GENERIC_TEMPLATE_MARKERS = (
     "白底全身定妆照",
     "材质与氛围清晰，构图简洁",
     "影视级静物/空镜",
+    # 越南语 / 英文项目的规则模板（seed_asset_params.build_scene_params 等）
+    "cinematic photorealistic environment",
+    "cinematic still life",
 )
 
 MIN_PROMPT_LEN: dict[str, int] = {
@@ -87,7 +91,9 @@ def is_generic_template_prompt(text: str) -> bool:
     if len(stripped) >= 180:
         return False
     hits = sum(1 for marker in GENERIC_TEMPLATE_MARKERS if marker in stripped)
-    return hits >= 1 or (stripped.startswith("场景：") and len(stripped) < 120)
+    return hits >= 1 or (
+        (stripped.startswith("场景：") or stripped.startswith("Scene:")) and len(stripped) < 120
+    )
 
 
 # 判断当前提示词是否过短、占位或模板化
@@ -165,14 +171,21 @@ def build_character_visual_context(
 def fallback_character_visual_prompt(
     asset: DramaAsset,
     summary_char: dict[str, Any] | None = None,
+    lang: str | None = None,
 ) -> str:
     params = asset.params if isinstance(asset.params, dict) else {}
     merged = {**(summary_char or {}), **{k: v for k, v in params.items() if v}}
     if asset.name and not merged.get("name"):
         merged["name"] = asset.name
-    text = compose_character_visual_text(merged)
+    text = compose_character_visual_text(merged, lang)
     if text:
         return normalize_visual_prompt_text(text)
+    if lang and not is_zh(lang):
+        return normalize_visual_prompt_text(
+            f"{asset.name or 'Character'}, young adult, well-proportioned build, clear facial features, "
+            "hairstyle and costume matching the story setting, full-body standing on white background, "
+            "natural expression, cinematic character reference photo."
+        )
     name = asset.name or "角色"
     return normalize_visual_prompt_text(
         f"{name}，青年，身形匀称，面容清晰，发型与服饰符合上古神话短剧设定，"
@@ -209,10 +222,13 @@ def fallback_scene_visual_prompt(
     asset: DramaAsset,
     summary: dict[str, Any] | None,
     episode_bodies: list[str] | None = None,
+    lang: str | None = None,
 ) -> str:
     story_type = str((summary or {}).get("storyType") or "").strip()
-    base = build_scene_params(asset.name or "场景", story_type)["visualPrompt"]
+    base = build_scene_params(asset.name or "场景", story_type, lang)["visualPrompt"]
     excerpt = collect_scene_excerpts(episode_bodies or [], asset.name or "")
+    if excerpt and lang and not is_zh(lang):
+        return normalize_visual_prompt_text(f"{base}. Script reference: {excerpt[:400]}")
     if excerpt:
         return normalize_visual_prompt_text(f"{base}。场戏环境与动作参考：{excerpt[:400]}")
     return normalize_visual_prompt_text(base)
@@ -248,8 +264,11 @@ async def _llm_visual_prompt(
     db: AsyncSession | None = None,
     user_id: int | None = None,
     drama_project_id: int | None = None,
+    lang: str | None = None,
 ) -> str:
-    raw = await drama_chat_text(system, user, temperature=0.6, max_tokens=1024)
+    raw = await drama_chat_text(
+        system, user, temperature=0.6, max_tokens=1024, lang=lang, lang_kind="visual"
+    )
     prompt = normalize_visual_prompt_text(raw)
     if db is not None and user_id is not None:
         await record_llm_chat_line(
@@ -287,11 +306,18 @@ async def resolve_visual_prompt_for_asset(
         return stored
 
     min_len = MIN_PROMPT_LEN.get(kind, 80)
-    llm_bill = {"db": db, "user_id": project.user_id, "drama_project_id": project.id}
+    # 内容语言：vi / en 项目的生图提示词用英文（见 content_lang.visual_prompt_directive）
+    lang = project_content_lang(project)
+    llm_bill = {
+        "db": db,
+        "user_id": project.user_id,
+        "drama_project_id": project.id,
+        "lang": lang,
+    }
 
     if kind == "character":
         summary_char = find_summary_character(summary, name)
-        rule_prompt = fallback_character_visual_prompt(asset, summary_char)
+        rule_prompt = fallback_character_visual_prompt(asset, summary_char, lang)
 
         context = build_character_visual_context(asset, summary_char, summary)
         style_id = str((project.params or {}).get("image_style_id") or "").strip()
@@ -318,7 +344,7 @@ async def resolve_visual_prompt_for_asset(
         return rule_prompt
 
     if kind == "scene":
-        rule_prompt = fallback_scene_visual_prompt(asset, summary, bodies)
+        rule_prompt = fallback_scene_visual_prompt(asset, summary, bodies, lang)
 
         excerpt = collect_scene_excerpts(bodies, name)
         story_bits = []
@@ -351,10 +377,18 @@ async def resolve_visual_prompt_for_asset(
         return rule_prompt
 
     if kind in {"prop", "material", "none"}:
-        rule_prompt = stored or normalize_visual_prompt_text(
-            f"{name}，{'关键道具' if kind == 'prop' else '气氛空镜'}，"
-            f"材质细节清晰，戏剧感强，背景简洁。"
-        )
+        if stored:
+            rule_prompt = stored
+        elif not is_zh(lang):
+            rule_prompt = normalize_visual_prompt_text(
+                f"{name}, {'key prop' if kind == 'prop' else 'atmospheric empty shot'}, "
+                "clear material details, strong dramatic feel, simple background."
+            )
+        else:
+            rule_prompt = normalize_visual_prompt_text(
+                f"{name}，{'关键道具' if kind == 'prop' else '气氛空镜'}，"
+                f"材质细节清晰，戏剧感强，背景简洁。"
+            )
 
         system = PROP_VISUAL_SYSTEM if kind == "prop" else MATERIAL_VISUAL_SYSTEM
         ctx = f"名称：{name}\n"
@@ -382,4 +416,8 @@ async def resolve_visual_prompt_for_asset(
 
     if stored and len(stored) >= min_len:
         return stored
+    if not is_zh(lang):
+        return normalize_visual_prompt_text(
+            f"{name}, cinematic still life / empty shot, clear material and atmosphere, simple composition."
+        )
     return normalize_visual_prompt_text(f"{name}，影视级静物/空镜，材质与氛围清晰，构图简洁。")

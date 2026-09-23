@@ -1,4 +1,5 @@
 import { throwApiError } from '../lib/apiError'
+import { uiLocaleHeaders } from '../lib/uiLocaleHeader'
 
 function defaultApiBase() {
   if (typeof window !== 'undefined' && window.location?.hostname) {
@@ -15,8 +16,8 @@ const API_BASE =
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem('token')
   return token
-    ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-    : { 'Content-Type': 'application/json' }
+    ? { ...uiLocaleHeaders(), Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    : { ...uiLocaleHeaders(), 'Content-Type': 'application/json' }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

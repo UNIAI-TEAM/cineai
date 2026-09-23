@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Any
+from typing import Any, Literal
 
+from app.services.content_lang import localize_system_prompt
 from app.services.llm_client import (
     DEFAULT_MAX_TOKENS,
     LlmUnavailableError,
@@ -86,8 +87,14 @@ async def drama_chat_json(
     *,
     temperature: float = 0.6,
     max_tokens: int = DEFAULT_MAX_TOKENS,
+    lang: str | None = None,
+    lang_kind: Literal["text", "visual"] = "text",
 ) -> Any:
-    """Call text LLM and parse JSON from the reply."""
+    """Call text LLM and parse JSON from the reply.
+
+    lang：内容语言 zh|en|vi；非 zh 时改写系统提示词里的中文约束并追加输出语言指令（None 保持原样）
+    """
+    system = localize_system_prompt(system, lang, kind=lang_kind)
     system, user = _ensure_json_word_in_prompt(system, user)
     json_format = {"type": "json_object"}
     try:
@@ -142,8 +149,11 @@ async def drama_chat_text(
     *,
     temperature: float = 0.6,
     max_tokens: int = 8192,
+    lang: str | None = None,
+    lang_kind: Literal["text", "visual"] = "text",
 ) -> str:
-    """Call text LLM and return plain text."""
+    """Call text LLM and return plain text（lang 同 drama_chat_json）。"""
+    system = localize_system_prompt(system, lang, kind=lang_kind)
     return await chat_completions(
         system,
         user,

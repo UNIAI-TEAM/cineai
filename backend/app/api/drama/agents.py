@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -22,6 +22,7 @@ from app.schemas_drama import (
     DramaScriptSummaryRequest,
 )
 from app.services.billing import run_billed_ephemeral
+from app.services.content_lang import lang_display_name, request_lang
 from app.services.drama.access import get_owned_drama_project
 from app.services.drama.agents import (
     MAX_DRAMA_EPISODES,
@@ -437,17 +438,21 @@ async def route_agent(body: DramaRouteRequest, user: User = Depends(get_current_
 @router.post("/ai/chat")
 async def ai_chat(
     body: DramaChatRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
     logger.info("漫剧聊天 user_id=%s project_id=%s", user.id, body.project_id)
+    # 回复语言跟随界面语言
+    reply_lang = request_lang(request)
 
     async def _do_chat() -> str:
         from app.services.billing import record_line
 
         try:
             reply = await drama_chat_text(
-                "你是 CineAI 漫剧创作助手，帮助用户构思短剧创意、人物与分集结构。用简洁中文回答。",
+                "你是 CineAI 漫剧创作助手，帮助用户构思短剧创意、人物与分集结构。"
+                f"用简洁的{lang_display_name(reply_lang)}回答。",
                 body.message,
             )
         except DramaLlmUnavailableError as exc:

@@ -46,6 +46,7 @@ from app.services.drama.seedream_options import (
     resolve_seedream_size,
 )
 from app.services.drama.visual_prompt import resolve_visual_prompt_for_asset
+from app.services.content_lang import project_content_lang
 from app.services.drama.voice_synthesis import build_voice_sample_text, synthesize_voice_asset
 from app.services.drama.voice_prompt import fallback_voice_prompt
 from app.services.drama.voice_reference_audio import (
@@ -1100,6 +1101,7 @@ async def ensure_fragment_reference_audios(
             voice_prompt,
             character.name if character else voice_asset.name,
             short=False,
+            lang=project_content_lang(project),
         )
         return await synthesize_voice_asset(
             db,
@@ -1146,7 +1148,7 @@ async def ensure_fragment_reference_audios(
             or ""
         ).strip()
         if not prompt:
-            prompt = fallback_voice_prompt(asset)
+            prompt = fallback_voice_prompt(asset, lang=project_content_lang(project))
         speaker = str(
             voice_params.get("speaker")
             or voice_params.get("designedSpeakerId")

@@ -1,6 +1,7 @@
 /** API Key 管理客户端（/api/user/api-keys） */
 
 import { apiErrorText, throwApiError } from '../lib/apiError'
+import { uiLocaleHeaders } from '../lib/uiLocaleHeader'
 
 function defaultApiBase() {
   if (typeof window !== 'undefined' && window.location?.hostname) {
@@ -32,6 +33,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
+      ...uiLocaleHeaders(),
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers || {}),

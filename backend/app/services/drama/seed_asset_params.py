@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.services.content_lang import is_zh
+from app.services.text_lang import is_cjk_text
+
 # DEFAULT_APPEARANCE_NAME 从剧本抽取角色时的默认形象名
 DEFAULT_APPEARANCE_NAME = "基础形象"
 
@@ -34,31 +37,51 @@ def build_named_image_params(prompt: str, aspect_ratio: str, *, kind: str = "pro
     }
 
 
+# 生图提示词字段标签：中文项目用中文；越南语 / 英文项目用英文（生图模型对英文理解更好）
+_ZH_LABELS = {"title": "身份：", "roleType": "定位：", "coreTags": "标签：", "personality": "性格："}
+_EN_LABELS = {"title": "Identity: ", "roleType": "Role: ", "coreTags": "Tags: ", "personality": "Personality: "}
+
+
+def use_zh_prompt_labels(lang: str | None, sample: str = "") -> bool:
+    """是否用中文拼生图提示词：显式 lang 优先；未给时按内容是否含中文判断（空内容沿用中文）。"""
+    if lang:
+        return is_zh(lang)
+    return not sample.strip() or is_cjk_text(sample)
+
+
 # 按 manju buildCharacterParams 规则拼接角色生图 prompt
-def manju_join_character_prompt(character: dict[str, Any]) -> str:
+def manju_join_character_prompt(character: dict[str, Any], lang: str | None = None) -> str:
     visual = str(character.get("visualImage") or "").strip()
     title = str(character.get("title") or "").strip()
     role_type = str(character.get("roleType") or "").strip()
     core_tags = str(character.get("coreTags") or "").strip()
     personality = str(character.get("personality") or "").strip()
+    zh = use_zh_prompt_labels(lang, " ".join([visual, title, role_type, core_tags, personality]))
+    labels = _ZH_LABELS if zh else _EN_LABELS
+    if not zh:
+        # 越南语 / 英文项目：丢掉 stub 里的中文占位值（如「出场人物」「配角」）
+        title, role_type, core_tags, personality = (
+            "" if is_cjk_text(v) else v for v in (title, role_type, core_tags, personality)
+        )
     parts = [
         visual,
-        f"身份：{title}" if title else "",
-        f"定位：{role_type}" if role_type else "",
-        f"标签：{core_tags}" if core_tags else "",
-        f"性格：{personality}" if personality else "",
+        f"{labels['title']}{title}" if title else "",
+        f"{labels['roleType']}{role_type}" if role_type else "",
+        f"{labels['coreTags']}{core_tags}" if core_tags else "",
+        f"{labels['personality']}{personality}" if personality else "",
     ]
-    return "。".join(part for part in parts if part)
+    return ("。" if zh else ". ").join(part for part in parts if part)
 
 
 # 从摘要人物 dict 拼角色生图提示词正文（refresh/fallback 时可叙事化扩展）
-def compose_character_visual_text(character: dict[str, Any]) -> str:
+def compose_character_visual_text(character: dict[str, Any], lang: str | None = None) -> str:
     visual = str(character.get("visualImage") or character.get("visualPrompt") or "").strip()
     if len(visual) >= 120:
-        return manju_join_character_prompt(character) if manju_join_character_prompt(character) != visual else visual
+        joined_full = manju_join_character_prompt(character, lang)
+        return joined_full if joined_full != visual else visual
 
     segments: list[str] = []
-    joined = manju_join_character_prompt(character)
+    joined = manju_join_character_prompt(character, lang)
     if joined:
         segments.append(joined)
     identity = str(character.get("identityBackground") or "").strip()
@@ -70,12 +93,13 @@ def compose_character_visual_text(character: dict[str, Any]) -> str:
         segments.append(growth)
     if relationships and relationships not in joined:
         segments.append(relationships)
-    return "。".join(s for s in segments if s)
+    sep = "。" if use_zh_prompt_labels(lang, joined) else ". "
+    return sep.join(s for s in segments if s)
 
 
 # 组装角色资产 params（形象名 + 生图提示词，对齐 manju buildCharacterParams）
-def build_character_params(character: dict[str, Any]) -> dict[str, Any]:
-    prompt = manju_join_character_prompt(character)
+def build_character_params(character: dict[str, Any], lang: str | None = None) -> dict[str, Any]:
+    prompt = manju_join_character_prompt(character, lang)
     visual = str(character.get("visualImage") or "").strip() or prompt
     return {
         "visualImage": visual,
@@ -100,7 +124,14 @@ def build_character_params(character: dict[str, Any]) -> dict[str, Any]:
 
 
 # 组装场景资产 params（对齐 manju buildSceneParams）
-def build_scene_params(scene_name: str, story_type: str = "") -> dict[str, Any]:
+def build_scene_params(scene_name: str, story_type: str = "", lang: str | None = None) -> dict[str, Any]:
     _ = story_type  # manju 场景 seed 未使用 storyType，保留参数供 refresh 扩展
-    prompt = f"场景：{scene_name.strip()}，影视级写实场景，构图清晰，适合短剧拍摄"
+    name = scene_name.strip()
+    if use_zh_prompt_labels(lang, name):
+        prompt = f"场景：{name}，影视级写实场景，构图清晰，适合短剧拍摄"
+    else:
+        prompt = (
+            f"Scene: {name}, cinematic photorealistic environment, clear composition, "
+            "suitable for short drama filming"
+        )
     return build_named_image_params(prompt, "16:9", kind="scene")

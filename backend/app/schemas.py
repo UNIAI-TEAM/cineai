@@ -194,6 +194,7 @@ class ProjectOut(BaseModel):
     character_bible: str = ""
     bgm_lock: str = ""
     subtitle_preset: str = ""
+    content_lang: str = ""
     style_prompt: str = ""
     character_prompt: str = ""
     extra_prompt: str = ""
