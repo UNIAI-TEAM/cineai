@@ -61,10 +61,10 @@ def _check(label: str, capability: str, items: list[ModelBinding], channels: dic
     for item in items:
         ch = channels.get(item.channel_id)
         if ch is None:
-            errs.append(f"{label}: provider '{item.channel_id}' không tồn tại")
+            errs.append(f"{label}: nhà cung cấp '{item.channel_id}' không tồn tại")
             continue
         if not any(normalize_model_name(m) == normalize_model_name(item.model) for m in ch.models):
-            errs.append(f"{label}: model '{item.model}' chưa được bật ở provider {ch.name}")
+            errs.append(f"{label}: model '{item.model}' chưa được bật ở nhà cung cấp {ch.name}")
             continue
         if ch.protocol == "volc_tts":
             cap = "audio"

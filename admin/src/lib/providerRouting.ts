@@ -334,7 +334,7 @@ export function mergeModelIds(current: string[], added: string[]): string[] {
   return out;
 }
 
-/** Kiểm tra nháp gán chức năng — cùng câu chữ với `validate_function_bindings` (backend/app/services/function_bindings.py) */
+/** Kiểm tra nháp gán chức năng — câu lỗi phải trùng từng chữ với `_check`/`validate_function_bindings` (backend/app/services/function_bindings.py), đều dùng "nhà cung cấp" */
 export function validateBindingsDraft(
   b: FunctionBindings,
   providers: ProviderDraft[],

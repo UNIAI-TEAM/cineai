@@ -5,13 +5,14 @@ import { fetchProviderRates, saveProviderRates, type ProviderRateRow, type Provi
 export function useProviderRates() {
   /*
    * data: bản đã lưu (kèm defaults, units, unpriced_models, usd_cny); rows: bản nháp; dirty: nháp khác bản lưu
-   * loading / loadError: trạng thái tải; saveError: lỗi 400 tiếng Việt từ backend
+   * loading / loadError: trạng thái tải; saving: đang PUT bảng giá; saveError: lỗi 400 tiếng Việt từ backend
    */
   const [data, setData] = useState<ProviderRatesOut | null>(null);
   const [rows, setRowsState] = useState<ProviderRateRow[]>([]);
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
   const load = useCallback(async () => {
@@ -47,6 +48,7 @@ export function useProviderRates() {
 
   // Lưu nháp; true = thành công
   const save = useCallback(async (): Promise<boolean> => {
+    setSaving(true);
     try {
       const res = await saveProviderRates(rows);
       setData(res);
@@ -57,8 +59,10 @@ export function useProviderRates() {
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Không lưu được bảng giá");
       return false;
+    } finally {
+      setSaving(false);
     }
   }, [rows]);
 
-  return { data, rows, dirty, loading, loadError, saveError, load, setRows, resetToDefaults, save };
+  return { data, rows, dirty, loading, loadError, saving, saveError, load, setRows, resetToDefaults, save };
 }

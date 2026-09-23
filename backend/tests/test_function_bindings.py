@@ -57,3 +57,15 @@ def test_validate_reports_unknown_slot_key_without_raising():
     b = FunctionBindings(slots={"junk": [ModelBinding(channel_id="byteplus", model="dola-seedream-5-0-pro-260628")]})
     errs = fb.validate_function_bindings(b, [_ch()])
     assert any("junk" in e for e in errs)
+
+
+def test_validate_messages_match_admin_mirror_wording():
+    """Câu lỗi hiện nguyên văn ở tab Mô hình: dùng "nhà cung cấp", khớp validateBindingsDraft của admin."""
+    b = FunctionBindings(slots={
+        "image": [ModelBinding(channel_id="ghost", model="x")],
+        "video": [ModelBinding(channel_id="byteplus", model="not-enabled")],
+    })
+    errs = fb.validate_function_bindings(b, [_ch()])
+    assert "Slot Ảnh: nhà cung cấp 'ghost' không tồn tại" in errs
+    assert "Slot Video: model 'not-enabled' chưa được bật ở nhà cung cấp byteplus" in errs
+    assert not any("provider" in e for e in errs)

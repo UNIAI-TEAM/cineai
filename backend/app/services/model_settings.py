@@ -474,11 +474,11 @@ async def patch_admin_routing_settings(
         for idx, item in enumerate(body.providers):
             cid = (item.id or "").strip()
             if not cid or not (item.name or "").strip():
-                raise ValueError("Provider cần có id và tên")
+                raise ValueError("Nhà cung cấp cần có id và tên")
             if cid in keep:
-                raise ValueError(f"Provider '{cid}' bị trùng id")
+                raise ValueError(f"Nhà cung cấp '{cid}' bị trùng id")
             if (item.protocol or "auto") not in ("openai", "ark", "volc_tts"):
-                raise ValueError(f"Provider {item.name}: protocol không hỗ trợ")
+                raise ValueError(f"Nhà cung cấp {item.name}: protocol không hỗ trợ")
             row = existing.get(cid) or SystemModelChannelRow(id=cid)
             prev_key = _decrypt_secret(row.api_key_ciphertext or "") if row.api_key_ciphertext else ""
             new_key = str(item.api_key).strip() if item.api_key and str(item.api_key).strip() else ""

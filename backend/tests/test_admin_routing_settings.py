@@ -158,3 +158,18 @@ async def test_new_app_row_encrypts_env_secrets(db_session, monkeypatch):
     assert flat["openai_api_key"].startswith(ms.ENCRYPTED_PREFIX)
     assert flat["ark_api_key"].startswith(ms.ENCRYPTED_PREFIX)
     assert ms._decrypt_flat_config(row.config_json)["ark_api_key"] == "ak-real"
+
+
+async def test_patch_provider_errors_say_nha_cung_cap(db_session):
+    """Lỗi 400 khi lưu nhà cung cấp hiện nguyên văn ở admin: không dùng từ "provider"."""
+    cases = [
+        [SystemModelChannelIn(id="", name="X", base_url="https://api.openai.com/v1", protocol="openai", models=[])],
+        [SystemModelChannelIn(id="a", name="A", base_url="https://api.openai.com/v1", protocol="openai", models=[]),
+         SystemModelChannelIn(id="a", name="A2", base_url="https://api.openai.com/v1", protocol="openai", models=[])],
+        [SystemModelChannelIn(id="b", name="B", base_url="https://x", protocol="kie", models=[])],
+    ]
+    for providers in cases:
+        with pytest.raises(ValueError) as exc:
+            await ms.patch_admin_routing_settings(db_session, AdminRoutingSettingsPatch(providers=providers))
+        msg = str(exc.value)
+        assert "Nhà cung cấp" in msg and "provider" not in msg.lower(), msg

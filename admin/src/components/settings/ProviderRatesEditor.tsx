@@ -163,9 +163,10 @@ export function ProviderRatesEditor({
                       />
                     ) : null}
                   </div>
-                  {row.usd === 0 ? (
+                  {row.usd === 0 && (row.usd_out ?? 0) === 0 ? (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Giá 0 → dòng này bị bỏ qua, model tính theo đơn giá token dự phòng.
+                      Dòng này vẫn khớp trước các dòng bên dưới nhưng giá 0 nên không được dùng; model sẽ tính theo
+                      đơn giá token dự phòng ở mục 3.
                     </p>
                   ) : null}
                 </td>

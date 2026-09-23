@@ -98,7 +98,7 @@ export function PaymentSettingsPanel() {
   }
 
   return (
-    <SettingsTabShell onSave={() => void handleSave()} saving={saving}>
+    <SettingsTabShell onSave={() => void handleSave()} saving={saving || rates.saving}>
       <SettingsStatusBar
         title="支付就绪状态"
         items={[
@@ -488,7 +488,7 @@ export function PaymentSettingsPanel() {
       <SettingsPanel
         className="settings-panel--compact"
         title="5. Bảng giá model (USD)"
-        description="Giá chính thức của từng provider; dùng cho tạm giữ trước và quyết toán. Lưu bằng nút Lưu phía trên."
+        description="Giá chính thức của từng nhà cung cấp; dùng cho tạm giữ trước và quyết toán. Lưu bằng nút Lưu phía trên."
       >
         <ProviderRatesEditor
           rows={rates.rows}
