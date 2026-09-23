@@ -31,8 +31,8 @@ test('reconcileCatalogModel matches case/whitespace-insensitively, like the back
   assert.equal(reconcileCatalogModel('GPT- Image-2', MODELS), 'gpt-image-2')
 })
 
-test('modelProviderLabel prefers description, then provider', () => {
-  assert.equal(modelProviderLabel({ description: 'Nhanh', provider: 'byteplus' }), 'Nhanh')
-  assert.equal(modelProviderLabel({ description: '', provider: 'byteplus' }), 'byteplus')
+test('modelProviderLabel shows description only, never the internal provider id', () => {
+  assert.equal(modelProviderLabel({ description: 'Nhanh' }), 'Nhanh')
+  assert.equal(modelProviderLabel({ description: '  ' }), '')
   assert.equal(modelProviderLabel({}), '')
 })

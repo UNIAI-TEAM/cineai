@@ -32,7 +32,8 @@ def reraise_upstream_timeout(exc: BaseException, *, kind: str, read_sec: float) 
             f"{kind}发送请求超时（WriteTimeout）：已连通上游，但 {read_sec:.0f} 秒内未能发完请求，请稍后重试"
         ) from exc
     name = type(exc).__name__
-    raise RuntimeError(
+    # Connect/Pool timeout: request chưa tới upstream → đánh dấu tạm thời để gateway failover
+    raise TransientUpstreamError(
         f"{kind}无法连接上游（{name}）：请检查网络、代理或上游是否可达"
     ) from exc
 
@@ -59,6 +60,16 @@ class ProviderNotSupported(RuntimeError):
 
 class TransientUpstreamError(RuntimeError):
     """Lỗi tạm thời lúc tạo tác vụ (429/5xx/mạng) — được phép failover sang model kế tiếp."""
+
+
+# Lỗi mạng xảy ra trước khi request tới upstream: failover không sợ tạo trùng tác vụ bị tính tiền.
+# ReadError/RemoteProtocolError/WriteError có thể xảy ra sau khi upstream đã nhận request → không failover.
+PRE_SEND_ERRORS: tuple[type[BaseException], ...] = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
+
+
+def is_failover_safe_error(exc: BaseException) -> bool:
+    """Lỗi tạm thời được phép chuyển model kế tiếp: 429/5xx đã đánh dấu, hoặc lỗi mạng trước khi gửi."""
+    return isinstance(exc, (TransientUpstreamError, *PRE_SEND_ERRORS))
 
 
 @dataclass

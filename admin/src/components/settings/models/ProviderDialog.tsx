@@ -92,7 +92,7 @@ export function ProviderDialog({
     try {
       setTest(
         await testProviderConnection({
-          channel_id: draft.is_new ? null : draft.id,
+          channel_id: draft.is_new || draft.clear_api_key ? null : draft.id,
           protocol: draft.protocol,
           base_url: draft.base_url,
           api_key: draft.api_key_input.trim() || null,
@@ -245,7 +245,7 @@ export function ProviderDialog({
                 autoComplete="new-password"
                 placeholder={keySaved ? "Để trống = giữ key đã lưu" : "Dán API key"}
                 value={draft.api_key_input}
-                onChange={(e) => patch({ api_key_input: e.target.value })}
+                onChange={(e) => patch({ api_key_input: e.target.value, clear_api_key: false })}
               />
               {keySaved ? (
                 <Button

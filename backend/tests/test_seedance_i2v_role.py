@@ -1,6 +1,6 @@
 """Seedance i2v：有目标画幅时用 reference_image + ratio。"""
 
-from app.services.drama.seedance_i2v_role import resolve_seedance_i2v_image_role
+from app.services.providers.ark_adapter import resolve_seedance_i2v_image_role
 
 
 # 有 ratio 时不得走 first_frame（禁止传 ratio，且可能吐横屏）

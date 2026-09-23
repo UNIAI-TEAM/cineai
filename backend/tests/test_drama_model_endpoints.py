@@ -10,7 +10,6 @@ from app.schemas_routing import FunctionBindings, ModelBinding, SystemModelChann
 from app.services.drama.build_seedance_generate_body import (
     build_seedance_generate_body,
     explicit_seedance_model,
-    resolve_seedance_model_endpoint,
 )
 from app.services.drama.seedream_options import explicit_seedream_model, resolve_seedream_model_endpoint
 from app.services.model_settings import _refresh_routing_snapshot, get_routing_snapshot
@@ -56,22 +55,6 @@ def test_seedream_without_bindings_uses_settings(empty_snap):
     """Chưa gán slot: cả id rỗng lẫn id user chọn đều rơi về mặc định trong settings."""
     assert resolve_seedream_model_endpoint("") == get_settings().model_image
     assert resolve_seedream_model_endpoint("anything") == get_settings().model_image
-
-
-def test_seedance_allowed_id_passes_through(snap):
-    assert resolve_seedance_model_endpoint("vid-b") == "vid-b"
-
-
-def test_seedance_default_branch_is_deterministic(snap):
-    """Chỉ dùng tính tham số: rỗng / id không được phép đều ra binding đầu, không xáo theo weight."""
-    assert [resolve_seedance_model_endpoint("") for _ in range(20)] == ["vid-a"] * 20
-    assert [resolve_seedance_model_endpoint("seedance-2") for _ in range(20)] == ["vid-a"] * 20
-
-
-def test_seedance_without_bindings_uses_settings(empty_snap):
-    """Chưa gán slot: cả id rỗng lẫn id user chọn đều rơi về mặc định trong settings."""
-    assert resolve_seedance_model_endpoint("") == get_settings().model_video
-    assert resolve_seedance_model_endpoint("seedance-2") == get_settings().model_video
 
 
 def test_explicit_model_is_none_when_user_chose_nothing(snap):

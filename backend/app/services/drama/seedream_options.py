@@ -117,11 +117,6 @@ def clamp_seedream_pixel_size(
     return f"{new_w}x{new_h}"
 
 
-def is_seedream_family(model: str) -> bool:
-    """Model có thuộc họ Seedream không (dùng cho bảng giá theo ảnh)."""
-    return "seedream" in (model or "").strip().lower()
-
-
 def resolve_seedream_model_endpoint(model_id: str | None) -> str:
     """Model ảnh phim ngắn: giữ id user chọn nếu admin cho phép, ngược lại binding đầu của slot.
 

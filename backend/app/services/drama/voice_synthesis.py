@@ -126,11 +126,19 @@ async def _synthesize_via_voice_design(
 
 
 def _drama_tts_model() -> str:
-    """Model giọng đọc đang gán cho phim ngắn (rỗng nếu chưa gán)."""
-    from app.services.function_router import resolve_function_route
+    """Nhãn model để tính giá giọng đọc phim ngắn (rỗng nếu chưa gán).
 
-    route = resolve_function_route("drama.tts")
-    return route.upstream_model if route else ""
+    Thiết kế giọng luôn gọi Volc nên ưu tiên model của provider volc_tts; chọn cố định, không xáo theo
+    weight, để dòng tính tiền không rơi ngẫu nhiên vào model khác với model thực chạy.
+    """
+    from app.services.function_router import allowed_bindings
+    from app.services.model_settings import get_routing_snapshot
+
+    snap = get_routing_snapshot()
+    protocols = {c.id: c.protocol for c in snap.channels}
+    bindings = allowed_bindings("drama.tts", snapshot=snap)
+    pick = next((b for b in bindings if protocols.get(b.channel_id) == "volc_tts"), bindings[0] if bindings else None)
+    return pick.model if pick else ""
 
 
 async def synthesize_voice_asset(

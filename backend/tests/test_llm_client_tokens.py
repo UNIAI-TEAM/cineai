@@ -52,3 +52,34 @@ async def test_unconfigured_text_slot_raises(monkeypatch):
             await llm_client.chat_completions("s", "u", function_id="drama.script")
     finally:
         _refresh_routing_snapshot(prev.channels, prev.function_bindings)
+
+
+async def test_failover_to_next_model_on_transient_status(monkeypatch):
+    """Model đầu trả 503 → thử model kế tiếp; 400 thì dừng luôn, không failover."""
+    from types import SimpleNamespace
+
+    a = SimpleNamespace(channel_id="a", api_key="k", upstream_model="m-a", base_url="https://a.example/v1")
+    b = SimpleNamespace(channel_id="b", api_key="k", upstream_model="m-b", base_url="https://b.example/v1")
+    monkeypatch.setattr(llm_client, "resolve_function_candidates", lambda _fid: [a, b])
+    status = {"a": 503}
+    calls: list[str] = []
+
+    class _C:
+        def __init__(self, *a, **k): ...
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, url, headers=None, json=None):
+            ch = "a" if "a.example" in url else "b"
+            calls.append(ch)
+            if ch in status:
+                return httpx.Response(status[ch], text="err")
+            return httpx.Response(200, json={"choices": [{"message": {"content": json["model"]}}]})
+
+    monkeypatch.setattr(llm_client.httpx, "AsyncClient", _C)
+    assert await llm_client.chat_completions("s", "u", function_id="kepu.script") == "m-b"
+    assert calls == ["a", "b"]
+
+    status["a"] = 400; calls.clear()
+    with pytest.raises(RuntimeError, match="LLM error 400"):
+        await llm_client.chat_completions("s", "u", function_id="kepu.script")
+    assert calls == ["a"]

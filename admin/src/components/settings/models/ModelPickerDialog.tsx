@@ -101,14 +101,10 @@ export function ModelPickerDialog({ title, capability, providers, value, onApply
               {current ? (
                 <label className="settings-weight-field">
                   <span>Tỉ lệ</span>
-                  <input
-                    type="number"
-                    min={BINDING_WEIGHT_MIN}
-                    max={BINDING_WEIGHT_MAX}
-                    aria-label={`Tỉ lệ chia luân phiên cho ${o.model}`}
-                    className="settings-input settings-weight-input"
-                    value={current.weight}
-                    onChange={(e) => setSelected((prev) => setBindingWeight(prev, key, Number(e.target.value)))}
+                  <WeightInput
+                    label={`Tỉ lệ chia luân phiên cho ${o.model}`}
+                    weight={current.weight}
+                    onCommit={(w) => setSelected((prev) => setBindingWeight(prev, key, w))}
                   />
                 </label>
               ) : null}
@@ -128,5 +124,25 @@ export function ModelPickerDialog({ title, capability, providers, value, onApply
         ))}
       </div>
     </AdminModal>
+  );
+}
+
+/** Ô nhập tỉ lệ: giữ chuỗi đang gõ (cho phép xoá trống), chỉ ghi số hợp lệ; rời ô thì trả về giá trị đã chốt */
+function WeightInput({ label, weight, onCommit }: { label: string; weight: number; onCommit: (w: number) => void }) {
+  const [text, setText] = useState(String(weight));
+  return (
+    <input
+      type="number"
+      min={BINDING_WEIGHT_MIN}
+      max={BINDING_WEIGHT_MAX}
+      aria-label={label}
+      className="settings-input settings-weight-input"
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        if (e.target.value !== "") onCommit(Number(e.target.value));
+      }}
+      onBlur={() => setText(String(weight))}
+    />
   );
 }

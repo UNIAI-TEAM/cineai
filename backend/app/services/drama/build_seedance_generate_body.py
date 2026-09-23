@@ -6,7 +6,6 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
-from app.config import get_settings
 from app.models_drama import DramaAsset
 from app.services.drama.build_fragments import rewrite_dialogue_action_lines
 from app.services.drama.fragment_content_duration import (
@@ -677,21 +676,6 @@ def build_seedance_content_items(
             )
 
     return items
-
-
-def resolve_seedance_model_endpoint(model_id: str | None) -> str:
-    """Model video phim ngắn: giữ id user chọn nếu admin cho phép, ngược lại binding đầu của slot.
-
-    Slot chưa gán binding nào thì trả `settings.model_video` — không bao giờ trả lại một id
-    mà không provider nào phục vụ.
-    """
-    from app.services.function_router import allowed_bindings, is_model_allowed
-
-    mid = (model_id or "").strip()
-    if mid and is_model_allowed("drama.video", mid):
-        return mid
-    bindings = allowed_bindings("drama.video")
-    return bindings[0].model if bindings else get_settings().model_video
 
 
 def explicit_seedance_model(model_id: str | None) -> str | None:

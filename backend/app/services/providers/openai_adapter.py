@@ -13,7 +13,7 @@ from app.schemas_routing import ResolvedModelRoute
 from app.services.billing.pricing import parse_usage_dict
 from app.services.providers.base import (
     IMAGE_GEN_READ_SEC, ImageOutput, ImageRequest, ProviderNotSupported, TaskResult,
-    TransientUpstreamError, TtsRequest, VideoRequest, bearer_headers, is_transient_http_status,
+    TransientUpstreamError, TtsRequest, VideoRequest, bearer_headers, is_failover_safe_error, is_transient_http_status,
     join_url, reraise_upstream_timeout, upstream_timeout,
 )
 
@@ -173,4 +173,4 @@ class OpenAIAdapter:
 
     def is_transient_error(self, exc: BaseException) -> bool:
         """Lỗi tạm thời (429/5xx/mạng) có thể failover sang model kế tiếp."""
-        return isinstance(exc, (TransientUpstreamError, httpx.TransportError))
+        return is_failover_safe_error(exc)

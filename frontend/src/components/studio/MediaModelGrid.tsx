@@ -58,7 +58,7 @@ export default function MediaModelGrid({
                 <span>{m.label}</span>
                 {m.recommended ? <span className="pf-model-badge">{recommendedLabel}</span> : null}
               </div>
-              <div className="pf-model-opt-desc">{modelProviderLabel(m)}</div>
+              {modelProviderLabel(m) ? <div className="pf-model-opt-desc">{modelProviderLabel(m)}</div> : null}
             </button>
           ))}
         </div>

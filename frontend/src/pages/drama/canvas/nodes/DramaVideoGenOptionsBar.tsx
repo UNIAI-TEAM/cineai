@@ -174,7 +174,7 @@ export function DramaVideoGenOptionsBar({
                 }}
               >
                 <strong>{m.label}</strong>
-                <span>{modelProviderLabel(m)}</span>
+                {modelProviderLabel(m) ? <span>{modelProviderLabel(m)}</span> : null}
               </button>
             ))}
           </div>

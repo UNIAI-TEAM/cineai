@@ -30,8 +30,8 @@ def fake_llm(monkeypatch):
             body["usage"] = usage
         return httpx.Response(200, json=body)
 
-    route = SimpleNamespace(api_key="k", upstream_model="gpt-5.6-terra", base_url="https://api.openai.com/v1")
-    monkeypatch.setattr(llm_client, "resolve_function_route", lambda _fid: route)
+    route = SimpleNamespace(channel_id="c", api_key="k", upstream_model="gpt-5.6-terra", base_url="https://api.openai.com/v1")
+    monkeypatch.setattr(llm_client, "resolve_function_candidates", lambda _fid: [route])
     monkeypatch.setattr(llm_client.httpx, "AsyncClient",
                         lambda **kw: _REAL_CLIENT(transport=httpx.MockTransport(handler), **kw))
     monkeypatch.setattr(get_settings(), "billing_usd_cny", 7.0)

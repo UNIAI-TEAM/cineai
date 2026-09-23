@@ -166,7 +166,7 @@ export function DramaImageGenOptionsBar({
                 }}
               >
                 <strong>{m.label}</strong>
-                <span>{modelProviderLabel(m)}</span>
+                {modelProviderLabel(m) ? <span>{modelProviderLabel(m)}</span> : null}
               </button>
             ))}
           </div>

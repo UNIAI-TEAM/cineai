@@ -173,4 +173,7 @@ async def admin_test_provider(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
         return {"ok": False, "message": str(exc)}
+    if body.protocol in ("ark", "volc_tts"):
+        # Hai protocol này không có endpoint kiểm tra miễn phí: danh sách model là bảng tĩnh, key chưa được gọi thử
+        return {"ok": True, "message": "Đã có key (chưa gọi thử nhà cung cấp)", "models_count": len(models)}
     return {"ok": True, "message": f"Kết nối thành công, {len(models)} model", "models_count": len(models)}

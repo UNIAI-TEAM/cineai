@@ -401,7 +401,8 @@ def _build_readiness(bindings: FunctionBindings, channels: list[SystemModelChann
     """Trạng thái 4 slot năng lực."""
     from app.services.function_router import allowed_bindings
 
-    snap = RoutingSnapshot(channels=channels, function_bindings=bindings)
+    # Chỉ xét slot (bỏ override theo chức năng) để trạng thái khớp đúng model đã gán cho slot
+    snap = RoutingSnapshot(channels=channels, function_bindings=FunctionBindings(slots=bindings.slots))
     items: list[ModelCapabilityReadiness] = []
     first_fn = {"text": "kepu.script", "image": "kepu.image", "video": "kepu.video", "audio": "kepu.tts"}
     for cap, label in _CAP_LABEL.items():

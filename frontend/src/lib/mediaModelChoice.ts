@@ -24,7 +24,7 @@ export function reconcileCatalogModel(
   return match ? match.id : ''
 }
 
-/** Dòng phụ dưới tên model: mô tả nếu có, không thì tên provider */
-export function modelProviderLabel(m: { description?: string; provider?: string }): string {
-  return (m.description || '').trim() || (m.provider || '').trim()
+/** Dòng phụ dưới tên model: chỉ mô tả; không hiện provider (là id kênh nội bộ do admin đặt) */
+export function modelProviderLabel(m: { description?: string }): string {
+  return (m.description || '').trim()
 }

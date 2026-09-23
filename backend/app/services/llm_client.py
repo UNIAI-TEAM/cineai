@@ -8,7 +8,8 @@ from typing import Any
 
 import httpx
 
-from app.services.function_router import resolve_function_route
+from app.services.function_router import resolve_function_candidates
+from app.services.providers.base import TransientUpstreamError, is_failover_safe_error, is_transient_http_status
 from app.services.providers.openai_adapter import is_official_openai
 
 logger = logging.getLogger(__name__)
@@ -54,10 +55,45 @@ async def chat_completions(
     timeout: float = 300.0,
     response_format: dict[str, Any] | None = None,
 ) -> str:
-    """Gọi chat/completions theo route của chức năng; OpenAI chính thức dùng max_completion_tokens."""
-    route = resolve_function_route(function_id)
-    if route is None or not route.upstream_model:
+    """Gọi chat/completions theo route của chức năng; lỗi tạm thời (429/5xx/chưa kết nối) thì thử model kế tiếp."""
+    candidates = [r for r in resolve_function_candidates(function_id) if r.upstream_model]
+    if not candidates:
         raise LlmUnavailableError("Chưa gán model văn bản. Vào Admin → Cài đặt → Mô hình để cấu hình.")
+    last: Exception | None = None
+    for route in candidates:
+        try:
+            model, data = await _post_chat(
+                route, system, user, temperature=temperature, max_tokens=max_tokens,
+                timeout=timeout, response_format=response_format,
+            )
+            break
+        except Exception as exc:  # noqa: BLE001
+            if not is_failover_safe_error(exc):
+                raise
+            logger.warning("文字 LLM 渠道 %s 暂时不可用（%s），尝试下一个模型", route.channel_id, exc)
+            last = exc
+    else:
+        raise RuntimeError(str(last))
+    # Import lười: gói billing nạp nặng và import ngược các module drama/kepu đang dùng llm_client
+    from app.services.billing.context import note_llm_usage
+
+    note_llm_usage(model, data.get("usage") if isinstance(data, dict) else None)
+    content = _message_content(data)
+    logger.info("文字 LLM 返回 content_len=%s", len(content))
+    return content
+
+
+async def _post_chat(
+    route: Any,
+    system: str,
+    user: str,
+    *,
+    temperature: float,
+    max_tokens: int,
+    timeout: float,
+    response_format: dict[str, Any] | None,
+) -> tuple[str, Any]:
+    """Gửi một request chat/completions tới một route; trả (model, JSON). 429/5xx → TransientUpstreamError."""
     api_key, model, base = route.api_key, route.upstream_model, route.base_url
     # kimi 系列仅允许 temperature=0.6，其它值会 400
     effective_temperature = 0.6 if model.lower().startswith("kimi") else temperature
@@ -93,6 +129,8 @@ async def chat_completions(
             },
             json=payload,
         )
+        if is_transient_http_status(res.status_code):
+            raise TransientUpstreamError(f"LLM error {res.status_code}: {res.text[:800]}")
         if res.status_code >= 400:
             raise RuntimeError(f"LLM error {res.status_code}: {res.text[:800]}")
         body = (res.text or "").strip()
@@ -109,10 +147,4 @@ async def chat_completions(
             data = res.json()
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"LLM 响应不是合法 JSON: {body[:200]}") from exc
-    # Import lười: gói billing nạp nặng và import ngược các module drama/kepu đang dùng llm_client
-    from app.services.billing.context import note_llm_usage
-
-    note_llm_usage(model, data.get("usage") if isinstance(data, dict) else None)
-    content = _message_content(data)
-    logger.info("文字 LLM 返回 content_len=%s", len(content))
-    return content
+    return model, data

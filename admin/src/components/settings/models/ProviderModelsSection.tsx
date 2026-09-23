@@ -54,7 +54,7 @@ export function ProviderModelsSection({ draft, staticModels, onModelsChange }: P
     setError("");
     try {
       const models = await listProviderModels({
-        channel_id: draft.is_new ? null : draft.id,
+        channel_id: draft.is_new || draft.clear_api_key ? null : draft.id,
         protocol: draft.protocol,
         base_url: draft.base_url,
         api_key: draft.api_key_input.trim() || null,
