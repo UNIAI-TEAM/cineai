@@ -129,3 +129,33 @@ def test_fragment_generation_status_passes_message_key():
         cover=None,
     )
     assert fragment_generation_status(failed)["error_code"] == "drama.gen_timeout"
+
+
+def test_job_and_stored_error_share_transport_classification():
+    """漫剧 job 与通用落库错误共用同一超时 / 网络分类（含 providers 包装异常的子类与 cause 链）。"""
+    from app.services.exc_format import stored_error_fields, transport_error_category
+    from app.services.providers.base import UpstreamNetworkError, UpstreamTimeoutError
+
+    class _ArkTimeout(UpstreamTimeoutError):
+        pass
+
+    def _wrapped(inner: BaseException) -> BaseException:
+        try:
+            try:
+                raise inner
+            except BaseException as e:
+                raise RuntimeError("outer") from e
+        except RuntimeError as outer:
+            return outer
+
+    cases = [
+        (_ArkTimeout("slow"), "timeout", "provider.timeout", "drama.gen_timeout"),
+        (_wrapped(UpstreamNetworkError("down")), "network", "provider.network_error", "drama.gen_network"),
+        (_wrapped(httpx.ReadTimeout("slow")), "timeout", "provider.timeout", "drama.gen_timeout"),
+    ]
+    for exc, category, stored_code, gen_code in cases:
+        assert transport_error_category(exc) == category
+        assert stored_error_fields(exc)[0] == stored_code
+        assert gen_error_fields(exc) == (gen_code, None)
+        assert user_job_error(exc)[1] == "drama.upstream_network"
+    assert transport_error_category(RuntimeError("x")) is None

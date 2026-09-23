@@ -22,11 +22,29 @@ ContentLang = Literal["zh", "en", "vi"]
 DEFAULT_LANG: ContentLang = "vi"
 UI_LOCALE_HEADER = "X-UI-Locale"
 
-# 越南语特有的带调/变音字母（不含与英文共用的基本拉丁字母）
+# 越南语特有字母：ă/đ/ơ/ư 及其带调形式、下点（ạ）、问号钩（ả）、ĩ/ũ/ẽ/ỹ、带调的 â/ê/ô。
+# 不含 é/à/ô/ê/ã 等法语/葡萄牙语/英语外来词（Pokémon、café）也用的字母。
 _VI_CHARS_RE = re.compile(
-    r"[ăâđêôơưàảãáạằẳẵắặầẩẫấậèẻẽéẹềểễếệìỉĩíịòỏõóọồổỗốộờởỡớợùủũúụừửữứựỳỷỹýỵ]",
+    r"[ăđơư"
+    r"ằẳẵắặầẩẫấậềểễếệồổỗốộờởỡớợừửữứự"
+    r"ạảẹẻẽịỉĩọỏụủũỳỷỹỵ]",
     re.IGNORECASE,
 )
+# 与其他拉丁语言共用的越南语声调字母：单独出现不足以判断，需多数词都带（如「Tôi là ai」「Xin chào」）
+_VI_SHARED_CHARS_RE = re.compile(r"[àáèéìíòóùúýỳâêôãõ]", re.IGNORECASE)
+# 其中英语外来词少见的（重音符 / 扬抑符）：一个词带就够；é 等锐音符（café、Pokémon）需 ≥2 个词
+_VI_SHARED_STRONG_RE = re.compile(r"[àèìòùỳâêô]", re.IGNORECASE)
+
+
+def _looks_vietnamese(text: str) -> bool:
+    """是否越南语：含越南语特有字母；或带共用声调字母的词占一半以上，且（≥2 个或含重音符 / 扬抑符）。"""
+    if _VI_CHARS_RE.search(text):
+        return True
+    words = re.findall(r"[^\W\d_]+", text)
+    accented = [w for w in words if _VI_SHARED_CHARS_RE.search(w)]
+    if not accented or len(accented) * 2 < len(words):
+        return False
+    return len(accented) >= 2 or any(_VI_SHARED_STRONG_RE.search(w) for w in accented)
 
 
 def normalize_lang(value: Any) -> ContentLang | None:
@@ -80,13 +98,16 @@ def request_lang(request: Any) -> ContentLang:
 
 
 def guess_text_lang(text: str | None) -> ContentLang | None:
-    """按文本内容猜语言：含中日文字 → zh；含越南语字母 → vi；有拉丁字母 → en；空 → None。"""
+    """按文本内容猜语言：含中日文字 → zh；像越南语（见 _looks_vietnamese）→ vi；有拉丁字母 → en；空 → None。
+
+    说明：不带声调的越南语与英文无法区分，返回 en（调用方应优先用项目/界面语言）。
+    """
     raw = (text or "").strip()
     if not raw:
         return None
     if is_cjk_text(raw):
         return "zh"
-    if _VI_CHARS_RE.search(raw):
+    if _looks_vietnamese(raw):
         return "vi"
     if re.search(r"[A-Za-z]", raw):
         return "en"

@@ -2,6 +2,7 @@
 
 import type { DramaFragment } from '../api/drama'
 import { getActiveLocale } from '../i18n/detect'
+import { guessTextLang } from './contentLang'
 import { interpolate } from '../i18n/lookup'
 import { messages } from '../i18n/messages'
 
@@ -205,8 +206,6 @@ const DRAMA_SUBTITLE_CUES_BY_LANG: Record<'zh' | 'vi' | 'en', string> = {
   vi: '【字幕：底部居中·越南语·逐句轮换·与口播同步】',
   en: '【字幕：底部居中·英语·逐句轮换·与口播同步】',
 }
-const CJK_RE = /[\u3040-\u30ff\u3400-\u9fff]/
-const VI_CHARS_RE = /[ăâđêôơưàảãáạằẳẵắặầẩẫấậèẻẽéẹềểễếệìỉĩíịòỏõóọồổỗốộờởỡớợùủũúụừửữứựỳỷỹýỵ]/i
 
 // 去掉【…】协议标记、@引用后按台词文字判断字幕语言；已有非中文 cue 时沿用。
 export function detectSubtitleLang(content: string): 'zh' | 'vi' | 'en' {
@@ -214,10 +213,7 @@ export function detectSubtitleLang(content: string): 'zh' | 'vi' | 'en' {
   if (source.includes(DRAMA_SUBTITLE_CUES_BY_LANG.vi)) return 'vi'
   if (source.includes(DRAMA_SUBTITLE_CUES_BY_LANG.en)) return 'en'
   const spoken = source.replace(/【[^】]*】/g, ' ').replace(/@\w+:\S+/g, ' ').replace(/[△Δ]/g, ' ')
-  if (CJK_RE.test(spoken)) return 'zh'
-  if (VI_CHARS_RE.test(spoken)) return 'vi'
-  if (/[A-Za-z]/.test(spoken)) return 'en'
-  return 'zh'
+  return guessTextLang(spoken) ?? 'zh'
 }
 const LEGACY_SUBTITLE_CUES = [
   '【字幕：底部居中·简体中文·仅标记段落同步】',

@@ -51,6 +51,23 @@ def test_guess_text_lang():
     assert cl.guess_text_lang("  ") is None
 
 
+def test_guess_text_lang_shared_latin_accents_are_not_vietnamese():
+    """é/à/ô 等法语/英语外来词也用的字母不能单独判为越南语（只认越南语特有字母）。"""
+    assert cl.guess_text_lang("Pokémon evolution") == "en"
+    assert cl.guess_text_lang("Why café culture spread") == "en"
+    assert cl.guess_text_lang("The naïve résumé") == "en"
+    # 真实越南语：含 ư/ơ/đ/ạ 等特有字母
+    assert cl.guess_text_lang("Vì sao bầu trời có màu xanh") == "vi"
+    assert cl.guess_text_lang("Người đi đường") == "vi"
+    # 只含共享声调字母但多数词都带：仍按越南语（短句如「Tôi là ai」）
+    assert cl.guess_text_lang("Tôi là ai") == "vi"
+    assert cl.guess_text_lang("Xin chào") == "vi"
+    # 不带声调的越南语无法与英文区分：按 en（kepu 由界面语言兜底）
+    assert cl.guess_text_lang("Tai sao bau troi mau xanh") == "en"
+    assert cl.kepu_content_lang("Tai sao bau troi mau xanh", "vi") == "vi"
+    assert cl.kepu_content_lang("Pokémon evolution", "en") == "en"
+
+
 def test_project_content_lang_param_then_inferred_then_default():
     stored = SimpleNamespace(params={"content_lang": "en"}, title="大禹治水")
     assert cl.project_content_lang(stored) == "en"

@@ -18,6 +18,7 @@ from app.services.drama.voice_design import (
 )
 from app.services.drama.voice_reference_audio import finalize_voice_reference_url
 from app.services.content_lang import is_zh, project_content_lang
+from app.services.text_lang import cut_words, is_cjk_text
 from app.services.voices import infer_drama_speaker_from_prompt
 logger = logging.getLogger(__name__)
 NAME_SUFFIX_PATTERN = re.compile(r"(音色|的声音|语音)$")
@@ -32,10 +33,21 @@ _SAMPLE_LINES = {
 }
 
 
+# 拉丁字母角色名在试听句里的最大长度（按词截断，不切半个词）
+_LATIN_NAME_MAX = 24
+
+
+def _sample_display_name(name: str) -> str:
+    """试听句里的角色名：含中日文字沿用「最多 8 字」；拉丁名（vi / en）按词截到 ≤24 字符。"""
+    if is_cjk_text(name):
+        return name[:8]
+    return cut_words(name, _LATIN_NAME_MAX, ellipsis=False) or name[:_LATIN_NAME_MAX]
+
+
 # 生成 Seedance 参考音试听句（须 ≥2s，避免 r2v 拒收过短音频）
 def build_voice_sample_line_short(character_name: str | None = None, lang: str | None = None) -> str:
     name = normalize_character_name(character_name)
-    display = name[:8] if len(name) > 8 else name
+    display = _sample_display_name(name)
     if lang and not is_zh(lang):
         return _SAMPLE_LINES.get(lang, _SAMPLE_LINES["vi"]).format(name=display)
     return (
@@ -172,9 +184,10 @@ async def synthesize_voice_asset(
     if not prompt:
         raise ValueError("缺少音色描述 prompt")
     display_name = normalize_character_name(character_name or asset.name)
+    lang = project_content_lang(project)
     # Seedance reference_audio 须 ≥1.8s（落盘目标 ≥2s）；默认用较长试听句
     text = (sample_text or "").strip() or build_voice_sample_text(
-        prompt, display_name, short=False, lang=project_content_lang(project)
+        prompt, display_name, short=False, lang=lang
     )
     image_url = resolve_character_image_url(character_asset)
     audio_url: str | None = None
@@ -211,6 +224,7 @@ async def synthesize_voice_asset(
                 prompt,
                 character_name=display_name,
                 asset_id=asset.id,
+                lang=lang,
             )
         logger.info(
             "合成音色资产(TTS) project_id=%s asset_id=%s speaker=%s name=%s",
@@ -226,6 +240,7 @@ async def synthesize_voice_asset(
             project_id=project.id,
             shot_no=asset.id,
             emotion_hint=prompt,
+            lang=lang,
         )
     audio_url = finalize_voice_reference_url(
         audio_url or "",

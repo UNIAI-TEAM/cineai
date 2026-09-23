@@ -210,3 +210,29 @@ async def test_drama_patch_content_lang(db_session: AsyncSession) -> None:
     assert exc.value.code == "common.invalid_content_lang"
     again = await update_project(created.id, DramaProjectUpdate(), db_session, user)
     assert again.content_lang == "en"
+
+
+@pytest.mark.asyncio
+async def test_drama_patch_stale_params_snapshot_cannot_revert_lang(db_session: AsyncSession) -> None:
+    """整包回写的旧 params 快照带着旧 content_lang：更新时忽略，只有顶层 content_lang 能改语言。"""
+    from app.api.drama.projects import create_project, update_project
+    from app.schemas_drama import DramaProjectCreate, DramaProjectUpdate
+
+    user = await make_user(db_session)
+    created = await create_project(DramaProjectCreate(source=_SOURCE), _request("vi"), db_session, user)
+    stale_params = dict(created.params)
+    assert stale_params["content_lang"] == "vi"
+
+    await update_project(created.id, DramaProjectUpdate(content_lang="en"), db_session, user)
+    kept = await update_project(
+        created.id, DramaProjectUpdate(params={**stale_params, "aspect_ratio": "16:9"}), db_session, user
+    )
+    assert kept.content_lang == "en"
+    assert kept.params["content_lang"] == "en"
+    assert kept.params["aspect_ratio"] == "16:9"
+
+    # 同一请求同时带顶层 content_lang：以顶层为准
+    both = await update_project(
+        created.id, DramaProjectUpdate(params={**stale_params}, content_lang="vi"), db_session, user
+    )
+    assert both.content_lang == "vi"

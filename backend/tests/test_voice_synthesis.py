@@ -128,3 +128,18 @@ def test_build_tts_additions_speaker_clone() -> None:
     assert "model_type" in raw
     assert "context_texts" in raw
 
+
+
+def test_sample_line_keeps_latin_names_whole() -> None:
+    """vi / en 试听句不能按中文 8 字规则把拉丁名切半（「Nguyễn V」）；中文名仍最多 8 字。"""
+    vi = build_voice_sample_line_short("Nguyễn Văn An", "vi")
+    assert "tôi là Nguyễn Văn An." in vi
+    long_name = "Công chúa Tuyết Nhung của vương quốc phương Bắc"
+    line = build_voice_sample_line_short(long_name, "vi")
+    shown = line.split("tôi là ", 1)[1].split(".", 1)[0]
+    assert len(shown) <= 24 and long_name.startswith(shown)
+    assert long_name[len(shown)] == " "  # 截在词边界
+    en = build_voice_sample_text("", "Elizabeth Bennet", lang="en")
+    assert "I'm Elizabeth Bennet." in en
+    assert "很长的角色名" in build_voice_sample_line_short("很长的角色名称测试")
+    assert "很长的角色名称测" in build_voice_sample_line_short("很长的角色名称测试", "vi")

@@ -296,7 +296,7 @@ def normalize_llm_fragment_items(
 ) -> list[dict[str, Any]]:
     """
     将 LLM fragments 转为落库草稿。
-    lang：项目内容语言，只影响开幕集号叠字内容（None / zh 保持「第N集」）。
+    lang：项目内容语言，决定开幕集号叠字（None / zh 保持「第N集」）与字幕 cue 语言（None 时按台词猜）。
     注入 @asset、字幕/BGM、开幕集号/背景、重要角色本剧首次出场介绍。
     already_introduced：更早分集已介绍过的角色名。
     summary：剧本摘要，stub 资产从此补人物介绍。
@@ -515,6 +515,7 @@ def normalize_llm_fragment_items(
                 body_lines[:3],
                 [*opening_lines, *intro_lines],
                 include_subtitles=include_subtitles,
+                lang=lang,
             )
             content = repair_fragment_timed_layout(
                 "\n".join([*cues, *body_lines]).strip(),

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.services.content_lang import normalize_lang
 from app.services.text_lang import cut_words, is_cjk_text
 from app.services.seedance_segments import (
     DRAMA_SUBTITLE_CUE,
@@ -870,13 +871,16 @@ def _build_production_cues(
     character_intro_lines: list[str],
     *,
     include_subtitles: bool = True,
+    lang: str | None = None,
 ) -> list[str]:
     # 字幕 / BGM / 人物介绍前置提示（字幕 cue 不含「旁白」字样，避免 Seedance 整镜念白）
+    # lang：项目内容语言；有则字幕 cue 用它（与 production section 一致），没有才按台词文字猜
     hint = " ".join(filter(None, [location_line or "", *narrative_lines[:3]]))
     lines = [f"【BGM：{_infer_bgm_mood(hint)}；音量低于人声】"]
     if include_subtitles:
-        # 字幕语言跟随台词文字（越南语 / 英文项目用对应语言 cue）
-        lines.insert(0, drama_subtitle_cue(spoken_text_lang("\n".join(narrative_lines))))
+        # 字幕语言：项目内容语言优先；老调用未传时跟随台词文字
+        cue_lang = normalize_lang(lang) or spoken_text_lang("\n".join(narrative_lines))
+        lines.insert(0, drama_subtitle_cue(cue_lang))
     lines.extend(character_intro_lines)
     return lines
 
@@ -960,6 +964,7 @@ def plan_fragments_from_scene(
     *,
     include_subtitles: bool = True,
     include_character_intro: bool = True,
+    lang: str | None = None,
 ) -> list[tuple[str, int]]:
     """
     规划单场视频向分镜正文；超软上限时拆成多条，避免截断后半场。
@@ -985,6 +990,7 @@ def plan_fragments_from_scene(
         narrative_lines,
         [],
         include_subtitles=include_subtitles,
+        lang=lang,
     )
 
     # timed_blocks 待打包的 (时长, 文本行列表)
@@ -1023,6 +1029,7 @@ def plan_fragments_from_scene(
             narrative_lines,
             _build_character_intro_lines(to_intro),
             include_subtitles=include_subtitles,
+            lang=lang,
         )
         for b in to_intro:
             introduced_names.add(str(b["name"]))
@@ -1311,6 +1318,7 @@ def plan_fragment_content_from_scene(
     *,
     include_subtitles: bool = True,
     include_character_intro: bool = True,
+    lang: str | None = None,
 ) -> tuple[str, int]:
     # 兼容旧调用：返回本场第一条分镜
     chunks = plan_fragments_from_scene(
@@ -1320,6 +1328,7 @@ def plan_fragment_content_from_scene(
         character_bindings,
         include_subtitles=include_subtitles,
         include_character_intro=include_character_intro,
+        lang=lang,
     )
     return chunks[0] if chunks else ("", FRAGMENT_DURATION_MIN)
 
@@ -1350,9 +1359,11 @@ def build_fragments_from_episode_body(
     *,
     include_subtitles: bool = True,
     include_character_intro: bool = True,
+    lang: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     将一集正文拆成多场分镜草稿。
+    lang：项目内容语言（字幕 cue 语言）；None 时按台词文字猜。
     already_introduced：本剧更早分集已介绍过的角色（跨集去重）。
     summary：剧本摘要，用于 stub 资产补全人物介绍文案。
     返回 [{content, duration_sec, asset_ids, scene_name, character_names}, ...]
@@ -1418,6 +1429,7 @@ def build_fragments_from_episode_body(
             introduced,
             include_subtitles=include_subtitles,
             include_character_intro=include_character_intro,
+            lang=lang,
         ):
             # 本条正文里真正出现的角色/道具，不把整场出场人物挂到每一镜
             fragment_ids: list[int] = []

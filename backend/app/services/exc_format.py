@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 # 已建连、等响应超时（不是连不上）
 _READ_TIMEOUT_EXC_NAMES = frozenset({"ReadTimeout"})
@@ -69,6 +69,25 @@ def _exc_chain(exc: BaseException) -> list[BaseException]:
     return out
 
 
+def transport_error_category(exc: BaseException) -> Literal["timeout", "network"] | None:
+    """上游传输类失败分类（沿 cause / context 链）：超时 → timeout；连不上 → network；否则 None。
+
+    同时认 providers 包装后的 UpstreamTimeoutError / UpstreamNetworkError 与 httpx 原始异常类名；
+    stored_error_fields 与漫剧 job_errors 共用，各自把分类映射成自己的错误码。
+    """
+    from app.services.providers.base import UpstreamNetworkError, UpstreamTimeoutError
+
+    chain = _exc_chain(exc)
+    names = {type(e).__name__ for e in chain}
+    if any(isinstance(e, UpstreamTimeoutError) for e in chain) or names & (
+        _READ_TIMEOUT_EXC_NAMES | _WRITE_TIMEOUT_EXC_NAMES
+    ):
+        return "timeout"
+    if any(isinstance(e, UpstreamNetworkError) for e in chain) or names & _CONNECT_EXC_NAMES:
+        return "network"
+    return None
+
+
 def stored_error_fields(
     exc: BaseException, default_code: str = "task.execution_failed"
 ) -> tuple[str, dict[str, Any] | None]:
@@ -82,27 +101,20 @@ def stored_error_fields(
     """
     from app.errors import AppError
     from app.services.llm_client import LlmUnavailableError
-    from app.services.providers.base import (
-        TransientUpstreamError,
-        UpstreamError,
-        UpstreamNetworkError,
-        UpstreamTimeoutError,
-    )
+    from app.services.providers.base import TransientUpstreamError, UpstreamError
 
     if isinstance(exc, AppError):
         return exc.code, (dict(exc.params) or None)
     chain = _exc_chain(exc)
     text = " ".join(str(e) for e in chain)
-    names = {type(e).__name__ for e in chain}
     if any(isinstance(e, LlmUnavailableError) for e in chain):
         return "model.slot_not_configured", None
     if any(marker in text for marker in _CONTENT_REJECT_MARKERS):
         return "provider.content_rejected", None
-    if any(isinstance(e, UpstreamTimeoutError) for e in chain) or names & (
-        _READ_TIMEOUT_EXC_NAMES | _WRITE_TIMEOUT_EXC_NAMES
-    ):
+    category = transport_error_category(exc)
+    if category == "timeout":
         return "provider.timeout", None
-    if any(isinstance(e, UpstreamNetworkError) for e in chain) or names & _CONNECT_EXC_NAMES:
+    if category == "network":
         return "provider.network_error", None
     if any(isinstance(e, (UpstreamError, TransientUpstreamError)) for e in chain):
         return "provider.failed", None

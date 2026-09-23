@@ -8,7 +8,13 @@ import Stepper from '../../components/ui/Stepper'
 import PillTabs from '../../components/ui/PillTabs'
 import { IconChevronLeft, IconRefresh, IconSparkles } from '../../components/ui/Icons'
 import { CATEGORY_ORDER } from '../../lib/categories'
-import { contentLangOptions, defaultContentLang, type ContentLang } from '../../lib/contentLang'
+import {
+  contentLangOptions,
+  cutToLimit,
+  defaultContentLang,
+  kepuTextLimits,
+  type ContentLang,
+} from '../../lib/contentLang'
 import { kepuStepIndex, kepuSteps } from '../../lib/status'
 import { templateDescription, templateName } from '../../lib/templateI18n'
 import { useI18n } from '../../i18n'
@@ -36,8 +42,8 @@ function isDefaultTitle(value: string, untitled: string) {
   return !v || v === untitled
 }
 
-// 由主题/文案首行推导短标题，推不出时用默认名
-function deriveTitle(text: string, untitled: string) {
+// 由主题/文案首行推导短标题，推不出时用默认名；zh 取 18 字，vi / en 按词截到标题上限
+function deriveTitle(text: string, untitled: string, lang: ContentLang) {
   const line = text
     .trim()
     .split(/\n/)[0]
@@ -45,7 +51,7 @@ function deriveTitle(text: string, untitled: string) {
     .replace(/[。！？!?：:].*$/, '')
     .trim()
   if (!line) return untitled
-  return line.slice(0, 18)
+  return lang === 'zh' ? line.slice(0, 18) : cutToLimit(line, kepuTextLimits(lang).title)
 }
 
 export default function CreateProjectPage() {
@@ -110,6 +116,8 @@ export default function CreateProjectPage() {
   }, [templates, category, q])
 
   const selected = templates.find((tpl) => tpl.id === templateId)
+  // 主题 / 标题长度上限随内容语言（与后端扩写结果一致：zh 100/24，vi / en 400/80）
+  const limits = kepuTextLimits(contentLang)
   const sourceType: InputTab = inputTab
   const inspTotal = Math.ceil(inspirationPool.length / PAGE_SIZE)
   const inspirations = inspirationPool.slice(inspPage * PAGE_SIZE, inspPage * PAGE_SIZE + PAGE_SIZE)
@@ -130,9 +138,9 @@ export default function CreateProjectPage() {
       setSourceText(item.script.slice(0, 8000))
     } else {
       setInputTab('theme')
-      setSourceText(item.theme.slice(0, 100))
+      setSourceText(cutToLimit(item.theme, limits.theme))
     }
-    setTitle(item.title.slice(0, 24))
+    setTitle(cutToLimit(item.title, limits.title))
     setTitleTouched(false)
     setError('')
   }
@@ -148,9 +156,9 @@ export default function CreateProjectPage() {
     try {
       const mode = sourceType === 'script' ? 'script' : 'theme'
       const result = await api.expandContent(seed, mode, contentLang)
-      setSourceText(result.content.slice(0, mode === 'theme' ? 100 : 8000))
+      setSourceText(mode === 'theme' ? cutToLimit(result.content, limits.theme) : result.content.slice(0, 8000))
       if (!titleTouched || isDefaultTitle(title, untitled)) {
-        setTitle(result.title.slice(0, 24))
+        setTitle(cutToLimit(result.title, limits.title))
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('studioCreate.aiFailed'))
@@ -173,7 +181,10 @@ export default function CreateProjectPage() {
       const pipeline_mode: 'full' | 'image_text' =
         modeParam === 'image_text' || modeParam === 'full' ? modeParam : 'full'
       const finalTitle =
-        title.trim() || deriveTitle(sourceText, untitled) || sourceText.trim().slice(0, 24) || untitled
+        title.trim() ||
+        deriveTitle(sourceText, untitled, contentLang) ||
+        cutToLimit(sourceText.trim(), limits.title) ||
+        untitled
       const project = await api.createProject({
         template_id: templateId,
         title: finalTitle,
@@ -267,7 +278,7 @@ export default function CreateProjectPage() {
               }}
               onBlur={() => {
                 if (isDefaultTitle(title, untitled) && sourceText.trim()) {
-                  setTitle(deriveTitle(sourceText, untitled))
+                  setTitle(deriveTitle(sourceText, untitled, contentLang))
                   setTitleTouched(false)
                 }
               }}
@@ -326,10 +337,11 @@ export default function CreateProjectPage() {
             <textarea
               value={sourceText}
               onChange={(e) => {
-                const next = e.target.value.slice(0, sourceType === 'theme' ? 100 : 8000)
+                // 手动输入按上限硬截（同 maxLength），避免吞掉正在输入的词；AI / 灵感填充才按词截
+                const next = e.target.value.slice(0, sourceType === 'theme' ? limits.theme : 8000)
                 setSourceText(next)
                 if (!titleTouched || isDefaultTitle(title, untitled)) {
-                  setTitle(deriveTitle(next, untitled))
+                  setTitle(deriveTitle(next, untitled, contentLang))
                 }
               }}
               placeholder={
@@ -339,7 +351,7 @@ export default function CreateProjectPage() {
               }
             />
             {sourceType === 'theme' ? (
-              <span className="pf-char-count">{sourceText.length}/100</span>
+              <span className="pf-char-count">{sourceText.length}/{limits.theme}</span>
             ) : (
               <span className="pf-char-count">{t('studioCreate.charCount', { count: sourceText.length })}</span>
             )}

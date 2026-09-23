@@ -316,8 +316,12 @@ async def _synthesize_continuous_audio(
     voice: str,
     shot_rows: list,
     force: bool = False,
+    lang: str | None = None,
 ) -> Path:
-    """One TTS pass for the whole film; redistribute shot durations by narration weight."""
+    """One TTS pass for the whole film; redistribute shot durations by narration weight.
+
+    lang: 项目内容语言（project_kepu_lang）；必须显式传，避免 TTS 按文本猜（夹一个汉字就换中文音色）。
+    """
     dest = _full_narration_path(project_id)
     narrations = [(getattr(s, "narration", None) or "") for s in shot_rows]
     full_text = join_shot_narrations(narrations)
@@ -335,6 +339,7 @@ async def _synthesize_continuous_audio(
             project_id=project_id,
             shot_no=0,
             duration_hint=hint,
+            lang=lang,
         )
         s = get_settings()
         await _record_usage_est(
@@ -918,6 +923,7 @@ async def _parallel_image_and_audio(project_id: int) -> None:
         image_size = _image_size_for(project)
         negative = _project_image_negative(project)
         voice = _project_voice(project)
+        content_lang = project_kepu_lang(project)
         image_model = _effective_project_model("kepu.image", getattr(project, "image_model", None))
         video_model = _effective_project_model("kepu.video", getattr(project, "video_model", None))
         output_ratio = _project_output_ratio(project) or ""
@@ -1049,6 +1055,7 @@ async def _parallel_image_and_audio(project_id: int) -> None:
             voice=voice,
             shot_rows=shot_rows,
             force=False,
+            lang=content_lang,
         )
         async with _db_write_lock():
             async with AsyncSessionLocal() as db:
@@ -1691,9 +1698,10 @@ async def regen_shot_audio(project_id: int, shot_id: int) -> None:
         ):
             raise AppError("project.shot_narration_empty")
         voice = _project_voice(project)
+        content_lang = project_kepu_lang(project)
         shots = sorted(project.shots, key=lambda s: s.shot_no)
     await _synthesize_continuous_audio(
-        project_id, voice=voice, shot_rows=shots, force=True
+        project_id, voice=voice, shot_rows=shots, force=True, lang=content_lang
     )
     cancelled = False
     async with AsyncSessionLocal() as db:
@@ -1734,6 +1742,7 @@ async def regen_project_audio_and_compose(project_id: int) -> None:
         )
         project = result.scalar_one()
         voice = _project_voice(project)
+        content_lang = project_kepu_lang(project)
         shots = sorted(project.shots, key=lambda s: s.shot_no)
         project.final_video_url = None
         await db.commit()
@@ -1748,7 +1757,7 @@ async def regen_project_audio_and_compose(project_id: int) -> None:
         },
     )
     await _synthesize_continuous_audio(
-        project_id, voice=voice, shot_rows=shots, force=True
+        project_id, voice=voice, shot_rows=shots, force=True, lang=content_lang
     )
     await publish_progress(
         project_id,

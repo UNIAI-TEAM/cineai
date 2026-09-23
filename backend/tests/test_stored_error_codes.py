@@ -346,8 +346,22 @@ def test_reset_email_follows_ui_language() -> None:
     assert "Đặt lại" in subject
 
 
-def test_v1_task_status_hides_provider_error_text(monkeypatch: pytest.MonkeyPatch) -> None:
-    """GET /v1/tasks/{id} 失败时只返回固定英文短句 + error_code，不透传上游原文。"""
+@pytest.mark.parametrize(
+    ("poll_code", "expected_code", "expected_error"),
+    [
+        (None, "api.upstream_failed", "Video generation failed at the model provider"),
+        ("tool.run_failed", "api.upstream_failed", "Video generation failed at the model provider"),
+        (
+            "provider.content_rejected",
+            "provider.content_rejected",
+            "The content was rejected by the model provider's moderation",
+        ),
+    ],
+)
+def test_v1_task_status_hides_provider_error_text(
+    monkeypatch: pytest.MonkeyPatch, poll_code, expected_code, expected_error
+) -> None:
+    """GET /v1/tasks/{id} 失败时只返回固定英文短句 + error_code，不透传上游原文；审核拦截等已登记码保留。"""
     from app.api.v1 import generation
     from app.database import get_db
 
@@ -370,7 +384,10 @@ def test_v1_task_status_hides_provider_error_text(monkeypatch: pytest.MonkeyPatc
         yield _Db()
 
     async def _poll(_user, _tid, channel_id=None):
-        return {"status": "failed", "error": "secret upstream body 上游原文", "urls": []}
+        data = {"status": "failed", "error": "secret upstream body 上游原文", "urls": []}
+        if poll_code:
+            data["error_code"] = poll_code
+        return data
 
     async def _settle(*_a, **_k):
         return None
@@ -384,5 +401,6 @@ def test_v1_task_status_hides_provider_error_text(monkeypatch: pytest.MonkeyPatc
     assert res.status_code == 200
     body = res.json()
     assert body["status"] == "failed"
-    assert body["error_code"] == "api.upstream_failed"
+    assert body["error_code"] == expected_code
+    assert body["error"] == expected_error
     assert "secret" not in res.text and "上游原文" not in res.text

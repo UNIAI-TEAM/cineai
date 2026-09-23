@@ -14,19 +14,11 @@ import re
 from typing import Any
 
 from app.errors import AppError
-from app.services.exc_format import (
-    _CONNECT_EXC_NAMES,
-    _READ_TIMEOUT_EXC_NAMES,
-    _WRITE_TIMEOUT_EXC_NAMES,
-)
+from app.services.exc_format import transport_error_category
 from app.services.llm_client import LlmUnavailableError
 
 # USER_ERROR_LIMIT: 落库文案最大长度
 USER_ERROR_LIMIT = 200
-
-# 上游超时 / 网络类异常（含 providers 包装后的类名，按名字判断避免反向依赖）
-_TIMEOUT_NAMES = _READ_TIMEOUT_EXC_NAMES | _WRITE_TIMEOUT_EXC_NAMES | {"UpstreamTimeoutError"}
-_NETWORK_NAMES = _CONNECT_EXC_NAMES | {"UpstreamNetworkError"}
 
 # "LLM error 401: {...}" (llm_client) 和 "HTTP 401" / "status 401"
 _STATUS_RE = re.compile(r"(?:LLM error|HTTP|status(?:_code)?)[\s:=]*([1-5]\d\d)\b", re.IGNORECASE)
@@ -40,18 +32,6 @@ def _upstream_status(exc: BaseException) -> int | None:
             return code
     m = _STATUS_RE.search(str(exc))
     return int(m.group(1)) if m else None
-
-
-def _exc_names(exc: BaseException) -> set[str]:
-    """异常及其 cause / context 链上的类名（防环，最多 8 层）。"""
-    names: set[str] = set()
-    seen: list[BaseException] = []
-    cur: BaseException | None = exc
-    while cur is not None and cur not in seen and len(seen) < 8:
-        seen.append(cur)
-        names.add(type(cur).__name__)
-        cur = cur.__cause__ or cur.__context__
-    return names
 
 
 def _coded(code: str, **params: Any) -> tuple[str, str, dict[str, Any] | None]:
@@ -72,8 +52,7 @@ def user_job_error(exc: BaseException) -> tuple[str, str, dict[str, Any] | None]
         return str(exc).strip()[:USER_ERROR_LIMIT], exc.code, (dict(exc.params) or None)
     if isinstance(exc, LlmUnavailableError):
         return _coded("model.slot_not_configured")
-    names = _exc_names(exc)
-    if names & (_NETWORK_NAMES | _TIMEOUT_NAMES):
+    if transport_error_category(exc) is not None:
         return _coded("drama.upstream_network")
     status = _upstream_status(exc)
     if status in (401, 403):
@@ -125,10 +104,10 @@ def gen_error_fields(exc: BaseException) -> tuple[str | None, dict[str, Any] | N
     """生图 / 生视频失败的错误码：AppError 自身码，超时 / 网络归类，其余 None（前端按原文细分）。"""
     if isinstance(exc, AppError):
         return exc.code, (dict(exc.params) or None)
-    names = _exc_names(exc)
-    if names & _TIMEOUT_NAMES:
+    category = transport_error_category(exc)
+    if category == "timeout":
         return "drama.gen_timeout", None
-    if names & _NETWORK_NAMES:
+    if category == "network":
         return "drama.gen_network", None
     return None, None
 

@@ -332,7 +332,13 @@ def infer_drama_speaker_from_prompt(
     *,
     character_name: str = "",
     asset_id: int = 0,
+    lang: str | None = None,
 ) -> str:
+    """按音色描述推断角色 TTS speaker：先判性别，再按关键词在中文音色规则里挑。
+
+    lang：项目内容语言；vi / en 且目录有该语言音色时，直接在该语言同性别音色里按资产稳定挑选
+    （同一资产 → 同一音色，不同角色分散），不再先挑中文音色再换。
+    """
     prompt = f"{character_name} {voice_prompt or ''}"
     male_score = sum(1 for k in MALE_HINTS if k in prompt) + len(_LATIN_MALE_HINT_RE.findall(prompt))
     female_score = sum(1 for k in FEMALE_HINTS if k in prompt) + len(
@@ -344,6 +350,13 @@ def infer_drama_speaker_from_prompt(
         gender = "female"
     else:
         gender = "male" if asset_id % 2 else "female"
+
+    if lang and lang != "zh":
+        from app.services.voice_lang import lang_voice_pool, stable_pick
+
+        picked = stable_pick(lang_voice_pool(lang, gender), f"{asset_id}:{character_name}")
+        if picked:
+            return picked
 
     scored: list[tuple[int, str]] = []
     for rule in DRAMA_SPEAKER_RULES:

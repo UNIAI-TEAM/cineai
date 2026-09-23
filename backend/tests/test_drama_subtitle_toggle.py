@@ -85,3 +85,31 @@ def test_seedance_prompt_text_post_mode_strips_cues():
     assert "【字幕" not in prompt
     assert "同步字幕" not in prompt
     assert "禁止在画面内烧录字幕" in prompt
+
+
+def test_subtitle_cue_follows_project_lang_not_dialogue_text():
+    """有项目内容语言时字幕 cue 用它（与 production section 一致），不按台词文字猜。"""
+    from app.services.drama.fragment_plan import normalize_llm_fragment_items
+    from app.services.seedance_segments import drama_subtitle_cue
+
+    vi_cue = drama_subtitle_cue("vi")
+    # 越南语项目里一句不带越南语字母的对白（人名 + 英文感叹）：按文字会被猜成 en
+    chunks = plan_fragments_from_scene(
+        "Lan：OK, go!",
+        meta={},
+        scene_asset_id=None,
+        character_bindings=[],
+        lang="vi",
+    )
+    assert vi_cue in chunks[0][0]
+    # 未传 lang：保持旧行为（按台词文字猜）
+    guessed = plan_fragments_from_scene("Lan：OK, go!", meta={}, scene_asset_id=None, character_bindings=[])
+    assert drama_subtitle_cue("en") in guessed[0][0]
+
+    drafts = normalize_llm_fragment_items(
+        [{"duration_sec": 6, "lines": ["Lan：OK, go!"]}],
+        [],
+        allow_opening=False,
+        lang="vi",
+    )
+    assert drafts and vi_cue in drafts[0]["content"]

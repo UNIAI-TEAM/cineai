@@ -3,12 +3,14 @@
 规则（与前端 lib/voiceLang.ts 一致）：
 - 音色支持的语言以 voices.VOICE_PRESETS 的 `languages` 为准；目录外的官方音色按 id 语种前缀
   （zh_/en_/vi_…）推断；edge-tts 音色名按 locale 推断；复刻音色 S_* 等无法判断 → 不干预
-- 每种语言在目录中排在最前的音色为默认音色；需要保持性别时取该语言同性别的第一个
-- 音色不支持内容语言时换成该语言默认音色（同性别优先）并记日志，避免读错口音或合成失败
+- 每种语言在目录中排在最前的音色为默认音色（用户未选音色时用）；需要保持性别时取该语言同性别的第一个
+- 音色不支持内容语言时，在该语言同性别音色里按原音色 id 的哈希稳定挑一个（同一原音色 → 同一替换；
+  不同原音色 → 分散，避免所有角色同一个声音）并记日志，避免读错口音或合成失败
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 
@@ -66,13 +68,31 @@ def default_voice_for_lang(lang: str | None, gender: str | None = None) -> str |
     return str(candidates[0]["speaker"])
 
 
+def lang_voice_pool(lang: str | None, gender: str | None = None) -> list[str]:
+    """该语言的目录音色 speaker（目录顺序）；指定性别时只取同性别，没有同性别则返回该语言全部。"""
+    candidates = [p for p in VOICE_PRESETS if lang in (p.get("languages") or [])]
+    if gender in ("female", "male"):
+        same = [p for p in candidates if p.get("gender") == gender]
+        if same:
+            candidates = same
+    return [str(p["speaker"]) for p in candidates]
+
+
+def stable_pick(pool: list[str], key: str) -> str | None:
+    """按 key 的 md5 在 pool 中稳定挑一个（同 key 同结果）；pool 为空返回 None。"""
+    if not pool:
+        return None
+    digest = hashlib.md5(key.encode("utf-8")).hexdigest()
+    return pool[int(digest[:8], 16) % len(pool)]
+
+
 def voice_for_lang(speaker: str, lang: str | None) -> str:
-    """音色不支持内容语言时换成该语言默认音色（尽量保持性别），并记日志；否则原样返回。"""
+    """音色不支持内容语言时换成该语言同性别音色（按原音色 id 稳定分散），并记日志；否则原样返回。"""
     if voice_supports_lang(speaker, lang):
         return speaker
     preset = _preset_for(speaker)
     gender = (preset or {}).get("gender") or infer_speaker_gender(VOICE_ALIASES.get(speaker, speaker))
-    replacement = default_voice_for_lang(lang, gender)
+    replacement = stable_pick(lang_voice_pool(lang, gender), VOICE_ALIASES.get(speaker, speaker))
     if not replacement:
         return speaker
     logger.info("TTS 音色 %s 不支持语言 %s，改用 %s", speaker, lang, replacement)

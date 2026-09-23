@@ -876,6 +876,8 @@ async def seed_episodes_from_script(
     script = project.script
     if not script:
         raise AppError("drama.script_missing")
+    # 内容语言只算一次（推断会扫剧本正文），用于默认集名与字幕 cue
+    lang = project_content_lang(project)
     bodies = _normalize_episode_list(script.episode_content)
     if not bodies:
         raise AppError("drama.episode_scripts_required")
@@ -926,7 +928,7 @@ async def seed_episodes_from_script(
         for item in bodies:
             ep_no = int(item.get("episodeNumber") or len(created) + 1)
             title = str(
-                item.get("title") or default_episode_title(ep_no, project_content_lang(project), compact=True)
+                item.get("title") or default_episode_title(ep_no, lang, compact=True)
             )
             body = str(item.get("body") or item.get("content") or "")
             episode = DramaEpisode(
@@ -943,6 +945,7 @@ async def seed_episodes_from_script(
                 assets,
                 already_introduced=series_introduced,
                 summary=summary,
+                lang=lang,
             )
             for frag in planned:
                 series_introduced.update(
@@ -982,6 +985,7 @@ async def seed_episodes_from_script(
                 already_introduced=series_introduced,
                 summary=summary,
                 preserve_protected=not force,
+                lang=lang,
             )
             for frag in planned:
                 series_introduced.update(
@@ -1001,7 +1005,7 @@ async def seed_episodes_from_script(
         if ep_no in existing_numbers:
             continue
         title = str(
-            item.get("title") or default_episode_title(ep_no, project_content_lang(project), compact=True)
+            item.get("title") or default_episode_title(ep_no, lang, compact=True)
         )
         body = str(item.get("body") or item.get("content") or "")
         episode = DramaEpisode(
@@ -1018,6 +1022,7 @@ async def seed_episodes_from_script(
             assets,
             already_introduced=series_introduced,
             summary=summary,
+            lang=lang,
         )
         for frag in planned:
             series_introduced.update(
@@ -1162,10 +1167,8 @@ async def seed_single_episode_from_script(
     if not script:
         raise AppError("drama.script_missing")
     item = require_confirmable_episode_body(script.episode_content, episode_number)
-    title = str(
-        item.get("title")
-        or default_episode_title(episode_number, project_content_lang(project), compact=True)
-    )
+    lang = project_content_lang(project)
+    title = str(item.get("title") or default_episode_title(episode_number, lang, compact=True))
     body = str(item.get("body") or item.get("content") or "")
 
     assets = list(
@@ -1223,6 +1226,7 @@ async def seed_single_episode_from_script(
             assets,
             already_introduced=series_introduced,
             summary=summary,
+            lang=lang,
         )
     else:
         target.name = title
@@ -1235,6 +1239,7 @@ async def seed_single_episode_from_script(
                 already_introduced=series_introduced,
                 summary=summary,
                 preserve_protected=not force,
+                lang=lang,
             )
     await db.commit()
     reloaded = await _reload_episode(db, int(target.id))
@@ -1274,8 +1279,9 @@ async def _replace_episode_fragments(
     *,
     preserve_protected: bool = False,
     continuation: bool = False,
+    lang: str | None = None,
 ) -> list[dict[str, Any]]:
-    # 删除旧分镜并重建；preserve_protected 时保留已有视频/手改分镜
+    # 删除旧分镜并重建；preserve_protected 时保留已有视频/手改分镜；lang 为项目内容语言（规则切分的字幕 cue）
     existing = await _list_episode_fragments(db, episode.id)
     protected = (
         sorted(
@@ -1305,6 +1311,7 @@ async def _replace_episode_fragments(
             assets,
             already_introduced=already_introduced,
             summary=summary,
+            lang=lang,
         )
     )
     # 全量重拆时跳过与已拍前缀等量的草稿；续拆（continuation）则草稿全是后续镜

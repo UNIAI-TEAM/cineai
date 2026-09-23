@@ -248,6 +248,8 @@ async def run_script_summary_job(project_id: int) -> dict[str, Any]:
             logger.warning("剧本摘要失败：缺少剧本 project_id=%s", project_id)
             return {"ok": False, "error": "missing_script"}
         script = project.script
+        # 内容语言：每个 job 只算一次（推断会扫剧本正文）
+        content_lang = project_content_lang(project)
         creative = (script.source or "").strip()
         episode_count = (project.params or {}).get("episode_count")
         image_style_id = (project.params or {}).get("image_style_id")
@@ -256,7 +258,7 @@ async def run_script_summary_job(project_id: int) -> dict[str, Any]:
                 creative,
                 episode_count=int(episode_count) if episode_count else None,
                 image_style_id=str(image_style_id) if image_style_id else None,
-                lang=project_content_lang(project),
+                lang=content_lang,
             )
         except Exception as exc:  # noqa: BLE001
             params = dict(script.params or {})
@@ -420,6 +422,8 @@ async def run_episode_scripts_job(
             return {"ok": False, "error": "missing_summary"}
 
         script = project.script
+        # 内容语言：每个 job 只算一次（推断会扫剧本正文）
+        content_lang = project_content_lang(project)
         summary = script.summary if isinstance(script.summary, dict) else {}
         existing: list = []
         content = script.episode_content
@@ -446,7 +450,7 @@ async def run_episode_scripts_job(
                             "title": str(
                                 item.get("title")
                                 or default_episode_title(
-                                    item.get("episodeNumber"), project_content_lang(project)
+                                    item.get("episodeNumber"), content_lang
                                 )
                             ),
                             "body": "",
@@ -469,7 +473,7 @@ async def run_episode_scripts_job(
                     )
 
             existing, outline_used_llm = await ensure_episode_outline(
-                creative, summary, existing, total, lang=project_content_lang(project)
+                creative, summary, existing, total, lang=content_lang
             )
             script.episode_content = {"episodes": existing}
             params_outline = dict(script.params or {})
@@ -512,7 +516,7 @@ async def run_episode_scripts_job(
                     batch_size=1,
                     total=total,
                     creative=creative,
-                    lang=project_content_lang(project),
+                    lang=content_lang,
                 )
                 existing = merge_episode_bodies(existing, batch)
                 script.episode_content = {"episodes": existing}
@@ -613,6 +617,8 @@ async def _run_single_episode_script_job(
             return {"ok": False, "error": "missing_summary"}
 
         script = project.script
+        # 内容语言：每个 job 只算一次（推断会扫剧本正文）
+        content_lang = project_content_lang(project)
         summary = script.summary if isinstance(script.summary, dict) else {}
         existing: list = []
         content = script.episode_content
@@ -641,7 +647,7 @@ async def _run_single_episode_script_job(
         ep_creative = str((current or {}).get("creative") or "").strip()
         ep_summary = str((current or {}).get("summary") or "").strip()
         ep_title = str((current or {}).get("title") or "").strip() or default_episode_title(
-            episode_number, project_content_lang(project)
+            episode_number, content_lang
         )
         origin = str((current or {}).get("origin") or "")
 
@@ -668,7 +674,7 @@ async def _run_single_episode_script_job(
                     project_source=project_source,
                     title=ep_title,
                     character_asset_names=character_asset_names,
-                    lang=project_content_lang(project),
+                    lang=content_lang,
                 )
             elif mode == "body":
                 batch = await run_episode_body_from_brief(
@@ -680,7 +686,7 @@ async def _run_single_episode_script_job(
                     project_source=project_source,
                     title=ep_title,
                     character_asset_names=character_asset_names,
-                    lang=project_content_lang(project),
+                    lang=content_lang,
                 )
             elif mode == "full":
                 if len(ep_creative) < 20:
@@ -693,7 +699,7 @@ async def _run_single_episode_script_job(
                     project_source=project_source,
                     title=ep_title,
                     character_asset_names=character_asset_names,
-                    lang=project_content_lang(project),
+                    lang=content_lang,
                 )
             elif mode == "brief":
                 ep_body = str((current or {}).get("body") or (current or {}).get("content") or "").strip()
@@ -707,7 +713,7 @@ async def _run_single_episode_script_job(
                     project_source=project_source,
                     title=ep_title,
                     character_asset_names=character_asset_names,
-                    lang=project_content_lang(project),
+                    lang=content_lang,
                 )
             else:
                 if not draft or len(draft) < 20:
@@ -719,7 +725,7 @@ async def _run_single_episode_script_job(
                     draft,
                     creative=project_source,
                     character_asset_names=character_asset_names,
-                    lang=project_content_lang(project),
+                    lang=content_lang,
                 )
             if origin == "manual":
                 for item in batch:
@@ -876,6 +882,8 @@ async def run_episode_fragment_plan_job(
 
         project = episode.project
         script = project.script
+        # 内容语言：每个 job 只算一次（推断会扫剧本正文）
+        content_lang = project_content_lang(project)
         body = resolve_episode_script_body(script.episode_content if script else None, episode)
         if not (body or "").strip():
             params = dict(episode.params or {})
@@ -973,7 +981,7 @@ async def run_episode_fragment_plan_job(
                 summary=summary,
                 episode_bodies=all_bodies,
                 story_type=str(summary.get("storyType") or "") or None,
-                lang=project_content_lang(project),
+                lang=content_lang,
             )
             if include_character_intro
             else {}
@@ -1000,7 +1008,7 @@ async def run_episode_fragment_plan_job(
                 skill_ids=skill_ids,
                 include_subtitles=include_subtitles,
                 include_character_intro=include_character_intro,
-                lang=project_content_lang(project),
+                lang=content_lang,
             )
         except (DramaLlmUnavailableError, RuntimeError, Exception) as exc:  # noqa: BLE001
             logger.exception("LLM 分镜失败 episode_id=%s err=%s", episode_id, exc)
@@ -1020,6 +1028,7 @@ async def run_episode_fragment_plan_job(
                 intro_overrides=intro_overrides,
                 include_subtitles=include_subtitles,
                 include_character_intro=include_character_intro,
+                lang=content_lang,
             )
             mode_used = "rules_fallback"
             continuation = False

@@ -168,6 +168,6 @@ async def suggest_voice_prompt_for_character(
     if len(prompt) < 8:
         prompt = fallback_voice_prompt(asset, summary_char, lang=lang)
     name = asset.name or "角色"
-    speaker = infer_drama_speaker_from_prompt(prompt, character_name=name, asset_id=asset.id)
+    speaker = infer_drama_speaker_from_prompt(prompt, character_name=name, asset_id=asset.id, lang=lang)
     sample_text = build_voice_sample_text(prompt, name, short=False, lang=lang)
     return prompt, speaker, sample_text

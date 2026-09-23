@@ -35,6 +35,21 @@ router = APIRouter(prefix="/v1", tags=["public-api"])
 
 logger = logging.getLogger(__name__)
 
+# 开放 API 视频任务失败：可安全透出的已登记错误码 → 固定英文短句（不含上游原文）
+_V1_VIDEO_ERROR_TEXTS: dict[str, str] = {
+    "provider.content_rejected": "The content was rejected by the model provider's moderation",
+    "provider.timeout": "The model provider timed out",
+    "provider.network_error": "Could not reach the model provider",
+}
+_V1_VIDEO_FALLBACK = ("api.upstream_failed", "Video generation failed at the model provider")
+
+
+def _v1_video_task_error(data: dict) -> tuple[str, str]:
+    """poll_video_task 结果 → (error_code, 英文短句)：已登记的安全码原样返回，其余归为 api.upstream_failed。"""
+    code = str(data.get("error_code") or "")
+    text = _V1_VIDEO_ERROR_TEXTS.get(code)
+    return (code, text) if text else _V1_VIDEO_FALLBACK
+
 
 def _upstream_failed(exc: BaseException) -> AppError:
     """上游生成失败：原文只进日志，响应只带错误码（不回传服务商原始报错）。"""
@@ -259,11 +274,12 @@ async def get_task(
     if raw_error:
         # 上游原文只记日志，不返回给开放 API 客户端
         logger.warning("v1 video task failed task_id=%s error=%s", tid, raw_error[:400])
+    error_code, error_text = _v1_video_task_error(data) if raw_error else (None, None)
     return V1GenerationOut(
         status=str(data.get("status") or "running"),
         kind="video",
         urls=list(data.get("urls") or []),
         task_id=task_id.strip(),
-        error="Video generation failed at the model provider" if raw_error else None,
-        error_code="api.upstream_failed" if raw_error else None,
+        error=error_text,
+        error_code=error_code,
     )

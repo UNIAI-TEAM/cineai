@@ -146,6 +146,8 @@ async def episode_script(
         raise AppError("drama.summary_required")
 
     summary = project.script.summary if isinstance(project.script.summary, dict) else {}
+    # 内容语言只算一次（推断会扫剧本正文），用于默认集名
+    content_lang = project_content_lang(project)
     total = resolve_episode_target(summary, project.params, project.script.params)
     if summary.get("episodeCount") != total:
         summary = {**summary, "episodeCount": total}
@@ -205,15 +207,13 @@ async def episode_script(
                 patch["summary"] = str(cur.get("summary") or "")
                 patch["creative"] = creative_in or str(cur.get("creative") or "")
                 patch["title"] = title_in or str(
-                    cur.get("title") or default_episode_title(episode_number, project_content_lang(project))
+                    cur.get("title") or default_episode_title(episode_number, content_lang)
                 )
                 if str(cur.get("origin") or "") == "manual":
                     patch["origin"] = "manual"
             else:
                 patch["creative"] = creative_in
-                patch["title"] = title_in or default_episode_title(
-                    episode_number, project_content_lang(project)
-                )
+                patch["title"] = title_in or default_episode_title(episode_number, content_lang)
                 patch["origin"] = "manual"
             existing = merge_episode_bodies(existing, [patch], prefer_incoming=True)
             project.script.episode_content = {"episodes": existing}
@@ -325,7 +325,7 @@ async def episode_script(
                         "episodeNumber": int(item.get("episodeNumber") or 0),
                         "title": str(
                             item.get("title")
-                            or default_episode_title(item.get("episodeNumber"), project_content_lang(project))
+                            or default_episode_title(item.get("episodeNumber"), content_lang)
                         ),
                         "body": "",
                     }

@@ -73,11 +73,56 @@ def test_voice_languages_inference():
     assert voice_languages("") is None
 
 
+def _gender_of(speaker: str) -> str:
+    return next(p["gender"] for p in VOICE_PRESETS if p["speaker"] == speaker)
+
+
 def test_voice_for_lang_swaps_unsupported_voice_keeping_gender():
+    cases = [
+        ("zh_male_m191_uranus_bigtts", "vi", "male"),
+        ("zh_female_vv_uranus_bigtts", "en", "female"),
+        ("narrator_calm", "vi", "female"),
+        ("vi_female_ruan_uranus_bigtts", "zh", "female"),
+    ]
+    for src, lang, gender in cases:
+        out = voice_for_lang(src, lang)
+        assert voice_supports_lang(out, lang), (src, out)
+        assert _gender_of(out) == gender, (src, out)
+    # 只有一个同性别音色时就是它
     assert voice_for_lang("zh_male_m191_uranus_bigtts", "vi") == "vi_male_wumg_uranus_bigtts"
-    assert voice_for_lang("zh_female_vv_uranus_bigtts", "en") == "en_female_hayley_uranus_bigtts"
-    assert voice_for_lang("narrator_calm", "vi") == "vi_female_ruan_uranus_bigtts"
-    assert voice_for_lang("vi_female_ruan_uranus_bigtts", "zh") == "zh_female_cancan_uranus_bigtts"
+
+
+def test_voice_for_lang_is_stable_and_spreads_same_gender_voices():
+    """同一原音色 → 同一替换；不同原音色 → 分散到该语言多个同性别音色（不再全落到第一个）。"""
+    zh_female = [p["speaker"] for p in VOICE_PRESETS if p["languages"] == ["zh"] and p["gender"] == "female"]
+    assert len(zh_female) >= 3
+    picks = {src: voice_for_lang(src, "vi") for src in zh_female}
+    assert picks == {src: voice_for_lang(src, "vi") for src in zh_female}  # 稳定
+    assert all(_gender_of(v) == "female" and voice_supports_lang(v, "vi") for v in picks.values())
+    assert len(set(picks.values())) >= 2  # 分散
+    # 别名与其 speaker 视为同一原音色
+    alias_target = voices.VOICE_ALIASES["narrator_calm"]
+    assert voice_for_lang("narrator_calm", "en") == voice_for_lang(alias_target, "en")
+    # 用户未选音色时的默认音色仍是该语言第一个
+    assert default_voice_for_lang("vi", "female") == "vi_female_ruan_uranus_bigtts"
+
+
+def test_drama_speaker_inferred_directly_in_project_lang():
+    """vi / en 项目：按资产稳定地直接在该语言同性别音色里挑，不同角色分散。"""
+    from app.services.voices import infer_drama_speaker_from_prompt
+
+    picks = [
+        infer_drama_speaker_from_prompt("Giọng nữ trẻ, trong trẻo", character_name=f"Nhân vật {i}", asset_id=i, lang="vi")
+        for i in range(1, 13)
+    ]
+    assert all(p.startswith("vi_female_") for p in picks)
+    assert len(set(picks)) >= 3
+    again = infer_drama_speaker_from_prompt("Giọng nữ trẻ, trong trẻo", character_name="Nhân vật 1", asset_id=1, lang="vi")
+    assert again == picks[0]
+    male = infer_drama_speaker_from_prompt("Deep male voice", character_name="Tom", asset_id=4, lang="en")
+    assert male.startswith("en_male_")
+    # zh / 未传 lang：沿用中文关键词规则
+    assert infer_drama_speaker_from_prompt("温柔少女", asset_id=2).startswith("zh_")
 
 
 def test_voice_for_lang_keeps_supported_unknown_and_clone():
@@ -137,14 +182,16 @@ async def test_synthesize_swaps_voice_for_explicit_lang(monkeypatch, tmp_path, a
     adapter = SimpleNamespace(tts=AsyncMock(return_value=MP3), is_transient_error=lambda e: False)
     svc = _svc(monkeypatch, tmp_path, adapter)
     await svc.synthesize("Hello world", "zh_male_m191_uranus_bigtts", project_id=1, shot_no=1, lang="en")
-    assert adapter.tts.await_args.args[1].voice == "en_male_tim_uranus_bigtts"
+    assert adapter.tts.await_args.args[1].voice == voice_for_lang("zh_male_m191_uranus_bigtts", "en")
+    assert adapter.tts.await_args.args[1].voice.startswith("en_male_")
 
 
 async def test_synthesize_guesses_lang_from_text(monkeypatch, tmp_path, audio_snapshot):
     adapter = SimpleNamespace(tts=AsyncMock(return_value=MP3), is_transient_error=lambda e: False)
     svc = _svc(monkeypatch, tmp_path, adapter)
     await svc.synthesize("Xin chào các bạn", "narrator_calm", project_id=1, shot_no=2)
-    assert adapter.tts.await_args.args[1].voice == "vi_female_ruan_uranus_bigtts"
+    assert adapter.tts.await_args.args[1].voice == voice_for_lang("narrator_calm", "vi")
+    assert adapter.tts.await_args.args[1].voice.startswith("vi_female_")
     await svc.synthesize("大家好", "narrator_calm", project_id=1, shot_no=3)
     assert adapter.tts.await_args.args[1].voice == "zh_female_cancan_uranus_bigtts"
 
@@ -167,7 +214,8 @@ async def test_edge_fallback_receives_lang(monkeypatch, tmp_path, audio_snapshot
 
     monkeypatch.setattr(svc, "_tts_edge", edge)
     await svc.synthesize("Hello", "zh_female_vv_uranus_bigtts", project_id=1, shot_no=5, lang="en")
-    assert seen == {"voice_hint": "en_female_hayley_uranus_bigtts", "lang": "en"}
+    assert seen == {"voice_hint": voice_for_lang("zh_female_vv_uranus_bigtts", "en"), "lang": "en"}
+    assert seen["voice_hint"].startswith("en_female_")
 
 
 # ---- Nghe thử ---------------------------------------------------------------
