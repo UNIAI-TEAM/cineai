@@ -236,3 +236,27 @@ async def test_drama_patch_stale_params_snapshot_cannot_revert_lang(db_session: 
         created.id, DramaProjectUpdate(params={**stale_params}, content_lang="vi"), db_session, user
     )
     assert both.content_lang == "vi"
+
+
+@pytest.mark.asyncio
+async def test_drama_patch_params_lang_accepted_only_when_none_stored(db_session: AsyncSession) -> None:
+    """老项目（params 里没存 content_lang）：接受 params.content_lang 合法值；已存过则忽略。"""
+    from app.api.drama.projects import create_project, update_project
+    from app.models_drama import DramaProject
+    from app.schemas_drama import DramaProjectCreate, DramaProjectUpdate
+
+    user = await make_user(db_session)
+    created = await create_project(DramaProjectCreate(source=_SOURCE), _request("vi"), db_session, user)
+    project = await db_session.get(DramaProject, created.id)
+    project.params = {k: v for k, v in (project.params or {}).items() if k != "content_lang"}
+    await db_session.flush()
+
+    # 非法值：丢弃，不写入
+    bad = await update_project(created.id, DramaProjectUpdate(params={"content_lang": "xx"}), db_session, user)
+    assert "content_lang" not in bad.params
+    # 未存语言：接受
+    first = await update_project(created.id, DramaProjectUpdate(params={"content_lang": "en"}), db_session, user)
+    assert first.params["content_lang"] == "en" and first.content_lang == "en"
+    # 已存：忽略 params 里的值
+    again = await update_project(created.id, DramaProjectUpdate(params={"content_lang": "vi"}), db_session, user)
+    assert again.params["content_lang"] == "en"

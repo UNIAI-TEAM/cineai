@@ -12,6 +12,7 @@ import {
   contentLangOptions,
   cutToLimit,
   defaultContentLang,
+  fitKepuDraft,
   kepuTextLimits,
   type ContentLang,
 } from '../../lib/contentLang'
@@ -51,7 +52,8 @@ function deriveTitle(text: string, untitled: string, lang: ContentLang) {
     .replace(/[。！？!?：:].*$/, '')
     .trim()
   if (!line) return untitled
-  return lang === 'zh' ? line.slice(0, 18) : cutToLimit(line, kepuTextLimits(lang).title)
+  // 中日文字逐字截、拉丁词不切半（cutToLimit 按文字判断，与内容语言无关）
+  return cutToLimit(line, lang === 'zh' ? 18 : kepuTextLimits(lang).title)
 }
 
 export default function CreateProjectPage() {
@@ -143,6 +145,14 @@ export default function CreateProjectPage() {
     setTitle(cutToLimit(item.title, limits.title))
     setTitleTouched(false)
     setError('')
+  }
+
+  // 切换内容语言：按新语言上限重新截断已填主题 / 标题（vi 350 字 → zh 100 字）
+  function changeContentLang(lang: ContentLang) {
+    setContentLang(lang)
+    const fitted = fitKepuDraft({ sourceText, title }, lang, sourceType)
+    if (fitted.sourceText !== sourceText) setSourceText(fitted.sourceText)
+    if (fitted.title !== title) setTitle(fitted.title)
   }
 
   function shuffleInspirations() {
@@ -304,7 +314,7 @@ export default function CreateProjectPage() {
                   aria-checked={contentLang === lang}
                   className={['pf-pill', contentLang === lang ? 'lime active' : ''].join(' ')}
                   disabled={busy || aiBusy}
-                  onClick={() => setContentLang(lang)}
+                  onClick={() => changeContentLang(lang)}
                 >
                   {t(`contentLang.names.${lang}`)}
                 </button>

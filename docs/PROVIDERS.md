@@ -260,10 +260,13 @@ ngôn ngữ có thể **tổng hợp lỗi** — nên hệ thống tự đổi g
   vi `vi_female_ruan_uranus_bigtts` / `vi_male_wumg_uranus_bigtts`,
   en `en_female_hayley_uranus_bigtts` / `en_male_tim_uranus_bigtts`.
 - `services/voice_lang.py`: `voice_for_lang()` đổi giọng không đọc được ngôn ngữ sang một giọng cùng giới tính
-  của ngôn ngữ đó, chọn ổn định theo hash của id giọng gốc (cùng giọng gốc → cùng giọng mới; giọng gốc khác nhau
-  → phân tán, không dồn hết về giọng đầu), có log. Giọng mặc định (giọng đầu) chỉ dùng khi người dùng chưa chọn.
+  của ngôn ngữ đó (theo thứ tự danh mục), chọn `pool[FNV-1a 32 bit(speaker gốc, UTF-8) % len(pool)]` (cùng giọng
+  gốc → cùng giọng mới; giọng gốc khác nhau → phân tán, không dồn hết về giọng đầu), có log. Frontend
+  `lib/voiceLang.ts voiceKeyForLang` cài đúng quy tắc này nên giọng hiển thị = giọng đọc; hai bên cùng assert
+  `backend/tests/fixtures/voice_lang_vectors.json`. Giọng mặc định (giọng đầu) chỉ dùng khi người dùng chưa chọn.
   Phim ngắn vi/en: `infer_drama_speaker_from_prompt(lang=…)` chọn thẳng trong giọng của ngôn ngữ dự án, ổn định
-  theo tư liệu. `TtsService.synthesize(lang=…)` luôn gọi `voice_for_lang` (không truyền `lang` thì đoán theo văn
+  theo tư liệu nhân vật; «gợi ý giọng» và tổng hợp giọng tham chiếu dùng chung khoá (id tư liệu nhân vật + tên),
+  speaker được truyền vào mà đọc được ngôn ngữ dự án thì giữ nguyên. `TtsService.synthesize(lang=…)` luôn gọi `voice_for_lang` (không truyền `lang` thì đoán theo văn
   bản); video ngắn dùng `project_kepu_lang(project)` (cả lời dẫn cả video). Giọng clone `S_*` / id tự nhập không rõ ngôn ngữ → giữ nguyên.
 - Nghe thử: giọng không đọc được ngôn ngữ giao diện thì nghe câu mẫu bằng ngôn ngữ của giọng.
 - Frontend `StyleConfigPage` chỉ liệt kê giọng đọc được `project.effective_content_lang`

@@ -36,10 +36,9 @@ router = APIRouter(prefix="/v1", tags=["public-api"])
 logger = logging.getLogger(__name__)
 
 # 开放 API 视频任务失败：可安全透出的已登记错误码 → 固定英文短句（不含上游原文）
+# poll_video_task（studio_tools._video_fail_code）只区分审核拦截与其他失败，故只登记 content_rejected
 _V1_VIDEO_ERROR_TEXTS: dict[str, str] = {
     "provider.content_rejected": "The content was rejected by the model provider's moderation",
-    "provider.timeout": "The model provider timed out",
-    "provider.network_error": "Could not reach the model provider",
 }
 _V1_VIDEO_FALLBACK = ("api.upstream_failed", "Video generation failed at the model provider")
 

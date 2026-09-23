@@ -33,6 +33,33 @@ _SAMPLE_LINES = {
 }
 
 
+def infer_character_speaker(
+    voice_prompt: str, character_name: str | None, *, key_asset_id: int, lang: str | None
+) -> str:
+    """角色 TTS speaker 推断（「生成音色描述」推荐与合成参考音共用同一键，保证推荐的就是合成用的）。
+
+    参数：key_asset_id 角色资产 id（无角色关联时用 voice 资产 id）；character_name 经 normalize_character_name
+    """
+    return infer_drama_speaker_from_prompt(
+        voice_prompt,
+        character_name=normalize_character_name(character_name),
+        asset_id=int(key_asset_id or 0),
+        lang=lang,
+    )
+
+
+def usable_speaker(speaker: str | None, lang: str | None) -> bool:
+    """调用方给的 speaker 能否直接用：复刻音色 S_* 总是可用；其余须是可识别语言的音色且能读项目语言。"""
+    from app.services.voice_lang import voice_languages, voice_supports_lang
+
+    sp = (speaker or "").strip()
+    if not sp:
+        return False
+    if sp.startswith("S_"):
+        return True
+    return voice_languages(sp) is not None and voice_supports_lang(sp, lang)
+
+
 # 拉丁字母角色名在试听句里的最大长度（按词截断，不切半个词）
 _LATIN_NAME_MAX = 24
 
@@ -219,11 +246,12 @@ async def synthesize_voice_asset(
                 "voiceDesignError": str(exc)[:500],
             }
     if not audio_url:
-        if not resolved_speaker or not resolved_speaker.startswith("S_"):
-            resolved_speaker = infer_drama_speaker_from_prompt(
+        # 调用方给的 speaker（如「生成音色描述」推荐的）能读项目语言就照用；缺失 / 无效才按同一键重新推断
+        if not usable_speaker(resolved_speaker, lang):
+            resolved_speaker = infer_character_speaker(
                 prompt,
-                character_name=display_name,
-                asset_id=asset.id,
+                character_asset.name if character_asset is not None else display_name,
+                key_asset_id=character_asset.id if character_asset is not None else asset.id,
                 lang=lang,
             )
         logger.info(

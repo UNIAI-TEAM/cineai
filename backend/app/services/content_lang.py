@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Any, Literal
 
 from app.services.text_lang import is_cjk_text
@@ -30,19 +31,39 @@ _VI_CHARS_RE = re.compile(
     r"ạảẹẻẽịỉĩọỏụủũỳỷỹỵ]",
     re.IGNORECASE,
 )
-# 与其他拉丁语言共用的越南语声调字母：单独出现不足以判断，需多数词都带（如「Tôi là ai」「Xin chào」）
+# 与其他拉丁语言共用的越南语声调字母：单独出现不足以判断，需配合常用词或多数词都带（如「Tôi là ai」「Xin chào」）
 _VI_SHARED_CHARS_RE = re.compile(r"[àáèéìíòóùúýỳâêôãõ]", re.IGNORECASE)
 # 其中英语外来词少见的（重音符 / 扬抑符）：一个词带就够；é 等锐音符（café、Pokémon）需 ≥2 个词
 _VI_SHARED_STRONG_RE = re.compile(r"[àèìòùỳâêô]", re.IGNORECASE)
+# 越南语常用词（只含共用字母或无声调，带特有字母的词已由 _VI_CHARS_RE 命中）：
+# 文本带共用声调字母时，出现其一即判 vi（「Bé」「Cá voi」「Má tôi」）。
+# 刻意不收与英语 / 西语撞词的 ai、ba、con、em、hay、la、va、co、may 等。
+# 与前端 lib/contentLang.ts VI_COMMON_WORDS 保持一致（共用测试向量 tests/fixtures/content_lang_vectors.json）。
+_VI_COMMON_WORDS = frozenset(
+    """
+    và là có không khong tôi toi cá voi bé má cho này các cac bà ông nhà thì mà gì xin chào chao
+    trên trong vì nên cô chú mèo chó gà bò lá cây núi sông biển
+    mot nguoi nhung cua duoc
+    """.split()
+)
 
 
 def _looks_vietnamese(text: str) -> bool:
-    """是否越南语：含越南语特有字母；或带共用声调字母的词占一半以上，且（≥2 个或含重音符 / 扬抑符）。"""
+    """是否越南语（与前端 guessTextLang 同一规则）：
+
+    - 含越南语特有字母 → 是；
+    - 含共用声调字母时：出现越南语常用词，或带声调的词占一半以上且（≥2 个或含重音符 / 扬抑符）→ 是；
+    - 否则否（「Pokémon evolution」「Why café culture spread」→ 否；「Crème brûlée」→ 是，已知取舍）。
+    """
     if _VI_CHARS_RE.search(text):
         return True
     words = re.findall(r"[^\W\d_]+", text)
     accented = [w for w in words if _VI_SHARED_CHARS_RE.search(w)]
-    if not accented or len(accented) * 2 < len(words):
+    if not accented:
+        return False
+    if any(w.lower() in _VI_COMMON_WORDS for w in words):
+        return True
+    if len(accented) * 2 < len(words):
         return False
     return len(accented) >= 2 or any(_VI_SHARED_STRONG_RE.search(w) for w in accented)
 
@@ -102,7 +123,7 @@ def guess_text_lang(text: str | None) -> ContentLang | None:
 
     说明：不带声调的越南语与英文无法区分，返回 en（调用方应优先用项目/界面语言）。
     """
-    raw = (text or "").strip()
+    raw = unicodedata.normalize("NFC", (text or "").strip())
     if not raw:
         return None
     if is_cjk_text(raw):

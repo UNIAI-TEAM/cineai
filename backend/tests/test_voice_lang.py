@@ -240,3 +240,25 @@ async def test_preview_uses_voice_language_when_ui_lang_unsupported(monkeypatch,
     text, speaker, lang = calls[0]
     assert speaker == "vi_female_ruan_uranus_bigtts" and lang == "vi"
     assert text == voices.preview_text_for_lang("vi")
+
+
+def test_voice_for_lang_matches_shared_vectors():
+    """与前端 voiceKeyForLang 共用的向量（tests/fixtures/voice_lang_vectors.json）：同一哈希（FNV-1a 32）同一结果。
+
+    目录（VOICE_PRESETS）变动后需重新生成 fixture：catalog 取 id/speaker/gender/languages，
+    vectors 为每个音色 × 其不支持的 zh/vi/en → voice_for_lang 结果。
+    """
+    import json
+
+    from app.services.voice_lang import fnv1a32
+
+    data = json.loads((Path(__file__).parent / "fixtures" / "voice_lang_vectors.json").read_text(encoding="utf-8"))
+    for key, expected in data["fnv1a32"]:
+        assert fnv1a32(key) == expected, key
+    catalog = [
+        {"id": p["id"], "speaker": p["speaker"], "gender": p["gender"], "languages": p["languages"]}
+        for p in VOICE_PRESETS
+    ]
+    assert data["catalog"] == catalog, "VOICE_PRESETS 已变动，请重新生成 voice_lang_vectors.json"
+    for src, lang, expected in data["vectors"]:
+        assert voice_for_lang(src, lang) == expected, (src, lang)

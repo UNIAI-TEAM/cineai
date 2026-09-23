@@ -51,6 +51,20 @@ def test_guess_text_lang():
     assert cl.guess_text_lang("  ") is None
 
 
+_FIXTURES = __import__("pathlib").Path(__file__).parent / "fixtures"
+
+
+def test_guess_text_lang_shared_vectors():
+    """与前端 guessTextLang 共用的向量（tests/fixtures/content_lang_vectors.json），防止两边规则漂移。"""
+    cases = json.loads((_FIXTURES / "content_lang_vectors.json").read_text(encoding="utf-8"))["cases"]
+    for text, expected in cases:
+        assert cl.guess_text_lang(text) == expected, text
+    # NFD（组合附加符）输入也按 NFC 判断
+    import unicodedata
+
+    assert cl.guess_text_lang(unicodedata.normalize("NFD", "Người đi đường")) == "vi"
+
+
 def test_guess_text_lang_shared_latin_accents_are_not_vietnamese():
     """é/à/ô 等法语/英语外来词也用的字母不能单独判为越南语（只认越南语特有字母）。"""
     assert cl.guess_text_lang("Pokémon evolution") == "en"
@@ -312,3 +326,40 @@ def test_voice_preview_text_and_latin_gender_hints():
     assert "试听" in preview_text_for_lang("zh")
     assert "_female_" in infer_drama_speaker_from_prompt("Giọng nữ trẻ, trong trẻo", asset_id=2)
     assert "_male_" in infer_drama_speaker_from_prompt("Deep male voice, calm", asset_id=1)
+
+
+async def test_voice_suggestion_and_synthesis_use_same_speaker(captured, monkeypatch):
+    """「生成音色描述」推荐的 speaker 就是合成参考音用的：传入则照用，缺失 / 读不了项目语言时按同一键重推断。"""
+    from unittest.mock import AsyncMock
+
+    from app.services.drama import voice_synthesis as vs
+    from app.services.drama.voice_prompt import suggest_voice_prompt_for_character
+
+    captured.reply["value"] = "Giọng nữ trẻ, trong trẻo, nói chậm rãi, ấm áp và dịu dàng."
+    project = _drama_project("vi")
+    character = SimpleNamespace(id=7, type="character", name="Lan", params={}, cover=None, url=None)
+    prompt, suggested, _sample = await suggest_voice_prompt_for_character(character, project)
+    assert suggested.startswith("vi_female_")
+
+    ark = SimpleNamespace(tts=AsyncMock(return_value="/static/x.mp3"))
+    monkeypatch.setattr(vs, "get_ark", lambda: ark)
+    monkeypatch.setattr(vs, "voice_design_enabled", lambda _s: False)
+    monkeypatch.setattr(vs, "finalize_voice_reference_url", lambda url, **_k: url)
+    monkeypatch.setattr(vs, "record_line", AsyncMock())
+    monkeypatch.setattr(vs, "_drama_tts_model", lambda: "tts")
+    db = SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    user = SimpleNamespace(id=1)
+
+    async def _synth(speaker):
+        voice_asset = SimpleNamespace(id=99, type="voice", name="Lan音色", params={}, url=None, cover=None)
+        await vs.synthesize_voice_asset(
+            db, user, project, voice_asset, voice_prompt=prompt, speaker=speaker,
+            character_name="Lan", character_asset=character,
+        )
+        return ark.tts.await_args.args[1]
+
+    assert await _synth(suggested) == suggested
+    assert await _synth(None) == suggested  # 未传：同一键（角色资产 id + 名）重推断
+    assert await _synth("zh_female_cancan_uranus_bigtts") == suggested  # 读不了越南语：重推断
+    other_vi = next(v for v in ("vi_female_ling_uranus_bigtts", "vi_female_linh_uranus_bigtts") if v != suggested)
+    assert await _synth(other_vi) == other_vi  # 用户选的合法越南语音色：照用

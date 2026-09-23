@@ -1,16 +1,15 @@
 """音色 × 内容语言：判断音色能读哪些语言、每种语言的默认音色、按项目语言自动换音色。
 
-规则（与前端 lib/voiceLang.ts 一致）：
+规则（前端 lib/voiceLang.ts 实现同一套；共用测试向量 tests/fixtures/voice_lang_vectors.json）：
 - 音色支持的语言以 voices.VOICE_PRESETS 的 `languages` 为准；目录外的官方音色按 id 语种前缀
   （zh_/en_/vi_…）推断；edge-tts 音色名按 locale 推断；复刻音色 S_* 等无法判断 → 不干预
 - 每种语言在目录中排在最前的音色为默认音色（用户未选音色时用）；需要保持性别时取该语言同性别的第一个
-- 音色不支持内容语言时，在该语言同性别音色里按原音色 id 的哈希稳定挑一个（同一原音色 → 同一替换；
-  不同原音色 → 分散，避免所有角色同一个声音）并记日志，避免读错口音或合成失败
+- 音色不支持内容语言时，在该语言同性别音色（目录顺序）里按原音色 speaker 的 FNV-1a 32 位哈希取模挑一个
+  （同一原音色 → 同一替换；不同原音色 → 分散，避免所有角色同一个声音）并记日志，避免读错口音或合成失败
 """
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
 
@@ -78,12 +77,20 @@ def lang_voice_pool(lang: str | None, gender: str | None = None) -> list[str]:
     return [str(p["speaker"]) for p in candidates]
 
 
+def fnv1a32(key: str) -> int:
+    """FNV-1a 32 位哈希（输入按 UTF-8 字节）；与前端 lib/voiceLang.ts fnv1a32 逐位一致。"""
+    h = 0x811C9DC5
+    for byte in key.encode("utf-8"):
+        h ^= byte
+        h = (h * 0x01000193) & 0xFFFFFFFF
+    return h
+
+
 def stable_pick(pool: list[str], key: str) -> str | None:
-    """按 key 的 md5 在 pool 中稳定挑一个（同 key 同结果）；pool 为空返回 None。"""
+    """按 key 的 FNV-1a 32 位哈希在 pool 中稳定挑一个：pool[fnv1a32(key) % len(pool)]；pool 为空返回 None。"""
     if not pool:
         return None
-    digest = hashlib.md5(key.encode("utf-8")).hexdigest()
-    return pool[int(digest[:8], 16) % len(pool)]
+    return pool[fnv1a32(key) % len(pool)]
 
 
 def voice_for_lang(speaker: str, lang: str | None) -> str:

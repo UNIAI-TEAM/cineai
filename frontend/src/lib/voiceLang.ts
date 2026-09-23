@@ -1,7 +1,9 @@
 /**
- * 音色 × 内容语言（与后端 services/voice_lang.py 同一规则）：
+ * 音色 × 内容语言（与后端 services/voice_lang.py 同一规则，共用测试向量 backend/tests/fixtures/voice_lang_vectors.json）：
  * - 音色能读的语言看 /api/voices 返回的 languages；缺失时视为不限（老接口 / 自定义音色）
- * - 每种语言在目录中排在最前的音色为默认音色；需要保持性别时取同性别的第一个
+ * - 每种语言在目录中排在最前的音色为默认音色（用户未选时用）；需要保持性别时取同性别的第一个
+ * - 所选音色读不了项目语言时：在该语言同性别音色（目录顺序）里按原音色 speaker 的 FNV-1a 32 位哈希取模挑一个，
+ *   与后端合成时的替换结果一致（界面显示的就是实际朗读的音色）
  */
 
 /** 与 api.ts VoicePreset 兼容的最小结构（纯函数便于 node 测试） */
@@ -40,8 +42,20 @@ export function defaultVoiceForLang<T extends VoiceLike>(
   return (gender && candidates.find((v) => v.gender === gender)) || candidates[0]
 }
 
+/** FNV-1a 32 位哈希（输入按 UTF-8 字节）；与后端 voice_lang.fnv1a32 逐位一致 */
+export function fnv1a32(key: string): number {
+  let h = 0x811c9dc5
+  for (const byte of new TextEncoder().encode(key)) {
+    h ^= byte
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return h >>> 0
+}
+
 /**
  * 当前所选音色不支持项目语言时给出替换音色的 key（speaker 优先），否则返回 null（保持用户选择）。
+ * 替换规则同后端 voice_for_lang：该语言同性别音色（没有同性别则该语言全部，目录顺序）里取
+ * pool[fnv1a32(原 speaker) % pool.length]。
  * 参数 selectedKey：当前 voice_id / speaker
  */
 export function voiceKeyForLang<T extends VoiceLike>(
@@ -52,7 +66,10 @@ export function voiceKeyForLang<T extends VoiceLike>(
   if (!lang || !selectedKey) return null
   const current = voices.find((v) => v.id === selectedKey || v.speaker === selectedKey)
   if (!current || voiceSupportsLang(current, lang)) return null
-  const next = defaultVoiceForLang(voices, lang, current.gender)
-  if (!next) return null
+  const ofLang = voices.filter((v) => (v.languages || []).includes(lang))
+  const sameGender = current.gender ? ofLang.filter((v) => v.gender === current.gender) : []
+  const pool = sameGender.length ? sameGender : ofLang
+  if (!pool.length) return null
+  const next = pool[fnv1a32(current.speaker || current.id) % pool.length]
   return next.speaker || next.id
 }

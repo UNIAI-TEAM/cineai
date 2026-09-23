@@ -134,7 +134,7 @@ export default function StyleConfigPage() {
   const langVoices = useMemo(() => voicesForLang(voices, contentLang), [voices, contentLang])
 
   useEffect(() => {
-    // 已选 / 模板默认音色读不了项目语言时，换成该语言同性别的默认音色（后端合成时也会同样替换）
+    // 已选 / 模板默认音色读不了项目语言时，换成该语言同性别音色（按原音色哈希挑选，与后端合成时的替换一致）
     const next = voiceKeyForLang(voices, voiceId, contentLang)
     if (next) setVoiceId(next)
   }, [voices, voiceId, contentLang])

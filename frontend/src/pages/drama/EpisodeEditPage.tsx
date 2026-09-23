@@ -76,6 +76,7 @@ import {
   subtitleModeUsesModelOutput,
   type DramaSubtitleMode,
 } from '../../lib/dramaSubtitleBoard'
+import { normalizeContentLang, type ContentLang } from '../../lib/contentLang'
 import {
   applyCharacterIntroModeToFragments,
   characterIntroModeEnabled,
@@ -171,6 +172,8 @@ function EpisodeEditInner() {
   const [linkLastFrame, setLinkLastFrame] = useState(true)
   // projectParams 项目 params 缓存（镜间衔接 + 分集输出规格回退）
   const [projectParams, setProjectParams] = useState<Record<string, unknown>>({})
+  // projectContentLang 项目内容语言（字幕 cue 语言；未加载时为 null，按台词文字判断）
+  const [projectContentLang, setProjectContentLang] = useState<ContentLang | null>(null)
   // episodeParams 分集 params 缓存（画幅 / 清晰度写入此处）
   const [episodeParams, setEpisodeParams] = useState<Record<string, unknown>>({})
   // planModalOpen AI 重新分镜确认（含 Skill 勾选）
@@ -432,7 +435,7 @@ function EpisodeEditInner() {
       subtitleMode: mode,
       subtitleEnabled: subtitleModeUsesModelOutput(mode),
     }
-    const nextFragments = applySubtitleModeToFragments(fragments, mode)
+    const nextFragments = applySubtitleModeToFragments(fragments, mode, projectContentLang)
     setSubtitleMode(mode)
     setEpisodeParams(nextParams)
     episodeParamsRef.current = nextParams
@@ -781,6 +784,7 @@ function EpisodeEditInner() {
             ? (project.params as Record<string, unknown>)
             : {}
         setProjectParams(params)
+        setProjectContentLang(normalizeContentLang(project.content_lang))
         projectParamsRef.current = params
         const linkRaw = params.linkLastFrame ?? params.link_last_frame
         setLinkLastFrame(coerceProjectBool(linkRaw, true))

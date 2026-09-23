@@ -194,13 +194,15 @@ async def update_project(
     if body.content is not None:
         project.content = body.content
     if body.params is not None:
-        prev_lang = (project.params or {}).get("content_lang")
+        prev_lang = normalize_lang((project.params or {}).get("content_lang"))
         next_params = dict(body.params)
-        # 整包回写的 params 可能是旧快照：其中的 content_lang 一律忽略，保留已存值；
-        # 改语言只认顶层 body.content_lang（见下）
-        next_params.pop("content_lang", None)
-        if prev_lang:
-            next_params["content_lang"] = prev_lang
+        # 已存过语言：整包回写的 params 可能是旧快照，其中的 content_lang 忽略、保留已存值；
+        # 老项目还没存语言：接受 params.content_lang 中的合法值（非法值丢弃）。
+        # 顶层 body.content_lang 总是生效（见下）。
+        body_lang = normalize_lang(next_params.pop("content_lang", None))
+        kept_lang = prev_lang or body_lang
+        if kept_lang:
+            next_params["content_lang"] = kept_lang
         project.params = next_params
     # 只影响之后 AI 生成的内容，已有剧本 / 分镜不自动翻译
     if next_lang:

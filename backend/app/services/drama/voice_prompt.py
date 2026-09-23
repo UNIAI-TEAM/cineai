@@ -9,8 +9,7 @@ from typing import Any
 from app.models_drama import DramaAsset, DramaProject
 from app.services.content_lang import is_zh, project_content_lang
 from app.services.drama.llm import drama_chat_text
-from app.services.drama.voice_synthesis import build_voice_sample_text
-from app.services.voices import infer_drama_speaker_from_prompt
+from app.services.drama.voice_synthesis import build_voice_sample_text, infer_character_speaker
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +167,7 @@ async def suggest_voice_prompt_for_character(
     if len(prompt) < 8:
         prompt = fallback_voice_prompt(asset, summary_char, lang=lang)
     name = asset.name or "角色"
-    speaker = infer_drama_speaker_from_prompt(prompt, character_name=name, asset_id=asset.id, lang=lang)
+    # 与 synthesize_voice_asset 重新推断时同一键（角色资产 id + 规范化角色名）
+    speaker = infer_character_speaker(prompt, asset.name, key_asset_id=asset.id, lang=lang)
     sample_text = build_voice_sample_text(prompt, name, short=False, lang=lang)
     return prompt, speaker, sample_text

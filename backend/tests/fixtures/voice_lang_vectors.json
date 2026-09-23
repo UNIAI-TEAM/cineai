@@ -1,0 +1,435 @@
+{
+ "_comment": "voice_lang.voice_for_lang（backend）与 voiceKeyForLang（frontend）共用：catalog 是 VOICE_PRESETS 快照（backend 测试校验一致），vectors 为 [原音色, 目标语言, 期望替换]。目录变动后用 tests/test_voice_lang.py 里的说明重新生成。",
+ "fnv1a32": [
+  [
+   "",
+   2166136261
+  ],
+  [
+   "a",
+   3826002220
+  ],
+  [
+   "Tiếng Việt",
+   1439831801
+  ]
+ ],
+ "catalog": [
+  {
+   "id": "zh_female_cancan_uranus_bigtts",
+   "speaker": "zh_female_cancan_uranus_bigtts",
+   "gender": "female",
+   "languages": [
+    "zh"
+   ]
+  },
+  {
+   "id": "zh_female_tianmeixiaoyuan_uranus_bigtts",
+   "speaker": "zh_female_tianmeixiaoyuan_uranus_bigtts",
+   "gender": "female",
+   "languages": [
+    "zh"
+   ]
+  },
+  {
+   "id": "zh_female_shuangkuaisisi_uranus_bigtts",
+   "speaker": "zh_female_shuangkuaisisi_uranus_bigtts",
+   "gender": "female",
+   "languages": [
+    "zh"
+   ]
+  },
+  {
+   "id": "zh_female_vv_uranus_bigtts",
+   "speaker": "zh_female_vv_uranus_bigtts",
+   "gender": "female",
+   "languages": [
+    "zh"
+   ]
+  },
+  {
+   "id": "zh_female_xiaohe_uranus_bigtts",
+   "speaker": "zh_female_xiaohe_uranus_bigtts",
+   "gender": "female",
+   "languages": [
+    "zh"
+   ]
+  },
+  {
+   "id": "zh_male_shaonianzixin_uranus_bigtts",
+   "speaker": "zh_male_shaonianzixin_uranus_bigtts",
+   "gender": "male",
+   "languages": [
+    "zh"
+   ]
+  },
+  {
+   "id": "zh_male_m191_uranus_bigtts",
+   "speaker": "zh_male_m191_uranus_bigtts",
+   "gender": "male",
+   "languages": [
+    "zh"
+   ]
+  },
+  {
+   "id": "zh_male_taocheng_uranus_bigtts",
+   "speaker": "zh_male_taocheng_uranus_bigtts",
+   "gender": "male",
+   "languages": [
+    "zh"
+   ]
+  },
+  {
+   "id": "zh_male_ruyayichen_uranus_bigtts",
+   "speaker": "zh_male_ruyayichen_uranus_bigtts",
+   "gender": "male",
+   "languages": [
+    "zh"
+   ]
+  },
+  {
+   "id": "zh_male_baqiqingshu_uranus_bigtts",
+   "speaker": "zh_male_baqiqingshu_uranus_bigtts",
+   "gender": "male",
+   "languages": [
+    "zh"
+   ]
+  },
+  {
+   "id": "vi_female_ruan_uranus_bigtts",
+   "speaker": "vi_female_ruan_uranus_bigtts",
+   "gender": "female",
+   "languages": [
+    "vi"
+   ]
+  },
+  {
+   "id": "vi_male_wumg_uranus_bigtts",
+   "speaker": "vi_male_wumg_uranus_bigtts",
+   "gender": "male",
+   "languages": [
+    "vi"
+   ]
+  },
+  {
+   "id": "vi_female_ling_uranus_bigtts",
+   "speaker": "vi_female_ling_uranus_bigtts",
+   "gender": "female",
+   "languages": [
+    "vi"
+   ]
+  },
+  {
+   "id": "vi_female_linh_uranus_bigtts",
+   "speaker": "vi_female_linh_uranus_bigtts",
+   "gender": "female",
+   "languages": [
+    "vi"
+   ]
+  },
+  {
+   "id": "vi_female_wu_uranus_bigtts",
+   "speaker": "vi_female_wu_uranus_bigtts",
+   "gender": "female",
+   "languages": [
+    "vi"
+   ]
+  },
+  {
+   "id": "vi_female_hong_uranus_bigtts",
+   "speaker": "vi_female_hong_uranus_bigtts",
+   "gender": "female",
+   "languages": [
+    "vi"
+   ]
+  },
+  {
+   "id": "vi_female_partner_uranus_bigtts",
+   "speaker": "vi_female_partner_uranus_bigtts",
+   "gender": "female",
+   "languages": [
+    "vi"
+   ]
+  },
+  {
+   "id": "en_female_hayley_uranus_bigtts",
+   "speaker": "en_female_hayley_uranus_bigtts",
+   "gender": "female",
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "id": "en_male_tim_uranus_bigtts",
+   "speaker": "en_male_tim_uranus_bigtts",
+   "gender": "male",
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "id": "en_female_skye_uranus_bigtts",
+   "speaker": "en_female_skye_uranus_bigtts",
+   "gender": "female",
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "id": "en_female_jenny_uranus_bigtts",
+   "speaker": "en_female_jenny_uranus_bigtts",
+   "gender": "female",
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "id": "en_male_kevin_uranus_bigtts",
+   "speaker": "en_male_kevin_uranus_bigtts",
+   "gender": "male",
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "id": "en_male_marcus_uranus_bigtts",
+   "speaker": "en_male_marcus_uranus_bigtts",
+   "gender": "male",
+   "languages": [
+    "en"
+   ]
+  }
+ ],
+ "vectors": [
+  [
+   "zh_female_cancan_uranus_bigtts",
+   "vi",
+   "vi_female_hong_uranus_bigtts"
+  ],
+  [
+   "zh_female_cancan_uranus_bigtts",
+   "en",
+   "en_female_skye_uranus_bigtts"
+  ],
+  [
+   "zh_female_tianmeixiaoyuan_uranus_bigtts",
+   "vi",
+   "vi_female_ling_uranus_bigtts"
+  ],
+  [
+   "zh_female_tianmeixiaoyuan_uranus_bigtts",
+   "en",
+   "en_female_skye_uranus_bigtts"
+  ],
+  [
+   "zh_female_shuangkuaisisi_uranus_bigtts",
+   "vi",
+   "vi_female_linh_uranus_bigtts"
+  ],
+  [
+   "zh_female_shuangkuaisisi_uranus_bigtts",
+   "en",
+   "en_female_jenny_uranus_bigtts"
+  ],
+  [
+   "zh_female_vv_uranus_bigtts",
+   "vi",
+   "vi_female_linh_uranus_bigtts"
+  ],
+  [
+   "zh_female_vv_uranus_bigtts",
+   "en",
+   "en_female_jenny_uranus_bigtts"
+  ],
+  [
+   "zh_female_xiaohe_uranus_bigtts",
+   "vi",
+   "vi_female_linh_uranus_bigtts"
+  ],
+  [
+   "zh_female_xiaohe_uranus_bigtts",
+   "en",
+   "en_female_jenny_uranus_bigtts"
+  ],
+  [
+   "zh_male_shaonianzixin_uranus_bigtts",
+   "vi",
+   "vi_male_wumg_uranus_bigtts"
+  ],
+  [
+   "zh_male_shaonianzixin_uranus_bigtts",
+   "en",
+   "en_male_tim_uranus_bigtts"
+  ],
+  [
+   "zh_male_m191_uranus_bigtts",
+   "vi",
+   "vi_male_wumg_uranus_bigtts"
+  ],
+  [
+   "zh_male_m191_uranus_bigtts",
+   "en",
+   "en_male_kevin_uranus_bigtts"
+  ],
+  [
+   "zh_male_taocheng_uranus_bigtts",
+   "vi",
+   "vi_male_wumg_uranus_bigtts"
+  ],
+  [
+   "zh_male_taocheng_uranus_bigtts",
+   "en",
+   "en_male_tim_uranus_bigtts"
+  ],
+  [
+   "zh_male_ruyayichen_uranus_bigtts",
+   "vi",
+   "vi_male_wumg_uranus_bigtts"
+  ],
+  [
+   "zh_male_ruyayichen_uranus_bigtts",
+   "en",
+   "en_male_kevin_uranus_bigtts"
+  ],
+  [
+   "zh_male_baqiqingshu_uranus_bigtts",
+   "vi",
+   "vi_male_wumg_uranus_bigtts"
+  ],
+  [
+   "zh_male_baqiqingshu_uranus_bigtts",
+   "en",
+   "en_male_tim_uranus_bigtts"
+  ],
+  [
+   "vi_female_ruan_uranus_bigtts",
+   "zh",
+   "zh_female_cancan_uranus_bigtts"
+  ],
+  [
+   "vi_female_ruan_uranus_bigtts",
+   "en",
+   "en_female_hayley_uranus_bigtts"
+  ],
+  [
+   "vi_male_wumg_uranus_bigtts",
+   "zh",
+   "zh_male_ruyayichen_uranus_bigtts"
+  ],
+  [
+   "vi_male_wumg_uranus_bigtts",
+   "en",
+   "en_male_tim_uranus_bigtts"
+  ],
+  [
+   "vi_female_ling_uranus_bigtts",
+   "zh",
+   "zh_female_cancan_uranus_bigtts"
+  ],
+  [
+   "vi_female_ling_uranus_bigtts",
+   "en",
+   "en_female_skye_uranus_bigtts"
+  ],
+  [
+   "vi_female_linh_uranus_bigtts",
+   "zh",
+   "zh_female_xiaohe_uranus_bigtts"
+  ],
+  [
+   "vi_female_linh_uranus_bigtts",
+   "en",
+   "en_female_skye_uranus_bigtts"
+  ],
+  [
+   "vi_female_wu_uranus_bigtts",
+   "zh",
+   "zh_female_shuangkuaisisi_uranus_bigtts"
+  ],
+  [
+   "vi_female_wu_uranus_bigtts",
+   "en",
+   "en_female_hayley_uranus_bigtts"
+  ],
+  [
+   "vi_female_hong_uranus_bigtts",
+   "zh",
+   "zh_female_shuangkuaisisi_uranus_bigtts"
+  ],
+  [
+   "vi_female_hong_uranus_bigtts",
+   "en",
+   "en_female_skye_uranus_bigtts"
+  ],
+  [
+   "vi_female_partner_uranus_bigtts",
+   "zh",
+   "zh_female_tianmeixiaoyuan_uranus_bigtts"
+  ],
+  [
+   "vi_female_partner_uranus_bigtts",
+   "en",
+   "en_female_jenny_uranus_bigtts"
+  ],
+  [
+   "en_female_hayley_uranus_bigtts",
+   "zh",
+   "zh_female_cancan_uranus_bigtts"
+  ],
+  [
+   "en_female_hayley_uranus_bigtts",
+   "vi",
+   "vi_female_partner_uranus_bigtts"
+  ],
+  [
+   "en_male_tim_uranus_bigtts",
+   "zh",
+   "zh_male_ruyayichen_uranus_bigtts"
+  ],
+  [
+   "en_male_tim_uranus_bigtts",
+   "vi",
+   "vi_male_wumg_uranus_bigtts"
+  ],
+  [
+   "en_female_skye_uranus_bigtts",
+   "zh",
+   "zh_female_vv_uranus_bigtts"
+  ],
+  [
+   "en_female_skye_uranus_bigtts",
+   "vi",
+   "vi_female_wu_uranus_bigtts"
+  ],
+  [
+   "en_female_jenny_uranus_bigtts",
+   "zh",
+   "zh_female_vv_uranus_bigtts"
+  ],
+  [
+   "en_female_jenny_uranus_bigtts",
+   "vi",
+   "vi_female_ling_uranus_bigtts"
+  ],
+  [
+   "en_male_kevin_uranus_bigtts",
+   "zh",
+   "zh_male_m191_uranus_bigtts"
+  ],
+  [
+   "en_male_kevin_uranus_bigtts",
+   "vi",
+   "vi_male_wumg_uranus_bigtts"
+  ],
+  [
+   "en_male_marcus_uranus_bigtts",
+   "zh",
+   "zh_male_baqiqingshu_uranus_bigtts"
+  ],
+  [
+   "en_male_marcus_uranus_bigtts",
+   "vi",
+   "vi_male_wumg_uranus_bigtts"
+  ]
+ ]
+}

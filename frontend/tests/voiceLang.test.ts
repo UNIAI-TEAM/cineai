@@ -1,8 +1,10 @@
-/** 音色按内容语言过滤 / 默认音色 / 不支持时自动替换（与后端 voice_lang.py 同规则） */
+/** 音色按内容语言过滤 / 默认音色 / 不支持时自动替换（与后端 voice_lang.py 同规则，共用 fixture 向量） */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   defaultVoiceForLang,
+  fnv1a32,
   voiceKeyForLang,
   voiceSupportsLang,
   voicesForLang,
@@ -48,4 +50,21 @@ test('voiceKeyForLang swaps unsupported voice keeping gender, keeps supported/un
   // 模板别名 / 复刻音色（不在目录）不强改；语言未知不改
   assert.equal(voiceKeyForLang(VOICES, 'narrator_calm', 'vi'), null)
   assert.equal(voiceKeyForLang(VOICES, 'zh_male_m191_uranus_bigtts', ''), null)
+})
+
+test('voiceKeyForLang matches backend voice_for_lang on the shared vectors', () => {
+  const url = new URL('../../backend/tests/fixtures/voice_lang_vectors.json', import.meta.url)
+  const data = JSON.parse(readFileSync(url, 'utf-8')) as {
+    fnv1a32: [string, number][]
+    catalog: { id: string; speaker: string; gender: string; languages: string[] }[]
+    vectors: [string, string, string][]
+  }
+  for (const [key, expected] of data.fnv1a32) assert.equal(fnv1a32(key), expected, key)
+  assert.ok(data.vectors.length > 10)
+  for (const [src, lang, expected] of data.vectors) {
+    assert.equal(voiceKeyForLang(data.catalog, src, lang), expected, `${src} → ${lang}`)
+  }
+  // 分散：不同的中文女声换成越南语时不全是同一个
+  const viFemale = new Set(data.vectors.filter(([s, l]) => l === 'vi' && s.startsWith('zh_female_')).map((v) => v[2]))
+  assert.ok(viFemale.size >= 2)
 })

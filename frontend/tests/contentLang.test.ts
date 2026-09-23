@@ -1,10 +1,12 @@
 /** 项目内容语言：归一、默认值（跟随界面语言）与可选项（zh 仅在开放中文或项目本就是中文时出现） */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   contentLangOptions,
   cutToLimit,
   defaultContentLang,
+  fitKepuDraft,
   guessTextLang,
   kepuTextLimits,
   normalizeContentLang,
@@ -64,4 +66,31 @@ test('kepu limits follow content language and cut at word boundaries', () => {
   assert.equal(cutToLimit('short', 80), 'short')
   assert.equal(cutToLimit('Supercalifragilistic', 5), 'Super') // 无空格只能硬截
   assert.equal(cutToLimit('光合作用是什么原理呢', 4), '光合作用')
+})
+
+test('guessTextLang matches the shared backend vectors', () => {
+  const url = new URL('../../backend/tests/fixtures/content_lang_vectors.json', import.meta.url)
+  const { cases } = JSON.parse(readFileSync(url, 'utf-8')) as { cases: [string, string | null][] }
+  assert.ok(cases.length > 10)
+  for (const [text, expected] of cases) assert.equal(guessTextLang(text), expected, text)
+  assert.equal(guessTextLang('Người đi đường'.normalize('NFD')), 'vi')
+})
+
+test('cutToLimit never splits a Latin word, even inside Chinese text', () => {
+  assert.equal(cutToLimit('光合作用 Photosynthesis explained', 10), '光合作用')
+  assert.equal(cutToLimit('iPhone 15 Pro 评测', 8), 'iPhone')
+  assert.equal(cutToLimit('中文标题测试一下', 4), '中文标题')
+  assert.equal(cutToLimit('Why café culture spread', 12), 'Why café')
+})
+
+test('switching content language refits theme and title to the new limits', () => {
+  const theme = 'Vì sao bầu trời có màu xanh '.repeat(12).trim() // ~335 ký tự
+  const title = 'Bầu trời xanh và ánh sáng mặt trời qua khí quyển'
+  const zh = fitKepuDraft({ sourceText: theme, title }, 'zh', 'theme')
+  assert.ok(zh.sourceText.length <= 100 && theme.startsWith(zh.sourceText))
+  assert.equal(theme.charAt(zh.sourceText.length), ' ') // 截在词边界
+  assert.ok(zh.title.length <= 24 && title.startsWith(zh.title))
+  assert.deepEqual(fitKepuDraft({ sourceText: theme, title }, 'vi', 'theme'), { sourceText: theme, title })
+  // 文案模式正文不受主题上限影响
+  assert.equal(fitKepuDraft({ sourceText: theme, title }, 'zh', 'script').sourceText, theme)
 })

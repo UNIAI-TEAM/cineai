@@ -40,33 +40,44 @@ export function contentLangOptions(
   )
 }
 
-const CJK_RE = /[぀-ヿ㐀-鿿]/
+/** 中日文字（平假名 / 片假名 / CJK 统一表意文字）：全前端共用，判断「是否中文内容」 */
+export const CJK_RE = /[\u3040-\u30ff\u3400-\u9fff]/
 /* 越南语特有字母（与后端 content_lang._VI_CHARS_RE 一致）：不含 é/à/ô 等法语/英语外来词也用的字母 */
 const VI_CHARS_RE =
   /[ăđơưằẳẵắặầẩẫấậềểễếệồổỗốộờởỡớợừửữứựạảẹẻẽịỉĩọỏụủũỳỷỹỵ]/i
-/* 与其他拉丁语言共用的越南语声调字母：需多数词都带才算越南语 */
+/* 与其他拉丁语言共用的越南语声调字母：需配合常用词或多数词都带才算越南语 */
 const VI_SHARED_CHARS_RE = /[àáèéìíòóùúýỳâêôãõ]/i
 /* 其中英语外来词少见的（重音符 / 扬抑符）：一个词带就够；é 等锐音符（café、Pokémon）需 ≥2 个词 */
 const VI_SHARED_STRONG_RE = /[àèìòùỳâêô]/i
+/* 越南语常用词（与后端 _VI_COMMON_WORDS 一致）：文本带共用声调字母时出现其一即判 vi（「Bé」「Cá voi」）；
+   不收与英语 / 西语撞词的 ai、ba、con、em、hay、la、va、co、may 等 */
+const VI_COMMON_WORDS = new Set(
+  `và là có không khong tôi toi cá voi bé má cho này các cac bà ông nhà thì mà gì xin chào chao
+   trên trong vì nên cô chú mèo chó gà bò lá cây núi sông biển
+   mot nguoi nhung cua duoc`.split(/\s+/),
+)
 
 /**
- * 按文本猜语言（与后端 guess_text_lang 一致）：含中日文字 → zh；像越南语 → vi；有拉丁字母 → en；否则 null。
- * 像越南语：含越南语特有字母；或带共用声调字母的词占一半以上，且 ≥2 个或含重音符 / 扬抑符（「Tôi là ai」「Xin chào」）。
- * 「Pokémon evolution」「café」→ en；不带声调的越南语无法区分 → en。
+ * 按文本猜语言（与后端 guess_text_lang 同一规则，共用测试向量 backend/tests/fixtures/content_lang_vectors.json）：
+ * 含中日文字 → zh；像越南语 → vi；有拉丁字母 → en；否则 null。
+ * 像越南语：含越南语特有字母；或含共用声调字母且（出现越南语常用词，或带声调的词占一半以上且 ≥2 个 / 含重音符、扬抑符）。
+ * 「Pokémon evolution」「café」→ en；「Crème brûlée」→ vi（已知取舍）；不带声调的越南语无法区分 → en。
  */
 export function guessTextLang(text: string): ContentLang | null {
-  const raw = String(text || '').trim()
+  const raw = String(text || '').trim().normalize('NFC')
   if (!raw) return null
   if (CJK_RE.test(raw)) return 'zh'
   if (VI_CHARS_RE.test(raw)) return 'vi'
   const words = raw.match(/\p{L}+/gu) || []
   const accented = words.filter((w) => VI_SHARED_CHARS_RE.test(w))
-  if (
-    accented.length &&
-    accented.length * 2 >= words.length &&
-    (accented.length >= 2 || accented.some((w) => VI_SHARED_STRONG_RE.test(w)))
-  )
-    return 'vi'
+  if (accented.length) {
+    if (words.some((w) => VI_COMMON_WORDS.has(w.toLowerCase()))) return 'vi'
+    if (
+      accented.length * 2 >= words.length &&
+      (accented.length >= 2 || accented.some((w) => VI_SHARED_STRONG_RE.test(w)))
+    )
+      return 'vi'
+  }
   if (/[A-Za-z]/.test(raw)) return 'en'
   return null
 }
@@ -79,18 +90,40 @@ export function kepuTextLimits(lang: ContentLang): { theme: number; title: numbe
   return lang === 'zh' ? { theme: 100, title: 24 } : { theme: 400, title: 80 }
 }
 
+/* 拉丁（及其他非中日文）词字符：字母 / 数字，排除中日文字 */
+function isWordChar(ch: string): boolean {
+  return !!ch && /[\p{L}\p{N}]/u.test(ch) && !CJK_RE.test(ch)
+}
+
 /**
- * 截到 limit 字符以内：中日文按字截；拉丁文字按词边界截（不切半个词，与后端 cut_words 一致），
- * 整段没有空格时才硬截。未超长原样返回。
+ * 截到 limit 字符以内，按文字而不是按内容语言决定截法：
+ * 中日文字逐字截；拉丁词不切半（截点落在词中间时退到词首，与后端 cut_words 一致），
+ * 只有整段就是一个超长词时才硬截。去掉结尾的空白与标点。未超长原样返回。
  */
 export function cutToLimit(text: string, limit: number): string {
   const raw = String(text || '')
   if (raw.length <= limit) return raw
-  if (CJK_RE.test(raw)) return raw.slice(0, limit)
   let head = raw.slice(0, limit)
-  if (!/\s/.test(raw.charAt(limit))) {
-    const lastSpace = head.search(/\s\S*$/)
-    if (lastSpace > 0) head = head.slice(0, lastSpace)
+  if (isWordChar(raw.charAt(limit)) && isWordChar(head.charAt(head.length - 1))) {
+    let i = head.length
+    while (i > 0 && isWordChar(head.charAt(i - 1))) i -= 1
+    if (i > 0) head = head.slice(0, i)
   }
-  return head.replace(/[\s,.;:!?\-–—]+$/, '')
+  return head.replace(/[\s,.;:!?\-–—，。；：！？、]+$/, '')
+}
+
+/**
+ * 切换内容语言后按新上限重新截断已填的主题 / 标题（文案模式正文上限 8000 与语言无关，不动）。
+ * 例：vi 下 350 字主题切到 zh → 截到 100 字（拉丁词不切半）。
+ */
+export function fitKepuDraft(
+  draft: { sourceText: string; title: string },
+  lang: ContentLang,
+  mode: 'theme' | 'script',
+): { sourceText: string; title: string } {
+  const limits = kepuTextLimits(lang)
+  return {
+    sourceText: mode === 'theme' ? cutToLimit(draft.sourceText, limits.theme) : draft.sourceText,
+    title: cutToLimit(draft.title, limits.title),
+  }
 }

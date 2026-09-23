@@ -1,0 +1,89 @@
+{
+ "_comment": "guess_text_lang（backend）与 guessTextLang（frontend）共用的测试向量；改规则时两边一起改。Crème brûlée 这类法语短语按 vi 处理（已知取舍）。",
+ "cases": [
+  [
+   "大禹治水",
+   "zh"
+  ],
+  [
+   "Chàng trai trẻ đi tìm kho báu",
+   "vi"
+  ],
+  [
+   "Vì sao bầu trời có màu xanh",
+   "vi"
+  ],
+  [
+   "Người đi đường",
+   "vi"
+  ],
+  [
+   "Xin chào",
+   "vi"
+  ],
+  [
+   "Tôi là ai",
+   "vi"
+  ],
+  [
+   "Bé",
+   "vi"
+  ],
+  [
+   "Cá voi",
+   "vi"
+  ],
+  [
+   "Có",
+   "vi"
+  ],
+  [
+   "Má tôi",
+   "vi"
+  ],
+  [
+   "Pokémon cho bé",
+   "vi"
+  ],
+  [
+   "Crème brûlée",
+   "vi"
+  ],
+  [
+   "A young man hunts treasure",
+   "en"
+  ],
+  [
+   "Pokémon evolution",
+   "en"
+  ],
+  [
+   "Why café culture spread",
+   "en"
+  ],
+  [
+   "The naïve résumé",
+   "en"
+  ],
+  [
+   "Pokémon AI trainer",
+   "en"
+  ],
+  [
+   "Tai sao bau troi mau xanh",
+   "en"
+  ],
+  [
+   "iPhone 15",
+   "en"
+  ],
+  [
+   "  ",
+   null
+  ],
+  [
+   "123",
+   null
+  ]
+ ]
+}

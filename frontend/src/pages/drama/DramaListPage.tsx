@@ -17,7 +17,7 @@ import Button from '../../components/ui/Button'
 import PillFilter, { type PillOption } from '../../components/ui/PillFilter'
 import { dramaApi, resolveDramaMediaUrl, type DramaProjectListItem } from '../../api/drama'
 import { dialog } from '../../lib/dialog'
-import { contentLangOptions, defaultContentLang, type ContentLang } from '../../lib/contentLang'
+import { CJK_RE, contentLangOptions, defaultContentLang, type ContentLang } from '../../lib/contentLang'
 import { type ImageStyleId } from '../../lib/dramaImageStyles'
 import { formatDramaUsageBrief } from '../../lib/dramaUsage'
 import {
@@ -50,9 +50,6 @@ function formatUpdatedAt(raw?: string) {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
-
-// 标题是否以中日文字为主（竖排只适合 CJK；越南语 / 英文横排）
-const CJK_RE = /[\u3040-\u30ff\u3400-\u9fff]/
 
 // 封面兜底标题（无预览图时）：CJK 去空格竖排，其余保留空格横排由 CSS 截断
 function coverTitleLabel(name: string, max = 12): string {

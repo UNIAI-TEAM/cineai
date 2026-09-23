@@ -1,5 +1,6 @@
 /** 从资产 params 读取/拼装视觉生图提示词（对齐 manju buildCharacterParams + 弱提示检测） */
 import type { DramaAsset } from '../api/drama'
+import { CJK_RE } from './contentLang.ts'
 
 const WEAK_PROMPT = /^(character|scene|prop|material|none|image|audio|video)\s+\S+$/i
 
@@ -16,7 +17,6 @@ const GENERIC_MARKERS = [
 
 /* 生图提示词语言：中文项目用中文标签；越南语 / 英文项目用英文（生图模型对英文理解更好） */
 type PromptLang = 'zh' | 'vi' | 'en'
-const CJK_RE = /[\u3040-\u30ff\u3400-\u9fff]/
 
 // 未显式给出项目语言时按已有文字判断（含中文 → zh；空内容保持中文旧行为）
 function resolvePromptLang(lang: PromptLang | undefined, sample: string): PromptLang {
