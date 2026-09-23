@@ -3,6 +3,10 @@ import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Download, Loader2 } from 'lucide-react'
 import { ApiError, localizeStoredError } from '../lib/apiError'
+import {
+  HOME_CREATION_DRAFT_KEY,
+  peekHomeCreationDraft,
+} from '../lib/homeCreationDraft'
 import BillingErrorNotice from '../components/billing/BillingErrorNotice'
 import AppShell from '../components/layout/AppShell'
 import Button from '../components/ui/Button'
@@ -52,12 +56,34 @@ function ToolWorkspace({ tool: baseTool }: { tool: ToolDef }) {
   const [taskId, setTaskId] = useState('')
   const [status, setStatus] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+  const initializedToolIdRef = useRef<string | null>(null)
   const nav = useNavigate()
   const Icon = tool.icon
 
   useEffect(() => {
-    setText({})
-    setChips(defaultToolChips(tool))
+    if (initializedToolIdRef.current === tool.id) return
+    initializedToolIdRef.current = tool.id
+
+    const nextChips = defaultToolChips(tool)
+    let nextText: Record<string, string> = {}
+    let shouldClearDraft = false
+
+    try {
+      const rawDraft = window.sessionStorage.getItem(HOME_CREATION_DRAFT_KEY)
+      const storedDraft = peekHomeCreationDraft(rawDraft)
+      if (!storedDraft) {
+        shouldClearDraft = rawDraft !== null
+      } else if (storedDraft.toolId === tool.id) {
+        nextText = tool.id === 't2v' ? { script: storedDraft.prompt } : { prompt: storedDraft.prompt }
+        if ('ratio' in nextChips) nextChips.ratio = storedDraft.ratio
+        shouldClearDraft = true
+      }
+    } catch {
+      shouldClearDraft = false
+    }
+
+    setText(nextText)
+    setChips(nextChips)
     setFiles([])
     setPreviews([])
     setBusy(false)
@@ -66,6 +92,14 @@ function ToolWorkspace({ tool: baseTool }: { tool: ToolDef }) {
     setPreviewUrl('')
     setTaskId('')
     setStatus('')
+
+    if (shouldClearDraft) {
+      try {
+        window.sessionStorage.removeItem(HOME_CREATION_DRAFT_KEY)
+      } catch {
+        // Ignore blocked storage; defaults above still leave the tool usable.
+      }
+    }
   }, [tool.id])
 
   useEffect(() => {
