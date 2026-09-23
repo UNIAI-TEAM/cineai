@@ -5,14 +5,15 @@ import {
   saveRoutingSettings,
   type AdminRoutingSettings,
   type FunctionBindings,
-  type ProviderPatchItem,
 } from "@/api/routing";
+import { draftFromProvider, mergeProviderEdit, toProviderPatch, type ProviderEditOp } from "@/lib/providerRouting";
 
 /** Tải cấu hình routing; giữ bản nháp gán chức năng; lưu provider và gán chức năng tách riêng */
 export function useRoutingSettings() {
   /*
    * data: cấu hình đã lưu; bindings: bản nháp gán chức năng; dirty: nháp khác bản đã lưu
    * loading / saving: trạng thái tải / lưu gán chức năng; saveError: lỗi lưu gần nhất (tiếng Việt từ backend)
+   * loadError: lỗi tải lần đầu / tải lại (hiện kèm nút Thử lại)
    */
   const [data, setData] = useState<AdminRoutingSettings | null>(null);
   const [bindings, setBindingsState] = useState<FunctionBindings>({ slots: {}, overrides: {} });
@@ -20,9 +21,11 @@ export function useRoutingSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const res = await fetchRoutingSettings();
       setData(res);
@@ -30,7 +33,7 @@ export function useRoutingSettings() {
       setDirty(false);
       setSaveError("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Không tải được cấu hình mô hình");
+      setLoadError(err instanceof Error ? err.message : "Không tải được cấu hình mô hình");
     } finally {
       setLoading(false);
     }
@@ -64,11 +67,19 @@ export function useRoutingSettings() {
     }
   }, [bindings]);
 
-  // Lưu toàn bộ danh sách provider (từ hộp thoại); giữ nháp gán chức năng nếu đang sửa dở
+  // Lưu một thao tác provider (từ hộp thoại): tải lại danh sách mới nhất, áp thao tác rồi PATCH toàn bộ;
+  // giữ nháp gán chức năng nếu đang sửa dở
   const saveProviders = useCallback(
-    async (providers: ProviderPatchItem[]): Promise<string | null> => {
+    async (op: ProviderEditOp): Promise<string | null> => {
       try {
-        const res = await saveRoutingSettings({ providers });
+        const fresh = await fetchRoutingSettings();
+        const next = mergeProviderEdit(fresh.providers.map(draftFromProvider), op);
+        if (typeof next === "string") {
+          setData(fresh);
+          if (!dirty) setBindingsState(fresh.function_bindings);
+          return next;
+        }
+        const res = await saveRoutingSettings({ providers: toProviderPatch(next) });
         setData(res.settings);
         if (!dirty) setBindingsState(res.settings.function_bindings);
         return null;
@@ -79,5 +90,5 @@ export function useRoutingSettings() {
     [dirty],
   );
 
-  return { data, bindings, dirty, loading, saving, saveError, load, setBindings, saveBindings, saveProviders };
+  return { data, bindings, dirty, loading, loadError, saving, saveError, load, setBindings, saveBindings, saveProviders };
 }

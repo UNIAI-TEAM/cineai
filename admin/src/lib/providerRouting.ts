@@ -467,3 +467,18 @@ export function toProviderPatch(drafts: ProviderDraft[]): ProviderPatchItem[] {
     };
   });
 }
+
+/** Một thao tác lưu/xoá provider từ hộp thoại */
+export type ProviderEditOp = { kind: "save"; draft: ProviderDraft } | { kind: "delete"; id: string };
+
+/**
+ * Áp thao tác lên danh sách provider vừa tải lại (tránh ghi đè/xoá provider phiên khác vừa sửa).
+ * Trả danh sách mới, hoặc câu lỗi khi id mới bị trùng / provider đang sửa đã bị xoá.
+ */
+export function mergeProviderEdit(fresh: ProviderDraft[], op: ProviderEditOp): ProviderDraft[] | string {
+  if (op.kind === "delete") return fresh.filter((p) => p.id !== op.id);
+  const exists = fresh.some((p) => p.id === op.draft.id);
+  if (op.draft.is_new) return exists ? `ID '${op.draft.id}' đã tồn tại, hãy chọn ID khác` : [...fresh, op.draft];
+  if (!exists) return "Nhà cung cấp này vừa bị xoá ở phiên khác, hãy tải lại trang";
+  return fresh.map((p) => (p.id === op.draft.id ? op.draft : p));
+}

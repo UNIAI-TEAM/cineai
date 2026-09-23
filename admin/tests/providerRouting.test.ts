@@ -10,6 +10,7 @@ import {
   draftFromProvider,
   inferModelCapability,
   mergeModelIds,
+  mergeProviderEdit,
   modelCapability,
   modelOptionsFor,
   modelUsages,
@@ -268,4 +269,28 @@ test("connectionTestLabel says ark and volc_tts only check the key", () => {
   assert.equal(connectionTestLabel("openai", { ok: true, message: "Kết nối thành công, 12 model" }), "Kết nối thành công, 12 model");
   assert.equal(connectionTestLabel("ark", { ok: true, message: "Kết nối thành công, 17 model" }), "Đã có key (chưa gọi thử nhà cung cấp)");
   assert.equal(connectionTestLabel("volc_tts", { ok: false, message: "Cần API key" }), "Cần API key");
+});
+
+test("mergeProviderEdit applies a save or delete on top of the fresh provider list", () => {
+  const a = draft({ id: "a", name: "A" });
+  const b = draft({ id: "b", name: "B" });
+  const fresh = [a, b];
+  // Sửa: chỉ thay đúng provider đó, giữ nguyên provider khác (kể cả bản mới từ phiên khác)
+  const editedA = { ...a, name: "A2" };
+  assert.deepEqual(mergeProviderEdit(fresh, { kind: "save", draft: editedA }), [editedA, b]);
+  // Thêm mới: nối vào cuối danh sách mới nhất
+  const c = draft({ id: "c", name: "C", is_new: true });
+  assert.deepEqual(mergeProviderEdit(fresh, { kind: "save", draft: c }), [a, b, c]);
+  // Thêm mới trùng id vừa được phiên khác tạo
+  assert.equal(
+    mergeProviderEdit(fresh, { kind: "save", draft: { ...c, id: "b" } }),
+    "ID 'b' đã tồn tại, hãy chọn ID khác",
+  );
+  // Sửa provider vừa bị phiên khác xoá
+  assert.equal(
+    mergeProviderEdit([b], { kind: "save", draft: editedA }),
+    "Nhà cung cấp này vừa bị xoá ở phiên khác, hãy tải lại trang",
+  );
+  // Xoá: chỉ bỏ đúng id, giữ provider khác
+  assert.deepEqual(mergeProviderEdit(fresh, { kind: "delete", id: "a" }), [b]);
 });

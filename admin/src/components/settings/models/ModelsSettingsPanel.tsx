@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { SettingsLoading, SettingsTabShell } from "@/components/settings/SettingsPanel";
 import { FunctionBindingsPanel } from "@/components/settings/models/FunctionBindingsPanel";
 import { ProviderDialog } from "@/components/settings/models/ProviderDialog";
@@ -9,7 +10,6 @@ import {
   BLANK_PRESET,
   draftFromPreset,
   draftFromProvider,
-  toProviderPatch,
   validateBindingsDraft,
   type ProviderDraft,
 } from "@/lib/providerRouting";
@@ -27,6 +27,17 @@ export function ModelsSettingsPanel() {
     [routing.bindings, providers, catalog],
   );
 
+  if (!routing.loading && routing.loadError) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm text-red-600">{routing.loadError}</p>
+        <Button size="sm" variant="outline" onClick={() => void routing.load()}>
+          Thử lại
+        </Button>
+      </div>
+    );
+  }
+
   if (routing.loading || !routing.data) {
     return <SettingsLoading label="Đang tải cấu hình mô hình…" />;
   }
@@ -35,15 +46,14 @@ export function ModelsSettingsPanel() {
   const savedBindings = routing.data.function_bindings;
   const errors = Array.from(new Set([...draftErrors, ...(routing.saveError ? [routing.saveError] : [])]));
 
-  // Lưu một provider: thay/ thêm vào danh sách rồi PATCH toàn bộ
+  // Lưu một provider: hook áp thay đổi lên danh sách mới nhất rồi PATCH toàn bộ
   function handleSaveProvider(draft: ProviderDraft): Promise<string | null> {
-    const next = draft.is_new ? [...providers, draft] : providers.map((p) => (p.id === draft.id ? draft : p));
-    return routing.saveProviders(toProviderPatch(next));
+    return routing.saveProviders({ kind: "save", draft });
   }
 
-  // Xoá một provider: PATCH danh sách không còn provider đó
+  // Xoá một provider: hook bỏ provider khỏi danh sách mới nhất rồi PATCH
   function handleDeleteProvider(id: string): Promise<string | null> {
-    return routing.saveProviders(toProviderPatch(providers.filter((p) => p.id !== id)));
+    return routing.saveProviders({ kind: "delete", id });
   }
 
   // Nút Lưu của trang: chỉ lưu gán chức năng, chặn khi nháp còn lỗi
