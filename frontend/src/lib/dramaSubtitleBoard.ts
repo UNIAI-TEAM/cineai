@@ -4,8 +4,10 @@ import type { DramaFragment } from '../api/drama'
 import { getActiveLocale } from '../i18n/detect'
 import { interpolate } from '../i18n/lookup'
 import { messages } from '../i18n/messages'
+import type { DramaSubtitleMode } from './dramaSubtitlePrompts'
 
-export type DramaSubtitleMode = 'model' | 'post'
+// 字幕方式类型定义在纯模块 dramaSubtitlePrompts，这里转出保持原有导入路径
+export type { DramaSubtitleMode }
 
 export type DramaSubtitleCue = {
   fragmentId: number

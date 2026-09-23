@@ -3518,6 +3518,22 @@
   color: var(--pf-muted);
 }
 
+/* 切换内容语言后超出新语言上限：计数变红 + 提示条（不自动截断用户内容） */
+.pf-char-count.is-over {
+  color: var(--crimson);
+  font-weight: 600;
+}
+
+.pf-limit-warn {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.5rem;
+  color: var(--crimson);
+  font-size: 0.85rem;
+}
+
 .pf-inspire {
   margin-top: 1rem;
 }

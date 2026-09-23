@@ -12,7 +12,9 @@ import {
   contentLangOptions,
   cutToLimit,
   defaultContentLang,
+  acceptLimitedInput,
   fitKepuDraft,
+  kepuDraftOverflow,
   kepuTextLimits,
   type ContentLang,
 } from '../../lib/contentLang'
@@ -120,6 +122,8 @@ export default function CreateProjectPage() {
   const selected = templates.find((tpl) => tpl.id === templateId)
   // 主题 / 标题长度上限随内容语言（与后端扩写结果一致：zh 100/24，vi / en 400/80）
   const limits = kepuTextLimits(contentLang)
+  // 切换语言后可能超出新语言上限：只提示并阻止创建，不自动截断
+  const overflow = kepuDraftOverflow({ sourceText, title }, contentLang, inputTab)
   const sourceType: InputTab = inputTab
   const inspTotal = Math.ceil(inspirationPool.length / PAGE_SIZE)
   const inspirations = inspirationPool.slice(inspPage * PAGE_SIZE, inspPage * PAGE_SIZE + PAGE_SIZE)
@@ -147,12 +151,11 @@ export default function CreateProjectPage() {
     setError('')
   }
 
-  // 切换内容语言：按新语言上限重新截断已填主题 / 标题（vi 350 字 → zh 100 字）
-  function changeContentLang(lang: ContentLang) {
-    setContentLang(lang)
-    const fitted = fitKepuDraft({ sourceText, title }, lang, sourceType)
-    if (fitted.sourceText !== sourceText) setSourceText(fitted.sourceText)
-    if (fitted.title !== title) setTitle(fitted.title)
+  // 用户点「Cắt cho vừa」：按当前语言上限截断主题 / 标题（切换语言本身不改用户内容）
+  function fitToLimits() {
+    const fitted = fitKepuDraft({ sourceText, title }, contentLang, sourceType)
+    setSourceText(fitted.sourceText)
+    setTitle(fitted.title)
   }
 
   function shuffleInspirations() {
@@ -182,6 +185,7 @@ export default function CreateProjectPage() {
       setError(t('studioCreate.needTemplateAndTopic'))
       return
     }
+    if (overflow.any) return
     setBusy(true)
     setError('')
     try {
@@ -314,7 +318,7 @@ export default function CreateProjectPage() {
                   aria-checked={contentLang === lang}
                   className={['pf-pill', contentLang === lang ? 'lime active' : ''].join(' ')}
                   disabled={busy || aiBusy}
-                  onClick={() => changeContentLang(lang)}
+                  onClick={() => setContentLang(lang)}
                 >
                   {t(`contentLang.names.${lang}`)}
                 </button>
@@ -347,8 +351,12 @@ export default function CreateProjectPage() {
             <textarea
               value={sourceText}
               onChange={(e) => {
-                // 手动输入按上限硬截（同 maxLength），避免吞掉正在输入的词；AI / 灵感填充才按词截
-                const next = e.target.value.slice(0, sourceType === 'theme' ? limits.theme : 8000)
+                // 手动输入按上限硬截（同 maxLength）；已超限（切换语言后）时不再变长，但不截掉已有内容
+                const next = acceptLimitedInput(
+                  sourceText,
+                  e.target.value,
+                  sourceType === 'theme' ? limits.theme : 8000,
+                )
                 setSourceText(next)
                 if (!titleTouched || isDefaultTitle(title, untitled)) {
                   setTitle(deriveTitle(next, untitled, contentLang))
@@ -361,11 +369,25 @@ export default function CreateProjectPage() {
               }
             />
             {sourceType === 'theme' ? (
-              <span className="pf-char-count">{sourceText.length}/{limits.theme}</span>
+              <span className={['pf-char-count', overflow.themeOver ? 'is-over' : ''].join(' ')}>
+                {sourceText.length}/{limits.theme}
+              </span>
             ) : (
               <span className="pf-char-count">{t('studioCreate.charCount', { count: sourceText.length })}</span>
             )}
           </div>
+          {overflow.any ? (
+            <div className="pf-limit-warn" role="alert">
+              <span>
+                {overflow.themeOver
+                  ? t('studioCreate.overLimitTheme', { limit: limits.theme })
+                  : t('studioCreate.overLimitTitle', { limit: limits.title })}
+              </span>
+              <button type="button" className="pf-btn pf-btn-sm" onClick={fitToLimits}>
+                {t('studioCreate.fitToLimit')}
+              </button>
+            </div>
+          ) : null}
 
           <div className="pf-inspire">
             <div className="pf-inspire-head">
@@ -442,7 +464,7 @@ export default function CreateProjectPage() {
             type="button"
             className="pf-btn pf-btn-lime pf-btn-block pf-btn-lg pf-btn-icon"
             style={{ marginTop: '1.25rem' }}
-            disabled={busy || aiBusy || !templateId || !sourceText.trim()}
+            disabled={busy || aiBusy || !templateId || !sourceText.trim() || overflow.any}
             onClick={next}
           >
             {busy ? t('studioCreate.creating') : t('studioCreate.nextStyle')}

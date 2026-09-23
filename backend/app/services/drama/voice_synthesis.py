@@ -48,16 +48,28 @@ def infer_character_speaker(
     )
 
 
-def usable_speaker(speaker: str | None, lang: str | None) -> bool:
-    """调用方给的 speaker 能否直接用：复刻音色 S_* 总是可用；其余须是可识别语言的音色且能读项目语言。"""
-    from app.services.voice_lang import voice_languages, voice_supports_lang
+def usable_speaker(
+    speaker: str | None, lang: str | None, *, voice_prompt: str = "", character_name: str | None = None
+) -> bool:
+    """调用方给的 speaker 能否直接用：
+
+    - 复刻音色 S_* 总是可用；
+    - 其余须是可识别语言的音色、能读项目语言，且描述能判断性别时与音色性别一致
+      （描述被改成「giọng nam trầm」却带着旧推荐的女声 → 不用，按描述重新推断）。
+    """
+    from app.services.voice_lang import voice_gender, voice_languages, voice_supports_lang
+    from app.services.voices import infer_prompt_gender
 
     sp = (speaker or "").strip()
     if not sp:
         return False
     if sp.startswith("S_"):
         return True
-    return voice_languages(sp) is not None and voice_supports_lang(sp, lang)
+    if voice_languages(sp) is None or not voice_supports_lang(sp, lang):
+        return False
+    wanted = infer_prompt_gender(voice_prompt, character_name=normalize_character_name(character_name))
+    have = voice_gender(sp)
+    return not (wanted and have and wanted != have)
 
 
 # 拉丁字母角色名在试听句里的最大长度（按词截断，不切半个词）
@@ -246,11 +258,13 @@ async def synthesize_voice_asset(
                 "voiceDesignError": str(exc)[:500],
             }
     if not audio_url:
-        # 调用方给的 speaker（如「生成音色描述」推荐的）能读项目语言就照用；缺失 / 无效才按同一键重新推断
-        if not usable_speaker(resolved_speaker, lang):
+        # 调用方给的 speaker（如「生成音色描述」推荐的）能读项目语言且性别与描述一致就照用；
+        # 缺失 / 无效 / 性别不符才按同一键（角色资产 id + 名）重新推断
+        character_label = character_asset.name if character_asset is not None else display_name
+        if not usable_speaker(resolved_speaker, lang, voice_prompt=prompt, character_name=character_label):
             resolved_speaker = infer_character_speaker(
                 prompt,
-                character_asset.name if character_asset is not None else display_name,
+                character_label,
                 key_asset_id=character_asset.id if character_asset is not None else asset.id,
                 lang=lang,
             )

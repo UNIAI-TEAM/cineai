@@ -73,3 +73,12 @@ export function voiceKeyForLang<T extends VoiceLike>(
   const next = pool[fnv1a32(current.speaker || current.id) % pool.length]
   return next.speaker || next.id
 }
+
+/**
+ * 「AI 生成音色描述」推荐的 speaker 是否还能用：只有当前描述与推荐时的描述一致（去首尾空白）才返回它；
+ * 用户改过描述（如改成「giọng nam trầm」）就不再发送旧推荐，交给后端按新描述推断。
+ */
+export function speakerForPrompt(prompt: string, suggestedPrompt: string, suggestedSpeaker: string): string {
+  if (!suggestedSpeaker || !prompt.trim()) return ''
+  return prompt.trim() === suggestedPrompt.trim() ? suggestedSpeaker : ''
+}

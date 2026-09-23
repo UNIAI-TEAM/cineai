@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import {
   defaultVoiceForLang,
   fnv1a32,
+  speakerForPrompt,
   voiceKeyForLang,
   voiceSupportsLang,
   voicesForLang,
@@ -67,4 +68,12 @@ test('voiceKeyForLang matches backend voice_for_lang on the shared vectors', () 
   // 分散：不同的中文女声换成越南语时不全是同一个
   const viFemale = new Set(data.vectors.filter(([s, l]) => l === 'vi' && s.startsWith('zh_female_')).map((v) => v[2]))
   assert.ok(viFemale.size >= 2)
+})
+
+test('suggested speaker is dropped once the voice prompt is edited', () => {
+  const suggested = 'Giọng nữ trẻ, trong trẻo'
+  assert.equal(speakerForPrompt(suggested, suggested, 'vi_female_ling_uranus_bigtts'), 'vi_female_ling_uranus_bigtts')
+  assert.equal(speakerForPrompt(`  ${suggested} `, suggested, 'vi_female_ling_uranus_bigtts'), 'vi_female_ling_uranus_bigtts')
+  assert.equal(speakerForPrompt('Giọng nam trầm', suggested, 'vi_female_ling_uranus_bigtts'), '')
+  assert.equal(speakerForPrompt(suggested, suggested, ''), '')
 })

@@ -47,12 +47,16 @@ _VI_COMMON_WORDS = frozenset(
     """.split()
 )
 
+# 常用词捷径的最低信号词占比（十分之几，3 = 30%）；前端 VI_SIGNAL_RATIO 同值
+_VI_SIGNAL_RATIO_TENTHS = 3
+
 
 def _looks_vietnamese(text: str) -> bool:
     """是否越南语（与前端 guessTextLang 同一规则）：
 
     - 含越南语特有字母 → 是；
-    - 含共用声调字母时：出现越南语常用词，或带声调的词占一半以上且（≥2 个或含重音符 / 扬抑符）→ 是；
+    - 含共用声调字母时：出现越南语常用词且越南语信号词（带共用声调字母或常用词）占 ≥30%，
+      或带声调的词占一半以上且（≥2 个或含重音符 / 扬抑符）→ 是；
     - 否则否（「Pokémon evolution」「Why café culture spread」→ 否；「Crème brûlée」→ 是，已知取舍）。
     """
     if _VI_CHARS_RE.search(text):
@@ -61,7 +65,10 @@ def _looks_vietnamese(text: str) -> bool:
     accented = [w for w in words if _VI_SHARED_CHARS_RE.search(w)]
     if not accented:
         return False
-    if any(w.lower() in _VI_COMMON_WORDS for w in words):
+    # 常用词捷径：只在带越南语信号（共用声调字母或常用词）的词占 ≥30% 时生效，
+    # 避免英文句子里夹一个越南地名 / 菜名（Bà Nà Hills、cá kho）被判 vi
+    signals = sum(1 for w in words if _VI_SHARED_CHARS_RE.search(w) or w.lower() in _VI_COMMON_WORDS)
+    if signals * 10 >= len(words) * _VI_SIGNAL_RATIO_TENTHS and any(w.lower() in _VI_COMMON_WORDS for w in words):
         return True
     if len(accented) * 2 < len(words):
         return False

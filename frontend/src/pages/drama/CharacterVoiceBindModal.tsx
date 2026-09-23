@@ -5,6 +5,7 @@ import Modal from '../../components/ui/Modal'
 import { useI18n } from '../../i18n/context'
 import { translate } from '../../i18n/translate'
 import { displayDramaAssetName } from '../../lib/dramaLibraryAssets'
+import { speakerForPrompt } from '../../lib/voiceLang'
 
 export type VoiceBinding = {
   sourceAssetId: number
@@ -127,6 +128,8 @@ export function CharacterVoiceBindModal({
   const [synthBusy, setSynthBusy] = useState(false)
   const [promptBusy, setPromptBusy] = useState(false)
   const [suggestedSpeaker, setSuggestedSpeaker] = useState('')
+  // suggestedPrompt 推荐 speaker 时对应的描述；描述被改动后推荐作废（见 speakerForPrompt）
+  const [suggestedPrompt, setSuggestedPrompt] = useState('')
   const [mode, setMode] = useState<'pick' | 'create'>('pick')
   const promptRequestedRef = useRef(false)
   const { t } = useI18n()
@@ -134,6 +137,8 @@ export function CharacterVoiceBindModal({
   const bound = useMemo(() => readAssetVoiceBinding(asset), [asset])
   const selectedVoice = voiceAssets.find((v) => v.id === selectedId) || null
   const previewUrl = selectedVoice?.url ? resolveDramaMediaUrl(selectedVoice.url) : ''
+  // 当前描述仍是 AI 推荐原文时才沿用推荐 speaker
+  const activeSpeaker = speakerForPrompt(newPrompt, suggestedPrompt, suggestedSpeaker)
 
   // 根据角色设定 AI 生成音色描述
   const fetchVoicePrompt = useCallback(
@@ -147,6 +152,7 @@ export function CharacterVoiceBindModal({
           asset_id: asset.id,
         })
         setNewPrompt(result.voice_prompt || '')
+        setSuggestedPrompt(result.voice_prompt || '')
         setSuggestedSpeaker(result.speaker || '')
       } catch (err) {
         onError(err instanceof Error ? err.message : t('dramaAssets.voiceBind.suggestFailed'))
@@ -164,6 +170,7 @@ export function CharacterVoiceBindModal({
     }
     setSelectedId(bound?.sourceAssetId ?? null)
     setNewPrompt('')
+    setSuggestedPrompt('')
     setSuggestedSpeaker('')
     setNewName(
       translate('dramaAssets.voiceBind.defaultName', {
@@ -207,7 +214,7 @@ export function CharacterVoiceBindModal({
         project_id: projectId,
         name: newName.trim() || undefined,
         voice_prompt: prompt,
-        speaker: suggestedSpeaker || undefined,
+        speaker: activeSpeaker || undefined,
         character_asset_id: asset.id,
       })
       const created = result.asset
@@ -232,7 +239,7 @@ export function CharacterVoiceBindModal({
         project_id: projectId,
         asset_id: voice.id,
         voice_prompt: prompt,
-        speaker: readVoiceSpeaker(voice) || suggestedSpeaker || undefined,
+        speaker: readVoiceSpeaker(voice) || speakerForPrompt(prompt, suggestedPrompt, suggestedSpeaker) || undefined,
         character_asset_id: asset.id,
       })
       if (result.asset) {
@@ -417,10 +424,10 @@ export function CharacterVoiceBindModal({
               placeholder={t('dramaAssets.voiceBind.promptPlaceholder')}
             />
           </label>
-          {suggestedSpeaker ? (
+          {activeSpeaker ? (
             <p className="drama-muted" style={{ margin: 0, fontSize: 12 }}>
               {t('dramaAssets.voiceBind.speakerLabel')}
-              <code>{suggestedSpeaker}</code>
+              <code>{activeSpeaker}</code>
               {t('dramaAssets.voiceBind.speakerHint')}
             </p>
           ) : null}

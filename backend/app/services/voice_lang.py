@@ -47,6 +47,15 @@ def voice_languages(speaker: str | None) -> list[str] | None:
     return None
 
 
+def voice_gender(speaker: str | None) -> str | None:
+    """音色性别：目录优先，否则按 speaker id（zh_female_… / vi_male_…）推断；无法判断返回 None。"""
+    sp = (speaker or "").strip()
+    if not sp:
+        return None
+    preset = _preset_for(sp)
+    return (preset or {}).get("gender") or infer_speaker_gender(VOICE_ALIASES.get(sp, sp))
+
+
 def voice_supports_lang(speaker: str | None, lang: str | None) -> bool:
     """音色是否能读该语言；语言未知或音色语言无法判断时视为支持（不干预）。"""
     if lang not in SUPPORTED_VOICE_LANGS:

@@ -363,3 +363,21 @@ async def test_voice_suggestion_and_synthesis_use_same_speaker(captured, monkeyp
     assert await _synth("zh_female_cancan_uranus_bigtts") == suggested  # 读不了越南语：重推断
     other_vi = next(v for v in ("vi_female_ling_uranus_bigtts", "vi_female_linh_uranus_bigtts") if v != suggested)
     assert await _synth(other_vi) == other_vi  # 用户选的合法越南语音色：照用
+
+
+    # 描述被改成男声、却仍带着旧推荐的女声 speaker：性别不符 → 按新描述重推断（男声）
+    male_prompt = "Giọng nam trầm, nói chậm rãi, uy nghiêm."
+
+    async def _synth_prompt(speaker, voice_prompt):
+        voice_asset = SimpleNamespace(id=99, type="voice", name="Lan音色", params={}, url=None, cover=None)
+        await vs.synthesize_voice_asset(
+            db, user, project, voice_asset, voice_prompt=voice_prompt, speaker=speaker,
+            character_name="Lan", character_asset=character,
+        )
+        return ark.tts.await_args.args[1]
+
+    assert (await _synth_prompt(suggested, male_prompt)).startswith("vi_male_")
+    # 复刻音色 S_* 总是保留
+    assert await _synth_prompt("S_clone9", male_prompt) == "S_clone9"
+    # 描述判断不出性别：合法音色照用
+    assert await _synth_prompt(suggested, "Giọng đọc rõ ràng, tốc độ vừa phải.") == suggested

@@ -2,6 +2,9 @@
 
 import { guessTextLang, type ContentLang } from './contentLang.ts'
 
+/** 本集字幕方式：模型自出（正文带字幕 cue）/ 后期拼接（去掉 cue）；dramaSubtitleBoard 从这里 re-export */
+export type DramaSubtitleMode = 'model' | 'post'
+
 const DRAMA_SUBTITLE_CUE = '【字幕：底部居中·简体中文·逐句轮换·与口播同步】'
 /* 字幕 cue 按台词语言选择（与后端 seedance_segments.DRAMA_SUBTITLE_CUES_BY_LANG 一致）：
    框架是给视频模型的协议标记，保持中文；只把语言词换成越南语 / 英语 */
@@ -110,7 +113,7 @@ export function applySubtitlePromptsToContent(content: string, lang?: ContentLan
 // lang：项目内容语言（project.content_lang）；缺省时才按每条台词文字判断 cue 语言。
 export function applySubtitleModeToFragments<T extends { content?: string | null }>(
   fragments: T[],
-  mode: 'model' | 'post',
+  mode: DramaSubtitleMode,
   lang?: ContentLang | null,
 ): T[] {
   const transform = (content: string) =>

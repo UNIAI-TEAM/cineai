@@ -57,10 +57,13 @@ const VI_COMMON_WORDS = new Set(
    mot nguoi nhung cua duoc`.split(/\s+/),
 )
 
+/* 常用词捷径的最低信号词占比（与后端 _VI_SIGNAL_RATIO_TENTHS = 3 一致） */
+const VI_SIGNAL_RATIO = 0.3
+
 /**
  * 按文本猜语言（与后端 guess_text_lang 同一规则，共用测试向量 backend/tests/fixtures/content_lang_vectors.json）：
  * 含中日文字 → zh；像越南语 → vi；有拉丁字母 → en；否则 null。
- * 像越南语：含越南语特有字母；或含共用声调字母且（出现越南语常用词，或带声调的词占一半以上且 ≥2 个 / 含重音符、扬抑符）。
+ * 像越南语：含越南语特有字母；或含共用声调字母且（出现越南语常用词且信号词占 ≥30%，或带声调的词占一半以上且 ≥2 个 / 含重音符、扬抑符）。
  * 「Pokémon evolution」「café」→ en；「Crème brûlée」→ vi（已知取舍）；不带声调的越南语无法区分 → en。
  */
 export function guessTextLang(text: string): ContentLang | null {
@@ -71,7 +74,10 @@ export function guessTextLang(text: string): ContentLang | null {
   const words = raw.match(/\p{L}+/gu) || []
   const accented = words.filter((w) => VI_SHARED_CHARS_RE.test(w))
   if (accented.length) {
-    if (words.some((w) => VI_COMMON_WORDS.has(w.toLowerCase()))) return 'vi'
+    // 常用词捷径：越南语信号词（共用声调字母或常用词）占 ≥30% 才生效（「Bà Nà Hills」「cá kho」夹在英文句里 → en）
+    const signals = words.filter((w) => VI_SHARED_CHARS_RE.test(w) || VI_COMMON_WORDS.has(w.toLowerCase())).length
+    if (signals >= words.length * VI_SIGNAL_RATIO && words.some((w) => VI_COMMON_WORDS.has(w.toLowerCase())))
+      return 'vi'
     if (
       accented.length * 2 >= words.length &&
       (accented.length >= 2 || accented.some((w) => VI_SHARED_STRONG_RE.test(w)))
@@ -90,31 +96,45 @@ export function kepuTextLimits(lang: ContentLang): { theme: number; title: numbe
   return lang === 'zh' ? { theme: 100, title: 24 } : { theme: 400, title: 80 }
 }
 
-/* 拉丁（及其他非中日文）词字符：字母 / 数字，排除中日文字 */
-function isWordChar(ch: string): boolean {
-  return !!ch && /[\p{L}\p{N}]/u.test(ch) && !CJK_RE.test(ch)
-}
-
 /**
- * 截到 limit 字符以内，按文字而不是按内容语言决定截法：
- * 中日文字逐字截；拉丁词不切半（截点落在词中间时退到词首，与后端 cut_words 一致），
- * 只有整段就是一个超长词时才硬截。去掉结尾的空白与标点。未超长原样返回。
+ * 截到 limit 字符以内（与后端 text_lang.cut_words 一致：「词」= 不含空白的连续片段，只在空白处断开）：
+ * - 截点两侧都是非空白、非中日文字 → 退到该片段开头（don't、3.5、state-of-the-art 整体保留）；
+ * - 中日文字没有空格分词，截点挨着中日文字时逐字截（片段里夹拉丁时退到最后一个中日文字之后）；
+ * - 整段就是一个超长拉丁片段时才硬截。去掉结尾的空白与标点。未超长原样返回（不合并空白）。
  */
 export function cutToLimit(text: string, limit: number): string {
   const raw = String(text || '')
   if (raw.length <= limit) return raw
   let head = raw.slice(0, limit)
-  if (isWordChar(raw.charAt(limit)) && isWordChar(head.charAt(head.length - 1))) {
+  const last = head.charAt(head.length - 1)
+  const next = raw.charAt(limit)
+  const breakable = (ch: string) => /\s/.test(ch) || CJK_RE.test(ch)
+  if (!breakable(last) && !breakable(next)) {
     let i = head.length
-    while (i > 0 && isWordChar(head.charAt(i - 1))) i -= 1
+    while (i > 0 && !breakable(head.charAt(i - 1))) i -= 1
     if (i > 0) head = head.slice(0, i)
   }
   return head.replace(/[\s,.;:!?\-–—，。；：！？、]+$/, '')
 }
 
 /**
- * 切换内容语言后按新上限重新截断已填的主题 / 标题（文案模式正文上限 8000 与语言无关，不动）。
- * 例：vi 下 350 字主题切到 zh → 截到 100 字（拉丁词不切半）。
+ * 主题 / 标题是否超过内容语言的上限（切换语言不会改用户内容，由界面提示并阻止创建）。
+ * 文案模式正文上限 8000 与语言无关，只检查主题模式的 sourceText。
+ */
+export function kepuDraftOverflow(
+  draft: { sourceText: string; title: string },
+  lang: ContentLang,
+  mode: 'theme' | 'script',
+): { themeOver: boolean; titleOver: boolean; any: boolean } {
+  const limits = kepuTextLimits(lang)
+  const themeOver = mode === 'theme' && draft.sourceText.length > limits.theme
+  const titleOver = draft.title.trim().length > limits.title
+  return { themeOver, titleOver, any: themeOver || titleOver }
+}
+
+/**
+ * 「Cắt cho vừa」：用户确认后按当前语言上限截断主题 / 标题（cutToLimit，拉丁词不切半）。
+ * 例：vi 下 350 字主题切到 zh 后点按钮 → 截到 ≤100 字。
  */
 export function fitKepuDraft(
   draft: { sourceText: string; title: string },
@@ -126,4 +146,13 @@ export function fitKepuDraft(
     sourceText: mode === 'theme' ? cutToLimit(draft.sourceText, limits.theme) : draft.sourceText,
     title: cutToLimit(draft.title, limits.title),
   }
+}
+
+/**
+ * 输入框 onChange：超过上限时不接受「变长」的修改，但从不截掉已有内容（切换语言后已超限的文字保留，
+ * 用户可删减或点「Cắt cho vừa」）。返回应写入的新值。
+ */
+export function acceptLimitedInput(prev: string, next: string, limit: number): string {
+  if (next.length <= limit || next.length <= prev.length) return next
+  return prev.length > limit ? prev : next.slice(0, limit)
 }

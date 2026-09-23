@@ -6,7 +6,9 @@ import {
   contentLangOptions,
   cutToLimit,
   defaultContentLang,
+  acceptLimitedInput,
   fitKepuDraft,
+  kepuDraftOverflow,
   guessTextLang,
   kepuTextLimits,
   normalizeContentLang,
@@ -81,9 +83,14 @@ test('cutToLimit never splits a Latin word, even inside Chinese text', () => {
   assert.equal(cutToLimit('iPhone 15 Pro 评测', 8), 'iPhone')
   assert.equal(cutToLimit('中文标题测试一下', 4), '中文标题')
   assert.equal(cutToLimit('Why café culture spread', 12), 'Why café')
+  // 「词」= 不含空白的片段（同后端 cut_words）：撇号 / 小数点 / 连字符都不断开
+  assert.equal(cutToLimit("I don't know", 5), 'I')
+  assert.equal(cutToLimit('Version 3.5 released', 10), 'Version')
+  assert.equal(cutToLimit('A state-of-the-art lab', 10), 'A')
+  assert.equal(cutToLimit('光合作用Photosynthesis', 6), '光合作用')
 })
 
-test('switching content language refits theme and title to the new limits', () => {
+test('fit-to-limit button trims theme and title to the current language limits', () => {
   const theme = 'Vì sao bầu trời có màu xanh '.repeat(12).trim() // ~335 ký tự
   const title = 'Bầu trời xanh và ánh sáng mặt trời qua khí quyển'
   const zh = fitKepuDraft({ sourceText: theme, title }, 'zh', 'theme')
@@ -93,4 +100,22 @@ test('switching content language refits theme and title to the new limits', () =
   assert.deepEqual(fitKepuDraft({ sourceText: theme, title }, 'vi', 'theme'), { sourceText: theme, title })
   // 文案模式正文不受主题上限影响
   assert.equal(fitKepuDraft({ sourceText: theme, title }, 'zh', 'script').sourceText, theme)
+})
+
+test('switching language never trims content: overflow is reported, input only refuses to grow', () => {
+  const theme = 'Vì sao bầu trời có màu xanh '.repeat(12).trim()
+  const title = 'Bầu trời xanh'
+  assert.deepEqual(kepuDraftOverflow({ sourceText: theme, title }, 'zh', 'theme'), {
+    themeOver: true,
+    titleOver: false,
+    any: true,
+  })
+  assert.equal(kepuDraftOverflow({ sourceText: theme, title }, 'vi', 'theme').any, false)
+  assert.equal(kepuDraftOverflow({ sourceText: theme, title }, 'zh', 'script').themeOver, false)
+  // 已超限：删减照收，变长不收，绝不截掉已有内容
+  assert.equal(acceptLimitedInput(theme, theme.slice(0, -1), 100), theme.slice(0, -1))
+  assert.equal(acceptLimitedInput(theme, `${theme}x`, 100), theme)
+  // 未超限时仍按上限硬截（同 maxLength）
+  assert.equal(acceptLimitedInput('abc', 'abcdef', 4), 'abcd')
+  assert.equal(acceptLimitedInput('abc', 'abcd', 4), 'abcd')
 })

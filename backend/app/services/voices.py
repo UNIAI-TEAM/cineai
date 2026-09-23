@@ -327,6 +327,20 @@ def resolve_speaker(voice_id: str | None, *, template_preset: str | None = None)
 
 
 # 推断漫剧角色应使用的 TTS speaker（多声线 + 稳定哈希打散同分候选）
+def infer_prompt_gender(voice_prompt: str, *, character_name: str = "") -> str | None:
+    """按音色描述 + 角色名里的性别词判断 male | female；两边打平（含都没有）返回 None。"""
+    prompt = f"{character_name} {voice_prompt or ''}"
+    male_score = sum(1 for k in MALE_HINTS if k in prompt) + len(_LATIN_MALE_HINT_RE.findall(prompt))
+    female_score = sum(1 for k in FEMALE_HINTS if k in prompt) + len(
+        _LATIN_FEMALE_HINT_RE.findall(prompt)
+    )
+    if male_score > female_score:
+        return "male"
+    if female_score > male_score:
+        return "female"
+    return None
+
+
 def infer_drama_speaker_from_prompt(
     voice_prompt: str,
     *,
@@ -340,16 +354,9 @@ def infer_drama_speaker_from_prompt(
     （同一资产 → 同一音色，不同角色分散），不再先挑中文音色再换。
     """
     prompt = f"{character_name} {voice_prompt or ''}"
-    male_score = sum(1 for k in MALE_HINTS if k in prompt) + len(_LATIN_MALE_HINT_RE.findall(prompt))
-    female_score = sum(1 for k in FEMALE_HINTS if k in prompt) + len(
-        _LATIN_FEMALE_HINT_RE.findall(prompt)
+    gender = infer_prompt_gender(voice_prompt, character_name=character_name) or (
+        "male" if asset_id % 2 else "female"
     )
-    if male_score > female_score:
-        gender = "male"
-    elif female_score > male_score:
-        gender = "female"
-    else:
-        gender = "male" if asset_id % 2 else "female"
 
     if lang and lang != "zh":
         from app.services.voice_lang import lang_voice_pool, stable_pick
