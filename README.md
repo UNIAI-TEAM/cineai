@@ -57,8 +57,8 @@ docker compose --env-file deploy/.env.docker up -d
 
 | 服务 | 地址 |
 |------|------|
-| 用户端 | http://localhost:8080 |
-| 管理后台 | http://localhost:8081 |
+| 用户端 | http://localhost:9090 |
+| 管理后台 | http://localhost:9091 |
 | API | http://localhost:8000 |
 | OpenAPI | http://localhost:8000/docs |
 | 健康检查 | http://localhost:8000/api/health |
@@ -89,7 +89,7 @@ admin/           运营后台
 deploy/          环境变量示例、仅中间件 compose、发布说明
 docs/            规范、计费、发布记录
 docker-compose.yml        拉取公开镜像一键启动
-docker-compose.full.yml   从源码构建（开发 / 自建镜像）
+docker-compose.prod.yml   从源码构建（开发 / 自建镜像）
 ```
 
 **源码地址**：https://github.com/UNIAI-TEAM/cineai
@@ -101,7 +101,7 @@ docker-compose.full.yml   从源码构建（开发 / 自建镜像）
 适用于 GitHub 克隆后的自托管。业务镜像已推到阿里云 ACR 公开仓库；Postgres / Redis 用 Docker Hub 官方镜像。
 
 ```
-浏览器 :8080 / :8081
+浏览器 :9090 / :9091
         │  /api  ·  /static
         ▼
    nginx（web / admin-web 镜像）
@@ -129,7 +129,7 @@ docker compose --env-file deploy/.env.docker up -d
 docker compose --env-file deploy/.env.docker ps
 ```
 
-4. 打开 http://localhost:8080 注册；健康检查：
+4. 打开 http://localhost:9090 注册；健康检查：
 
 ```bash
 curl http://localhost:8000/api/health
@@ -143,7 +143,7 @@ curl http://localhost:8000/api/health
 
 ```bash
 cp deploy/.env.docker.example deploy/.env.docker
-docker compose --env-file deploy/.env.docker -f docker-compose.full.yml up -d --build
+docker compose --env-file deploy/.env.docker -f docker-compose.prod.yml up -d --build
 ```
 
 用户端镜像构建时强制 `VITE_API_BASE=`（空字符串），由 nginx 同源反代 `/api` 与 `/static`，不要把本机 `http://127.0.0.1:8000` 打进 dist。
@@ -152,8 +152,8 @@ docker compose --env-file deploy/.env.docker -f docker-compose.full.yml up -d --
 
 | 容器 | 宿主机 | 说明 |
 |------|--------|------|
-| web | 8080 | 用户端 SPA + 反代 API |
-| admin-web | 8081 | 管理端 SPA + 反代 API |
+| web | 9090 | 用户端 SPA + 反代 API |
+| admin-web | 9091 | 管理端 SPA + 反代 API |
 | api | 8000 | FastAPI / OpenAPI |
 | postgres | 15432 | 仅调试用；应用走容器网络 `postgres:5432` |
 | redis | 16379 | 仅调试用；应用走 `redis:6379` |
@@ -169,7 +169,7 @@ docker compose --env-file deploy/.env.docker -f docker-compose.full.yml up -d --
 | `POSTGRES_PASSWORD` | 数据库密码；compose 会用它拼 `DATABASE_URL` |
 | `SECRET_KEY` | JWT 签名，生产必须换成长随机串 |
 | `OPENAI_API_KEY` / `ARK_API_KEY` | OpenAI Key / BytePlus ModelArk Key（两个不同上游，见 [docs/PROVIDERS.md](docs/PROVIDERS.md)） |
-| `PUBLIC_BASE_URL` | 用户访问的站点根，默认 `http://localhost:8080` |
+| `PUBLIC_BASE_URL` | 用户访问的站点根，默认 `http://localhost:9090` |
 | `CORS_ORIGINS` | 浏览器来源，逗号分隔 |
 | `ADMIN_BOOTSTRAP_EMAILS` | 已注册用户提权邮箱 |
 | `ARK_MOCK` | `true` 时用本地 mock 素材，不调上游 |
@@ -200,7 +200,7 @@ docker compose --env-file deploy/.env.docker down -v
 
 ### 生产注意
 
-- 反向代理到 8080 / 8081 时，把 `PUBLIC_BASE_URL` 和 `CORS_ORIGINS` 改成真实域名。
+- 反向代理到 9090 / 9091 时，把 `PUBLIC_BASE_URL` 和 `CORS_ORIGINS` 改成真实域名。
 - 充值为银行转账 + 管理员确认到账，无第三方支付回调；上线前先在管理端填写收款银行信息。
 - API 容器建议保持 `--workers 1`（镜像默认），避免多进程抢任务租约。
 - 本仓库开源路径以 Docker 全栈为准；现网机器部署手册不在公开仓库。
@@ -286,7 +286,7 @@ PRINTFILM 面向创作者与运营：输入主题或剧本，按模板生成分�
 #### 1.3 技术架构
 
 ```
-浏览器 (8080 用户端 / 8081 管理端；开发时 5173 / 5174)
+浏览器 (9090 用户端 / 9091 管理端；开发时 5173 / 5174)
         │  /api  ·  /static
         ▼
    FastAPI :8000
@@ -548,7 +548,7 @@ EPAY_KEY=
 
 ### 8. 系统管理
 
-独立前端。Docker 端口 **8081**，本机开发 **5174**。管理员与用户共用登录接口，需 `role=admin`。
+独立前端。Docker 端口 **9091**，本机开发 **5174**。管理员与用户共用登录接口，需 `role=admin`。
 
 | 路径 | 功能 |
 |------|------|
@@ -634,8 +634,8 @@ curl http://localhost:8000/api/health
 | `DATABASE_URL` | Docker 下由 compose 注入 `postgres:5432` | 异步库 |
 | `DATABASE_URL_SYNC` | 同上 | 同步库 |
 | `REDIS_URL` | Docker：`redis://redis:6379/0` | 缓存 / 找回密码 |
-| `CORS_ORIGINS` | `http://localhost:8080,…8081` | 逗号分隔 |
-| `PUBLIC_BASE_URL` | `http://localhost:8080` | 对外回链根 |
+| `CORS_ORIGINS` | `http://localhost:9090,…9091` | 逗号分隔 |
+| `PUBLIC_BASE_URL` | `http://localhost:9090` | 对外回链根 |
 | `ADMIN_BOOTSTRAP_EMAILS` | （空） | 启动提权邮箱 |
 | `ARK_*` / `OPENAI_*` / `MODEL_*` | 见示例文件 | 模型 |
 | `BILLING_*` / `EPAY_*` | 默认关闭计费 | 钱包与支付 |

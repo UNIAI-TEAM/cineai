@@ -62,7 +62,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "8080:80"
+      - "9090:80"
 
   admin-web:
     image: gcc-registry.cn-hangzhou.cr.aliyuncs.com/gcc/printfilm-admin-web:latest
@@ -71,7 +71,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "8081:80"
+      - "9091:80"
 
 volumes:
   printfilm_pgdata:

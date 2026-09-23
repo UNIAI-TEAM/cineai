@@ -1,6 +1,6 @@
-# PRINTFILM 全栈（本地构建）。推 ACR：acr_push.ps1 -ComposeFile docker-compose.full.yml
-# 启动：cp deploy/.env.docker.example deploy/.env.docker
-#       docker compose --env-file deploy/.env.docker -f docker-compose.full.yml up -d --build
+# PRINTFILM 全栈（本地构建）。推 ACR：acr_push.ps1 -ComposeFile docker-compose.prod.yml
+# 启动：cp deploy/.env.prod.example deploy/.env.prod
+#       docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml up -d --build
 name: printfilm
 
 services:
@@ -36,13 +36,13 @@ services:
       - "16379:6379"
 
   api:
-    image: printfilm-api:latest
+    image: registry-harbor.ubos.vn/cineai/printfilm-api:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
-      - deploy/.env.docker
+      - deploy/.env.prod
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-printfilm}:${POSTGRES_PASSWORD:-change-me-strong-db-password}@postgres:5432/${POSTGRES_DB:-printfilm}
       DATABASE_URL_SYNC: postgresql+psycopg2://${POSTGRES_USER:-printfilm}:${POSTGRES_PASSWORD:-change-me-strong-db-password}@postgres:5432/${POSTGRES_DB:-printfilm}
@@ -58,7 +58,7 @@ services:
       - "8000:8000"
 
   web:
-    image: printfilm-web:latest
+    image: registry-harbor.ubos.vn/cineai/printfilm-web:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -67,10 +67,10 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "8080:80"
+      - "9090:80"
 
   admin-web:
-    image: printfilm-admin-web:latest
+    image: registry-harbor.ubos.vn/cineai/printfilm-admin-web:latest
     build:
       context: ./admin
       dockerfile: Dockerfile
@@ -79,7 +79,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "8081:80"
+      - "9091:80"
 
 volumes:
   printfilm_pgdata:
