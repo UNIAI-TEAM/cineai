@@ -174,7 +174,7 @@ docker compose --env-file deploy/.env.docker -f docker-compose.full.yml up -d --
 | `ADMIN_BOOTSTRAP_EMAILS` | 已注册用户提权邮箱 |
 | `ARK_MOCK` | `true` 时用本地 mock 素材，不调上游 |
 
-密钥也可以启动后再到管理后台 **系统设置 → 模型** 填写，不必写进环境文件。
+密钥也可以启动后再到管理后台 **系统设置** → **Mô hình** 标签页填写，不必写进环境文件。
 
 ### 常用命令
 
@@ -211,7 +211,7 @@ docker compose --env-file deploy/.env.docker down -v
 
 开源版图 / 视频 / 文字**直接对接 OpenAI + BytePlus ModelArk**（不再经 TokenFree 等中转网关，按功能分别配置渠道与模型；架构与限制见 [docs/PROVIDERS.md](docs/PROVIDERS.md)）。视频口播交给 Seedance 自行发挥，不必再配 TTS / 音色。
 
-管理后台 **系统设置 → 模型** 是两栏界面：左栏添加渠道（OpenAI / BytePlus ModelArk / OpenRouter / BytePlus Seed Speech / 自定义 OpenAI 兼容），填 Key、点「测试连接」（Ark、Seed Speech 这一步只确认已填 Key，不会真的调用上游）、勾选启用的模型，在对话框内直接保存；右栏把模型分配到文本 / 图片 / 视频 / 配音 4 个能力槽，需要时再按功能单独覆盖，同一槽内多个模型按权重轮流使用，用页面顶部「保存」按钮统一保存分配结果。换渠道 Base URL 的主机后要重新填 Key；正被分配使用的渠道或模型不能删除。`deploy/.env.docker` 或 `backend/.env` 仅作首次导入（DB 已有 provider 后不再生效）。
+管理后台 **系统设置** → **Mô hình** 标签页是两栏界面：左栏添加渠道（OpenAI / BytePlus ModelArk / OpenRouter / BytePlus Seed Speech / 自定义 OpenAI 兼容），填 Key、点「测试连接」（Ark、Seed Speech 这一步只确认已填 Key，不会真的调用上游）、勾选启用的模型，在对话框内直接保存；右栏把模型分配到文本 / 图片 / 视频 / 配音 4 个能力槽，需要时再按功能单独覆盖，同一槽内多个模型按权重轮流使用，用页面顶部「保存」按钮统一保存分配结果。换渠道 Base URL 的主机后要重新填 Key；正被分配使用的渠道或模型不能删除。`deploy/.env.docker` 或 `backend/.env` 仅作首次导入（DB 已有 provider 后不再生效）。
 
 ### 环境变量
 

@@ -151,7 +151,7 @@ Ví dụ JSON `function_bindings` với 1 slot ảnh 2 model (weight 70/30) + 1 
 
 ### Cấu hình qua trang quản trị
 
-Admin → **Hệ thống → Mô hình** là màn hình 2 cột (`ModelsSettingsPanel`):
+Admin → **系统设置** → tab **"Mô hình"** là màn hình 2 cột (`ModelsSettingsPanel`):
 
 - **Cột trái — Nhà cung cấp** (`ProviderSidebar` + `ProviderDialog`): "+ Thêm nhà cung cấp" mở hộp thoại,
   chọn mẫu (OpenAI, BytePlus ModelArk, OpenRouter, BytePlus Seed Speech, hoặc tự nhập cho endpoint tương
@@ -169,8 +169,8 @@ Admin → **Hệ thống → Mô hình** là màn hình 2 cột (`ModelsSettings
   **Lưu gán chức năng** ở đầu trang (khác với cột trái, lưu ngay trong hộp thoại); nút bị chặn nếu bản nháp
   còn lỗi (model/nhà cung cấp không tồn tại hoặc sai năng lực). Binding trỏ vào nhà cung cấp đang tắt hoặc
   thiếu key vẫn được giữ nguyên, chỉ hiện badge "tạm không dùng được" và không nhận yêu cầu mới.
-- Bảng giá USD theo model (đổi được, dùng để dự tính phí và quyết toán) nằm ở tab **Thanh toán & tỉ giá →
-  mục 5** (`ProviderRatesEditor`, xem `docs/BILLING.md`), không nằm trong tab Mô hình.
+- Bảng giá USD theo model (đổi được, dùng để dự tính phí và quyết toán) nằm ở tab **支付与汇率 → mục "5.
+  Bảng giá model (USD)"** (`ProviderRatesEditor`, xem `docs/BILLING.md`), không nằm trong tab Mô hình.
 
 ### Cấu hình qua curl (tự động hoá)
 
@@ -281,16 +281,18 @@ Checklist cho người vận hành nâng cấp một bản cài đã chạy Toke
 - **Kênh `tokenfree` bị xoá ở lần khởi động đầu tiên** (mục "Seed provider từ `.env`" ở trên), cùng với
   mọi provider có base URL chứa `tokenfree.com`. Cấu hình `logical_models` / `default_models` kiểu cũ
   không còn được đọc.
-- **Tác vụ còn đang chạy lúc deploy** (video đang chờ poll qua kênh TokenFree, hoặc task cũ có
-  `submit_mode == "kie"`) sẽ thất bại với thông báo "Kênh cũ không còn, hãy tạo lại" và được **hoàn tiền
-  tạm giữ** theo luồng quyết toán thường (không mất tiền, nhưng tác vụ phải tạo lại). Nên deploy lúc ít
-  tác vụ, hoặc chờ hàng đợi video trống.
+- **Tác vụ còn đang chạy lúc deploy sẽ thất bại và được hoàn tiền tạm giữ**, theo luồng quyết toán
+  thường (không mất tiền, nhưng tác vụ phải tạo lại). Hai trường hợp, hai thông báo khác nhau: task drama
+  cũ có `submit_mode == "kie"` báo `"Kênh video cũ không còn, hãy tạo lại phân cảnh này"` (`drama/jobs.py:1410`,
+  `drama/generation.py:1665`); một tác vụ video mà `provider_channel_id` trỏ vào kênh đã bị xoá (ví dụ
+  `tokenfree`) thì poll báo `"Không tìm thấy provider của tác vụ"` (`media_gateway.py::fetch_task_once`).
+  Nên deploy lúc ít tác vụ, hoặc chờ hàng đợi video trống.
 - **Cập nhật env trước lần khởi động đầu**: `OPENAI_API_KEY` (+ `OPENAI_BASE_URL`, mặc định
   `https://api.openai.com/v1`), `ARK_API_KEY` (+ `ARK_BASE_URL`, mặc định mới
   `https://ark.ap-southeast.bytepluses.com/api/v3`), `VOLC_TTS_*` nếu dùng Seed Speech. Provider chỉ được
   **seed từ env đúng một lần** — khi DB chưa có provider nào (cờ `app_settings.config_json["providers_seeded"]`,
   xem mục "Seed provider từ `.env`"); sau đó sửa env không còn tác dụng, mọi thay đổi làm ở admin →
-  Mô hình. Env còn trỏ `tokenfree.com` sẽ không được seed, key giữ chỗ cũng bị bỏ qua.
+  **系统设置** → tab **"Mô hình"**. Env còn trỏ `tokenfree.com` sẽ không được seed, key giữ chỗ cũng bị bỏ qua.
 - **`VOLC_TTS_URL` có giá trị mặc định mới**: BytePlus quốc tế
   (`https://voice.ap-southeast-1.bytepluses.com/api/v3/tts/unidirectional`). Bộ key openspeech Trung Quốc
   (Volcengine) phải đặt tường minh `VOLC_TTS_URL=https://openspeech.bytedance.com/api/v3/tts/unidirectional`
