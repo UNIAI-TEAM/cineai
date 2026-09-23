@@ -32,6 +32,7 @@ from app.services.function_router import (
     resolve_function_candidates,
     route_for_channel,
 )
+from app.services.model_routing_config import normalize_model_name
 from app.services.providers import ark_adapter, volc_tts_adapter
 from app.services.providers.ark_adapter import (
     resolve_seedance_i2v_image_role,
@@ -131,6 +132,15 @@ class MediaGateway:
             raise AppError("model.slot_not_configured")
         return cands
 
+    def _mock_binding(self, function_id: str, model: str | None) -> tuple[str, str]:
+        """(kênh, model) ghi vào kết quả mock: model user chọn nếu được phép, không thì binding đầu của chức năng;
+        chưa gán → ("", ""). Chỉ để dòng usage có nhãn model đúng, không gọi upstream."""
+        bindings = allowed_bindings(function_id)
+        mid = normalize_model_name(model or "")
+        hit = next((b for b in bindings if mid and normalize_model_name(b.model) == mid), None)
+        pick = hit or (bindings[0] if bindings else None)
+        return (pick.channel_id, pick.model) if pick else ("", "")
+
     async def _try_candidates(
         self,
         function_id: str,
@@ -185,7 +195,8 @@ class MediaGateway:
             # _write_mock_image trả /static/...; bật OSS thì publish tiếp lên public
             path = storage.local_path_from_url(local)
             url = storage.publish_local(path) if path and path.exists() else local
-            return ImageResult(local_url=url, remote_url=None)
+            channel_id, bound = self._mock_binding(function_id, requested_model)
+            return ImageResult(local_url=url, remote_url=None, channel_id=channel_id, model=bound)
 
         from app.services.seedream_text_soften import (
             compact_seedream_prompt_for_retry,
@@ -311,7 +322,9 @@ class MediaGateway:
         """
         if self.mock:
             digest = hashlib.md5(f"{image_url}:{prompt}".encode()).hexdigest()[:10]
-            return f"{MOCK_TASK_PREFIX}{digest}"
+            task_id = f"{MOCK_TASK_PREFIX}{digest}"
+            self._remember_task_channel(task_id, *self._mock_binding(function_id, model))
+            return task_id
 
         # Seedance cần ảnh https công khai (data URI hay bị từ chối với lỗi khó hiểu)
         image_ref = await self._resolve_image_ref(image_url, prefer_https=True)
@@ -385,7 +398,9 @@ class MediaGateway:
         """Gửi body Seedance đa phương thức (ảnh tham chiếu + reference_audio) theo route của chức năng."""
         if self.mock:
             digest = hashlib.md5(json.dumps(body, sort_keys=True, default=str).encode()).hexdigest()[:10]
-            return f"{MOCK_TASK_PREFIX}{digest}"
+            task_id = f"{MOCK_TASK_PREFIX}{digest}"
+            self._remember_task_channel(task_id, *self._mock_binding(function_id, str(body.get("model") or "")))
+            return task_id
 
         payload = dict(body)
         content = payload.get("content")
@@ -517,12 +532,14 @@ class MediaGateway:
     # ---- Video: truy vấn tác vụ -------------------------------------------
 
     def _mock_task_result(self, task_id: str) -> TaskResult:
-        """Kết quả giả lập cho task id mock (không gọi upstream)."""
+        """Kết quả giả lập cho task id mock (không gọi upstream); kênh/model lấy từ lúc tạo nếu còn nhớ."""
         return TaskResult(
             status="succeeded",
             url=f"/static/mock/video_{task_id[-8:]}.mp4",
             last_frame_url=f"/static/mock/last_{task_id[-8:]}.jpg",
             provider_task_id=task_id,
+            channel_id=self._task_channels.get(task_id, ""),
+            model=self._task_models.get(task_id, ""),
         )
 
     def _poll_route(self, task_id: str, channel_id: str | None) -> ResolvedModelRoute | None:

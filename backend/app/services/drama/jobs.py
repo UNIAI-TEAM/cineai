@@ -42,6 +42,7 @@ from app.services.drama.agents import (
     run_script_summary,
 )
 from app.services.drama.asset_video import generate_asset_video
+from app.services.drama.job_errors import user_job_error
 from app.services.drama.generation import (
     apply_fragment_video_assets,
     build_failed_generation_params,
@@ -245,12 +246,12 @@ async def run_script_summary_job(project_id: int) -> dict[str, Any]:
         except Exception as exc:  # noqa: BLE001
             params = dict(script.params or {})
             params["summary_status"] = "failed"
-            params["summary_error"] = str(exc)[:500]
+            params["summary_error"] = user_job_error(exc)
             params.pop("summary_generating_at", None)
             script.params = params
             await db.commit()
             logger.exception("剧本摘要失败 project_id=%s err=%s", project_id, exc)
-            return {"ok": False, "error": str(exc)[:500]}
+            return {"ok": False, "error": user_job_error(exc)}
 
         script.summary = summary
         params = dict(script.params or {})
@@ -552,11 +553,11 @@ async def run_episode_scripts_job(
         except Exception as exc:  # noqa: BLE001
             params = dict(script.params or {})
             params["episode_content_status"] = "failed"
-            params["episode_content_error"] = str(exc)[:500]
+            params["episode_content_error"] = user_job_error(exc)
             script.params = params
             await db.commit()
             logger.exception("分集剧本失败 project_id=%s err=%s", project_id, exc)
-            return {"ok": False, "error": str(exc)[:500]}
+            return {"ok": False, "error": user_job_error(exc)}
 
 
 async def _run_single_episode_script_job(
@@ -789,7 +790,7 @@ async def _run_single_episode_script_job(
             params["episode_optimize_status"] = "failed"
             params["episode_optimize_number"] = int(episode_number)
             params["episode_optimize_mode"] = mode
-            params["episode_optimize_error"] = str(exc)[:500]
+            params["episode_optimize_error"] = user_job_error(exc)
             params["episode_optimize_assets_created"] = 0
             params["episode_optimize_assets_reused"] = 0
             script.params = params
@@ -801,7 +802,7 @@ async def _run_single_episode_script_job(
                 mode,
                 exc,
             )
-            return {"ok": False, "error": str(exc)[:500]}
+            return {"ok": False, "error": user_job_error(exc)}
 
 
 # ---------- episode fragment plan (LLM) ----------
@@ -972,10 +973,10 @@ async def run_episode_fragment_plan_job(
             if not fallback_rules:
                 params = dict(episode.params or {})
                 params["fragment_plan_status"] = "failed"
-                params["fragment_plan_error"] = str(exc)[:500]
+                params["fragment_plan_error"] = user_job_error(exc)
                 episode.params = params
                 await db.commit()
-                return {"ok": False, "error": str(exc)[:500]}
+                return {"ok": False, "error": user_job_error(exc)}
             drafts = build_fragments_from_episode_body(
                 body,
                 assets,

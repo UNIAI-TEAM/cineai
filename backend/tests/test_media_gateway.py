@@ -268,3 +268,43 @@ async def test_gen_and_wait_video_passes_model(monkeypatch, snapshot):
     monkeypatch.setattr(g, "_resolve_image_ref", _ref)
     local, result = await g.gen_and_wait_video("u", "p", 5, function_id="kepu.video", project_id=1, shot_no=1, model="dreamina-seedance-2-5-260628")
     assert local == "/static/mock/v.mp4" and ark.calls[0][1] == "dreamina-seedance-2-5-260628" and result.channel_id == "byteplus"
+
+
+def _mock_gateway(monkeypatch):
+    """Gateway chạy mock (ARK_MOCK) nhưng vẫn có snapshot routing: không ghi file ảnh giả."""
+    g = mg.MediaGateway(SimpleNamespace(ark_mock=True, ark_image_size="2k", ark_video_poll_timeout=5.0, ark_video_poll_interval=0.0,
+                                        seedance_duration_min=4, seedance_duration_max=30, ffmpeg_path="ffmpeg"))
+    monkeypatch.setattr(mg.MediaGateway, "mock", property(lambda self: True))
+    monkeypatch.setattr(g, "_write_mock_image", lambda prompt, size: "/static/mock/none.png")
+    return g
+
+
+async def test_mock_image_result_carries_bound_model(monkeypatch, snapshot):
+    """B1: kết quả mock ghi model/kênh theo binding để dòng usage có nhãn model đúng."""
+    g = _mock_gateway(monkeypatch)
+    r = await g.gen_image("p", function_id="kepu.image")
+    assert (r.channel_id, r.model) == ("byteplus", "seedream-4-5-251128")
+    r2 = await g.gen_image("p", function_id="kepu.image", model="gpt-image-2")
+    assert (r2.channel_id, r2.model) == ("openai", "gpt-image-2")
+
+
+async def test_mock_image_without_binding_keeps_empty_model(monkeypatch):
+    """Chưa gán slot (mock vì thiếu key): vẫn trả ảnh giả, model để trống."""
+    prev = get_routing_snapshot()
+    _refresh_routing_snapshot([], FunctionBindings())
+    try:
+        r = await _mock_gateway(monkeypatch).gen_image("p", function_id="kepu.image")
+    finally:
+        _refresh_routing_snapshot(prev.channels, prev.function_bindings)
+    assert r.model == "" and r.local_url
+
+
+async def test_mock_video_task_result_carries_bound_model(monkeypatch, snapshot):
+    """B1: tác vụ video mock nhớ model lúc tạo, kết quả poll trả đúng model/kênh."""
+    g = _mock_gateway(monkeypatch)
+    task_id = await g.gen_video_i2v("https://x/a.jpg", "move", 5, function_id="kepu.video")
+    r = await g.fetch_task_once(task_id)
+    assert r.status == "succeeded" and (r.channel_id, r.model) == ("byteplus", "dreamina-seedance-2-5-260628")
+    task2 = await g.gen_video_seedance_body({"content": [], "duration": 5}, function_id="drama.video")
+    r2 = await g.poll_task(task2)
+    assert r2.model == "dreamina-seedance-2-5-260628"
