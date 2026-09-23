@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { applyLocale, detectLocale, type Locale } from './detect'
+import { applyLocale, detectLocale, isLocaleEnabled, type Locale } from './detect'
 import { interpolate, lookupMessage, type TVars } from './lookup'
 import { messages, type Messages } from './messages'
 
@@ -38,6 +38,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [locale, m])
 
   const setLocale = useCallback((next: Locale) => {
+    // 未开放的语言（目前是 zh）不允许切换
+    if (!isLocaleEnabled(next)) return
     applyLocale(next, true)
     setLocaleState(next)
   }, [])

@@ -4,6 +4,12 @@ export type Locale = 'zh' | 'en' | 'vi'
 
 export const LOCALES: Locale[] = ['zh', 'en', 'vi']
 
+/** 界面可选语言：中文暂时关闭（文案保留，恢复时把 'zh' 加回即可） */
+export const ENABLED_LOCALES: Locale[] = ['vi', 'en']
+
+/** 未指定或不可用时的默认语言 */
+export const DEFAULT_LOCALE: Locale = 'vi'
+
 export const LOCALE_STORAGE_KEY = 'printfilm.locale'
 
 export const LOCALE_HTML: Record<Locale, string> = {
@@ -19,18 +25,23 @@ export const LOCALE_DATE: Record<Locale, string> = {
 }
 
 // 当前生效语言（供非 React 工具函数读取）
-let activeLocale: Locale = 'zh'
+let activeLocale: Locale = DEFAULT_LOCALE
 
 // 是否为已支持的语言代码
 export function isLocale(value: unknown): value is Locale {
   return value === 'zh' || value === 'en' || value === 'vi'
 }
 
-// 从 Accept-Language / navigator 映射到 zh / vi / en
+// 是否为当前开放可选的语言
+export function isLocaleEnabled(value: unknown): value is Locale {
+  return isLocale(value) && ENABLED_LOCALES.includes(value)
+}
+
+// 从 Accept-Language / navigator 映射到已开放语言：vi* → vi，其余（含 zh*）→ en
 export function localeFromBrowser(lang?: string): Locale {
   const raw = (lang || '').trim().toLowerCase()
-  if (raw.startsWith('zh')) return 'zh'
   if (raw.startsWith('vi')) return 'vi'
+  if (raw.startsWith('zh') && isLocaleEnabled('zh')) return 'zh'
   return 'en'
 }
 
@@ -38,7 +49,8 @@ export function localeFromBrowser(lang?: string): Locale {
 export function readStoredLocale(): Locale | null {
   try {
     const raw = localStorage.getItem(LOCALE_STORAGE_KEY)
-    return isLocale(raw) ? raw : null
+    // 旧的 zh 偏好在中文关闭期间忽略，改跟浏览器
+    return isLocaleEnabled(raw) ? raw : null
   } catch {
     return null
   }
@@ -48,8 +60,8 @@ export function readStoredLocale(): Locale | null {
 export function detectLocale(): Locale {
   const stored = typeof window === 'undefined' ? null : readStoredLocale()
   if (stored) return stored
-  if (typeof navigator === 'undefined') return 'zh'
-  const hint = navigator.language || navigator.languages?.[0] || 'zh'
+  if (typeof navigator === 'undefined') return DEFAULT_LOCALE
+  const hint = navigator.language || navigator.languages?.[0] || DEFAULT_LOCALE
   return localeFromBrowser(hint)
 }
 
