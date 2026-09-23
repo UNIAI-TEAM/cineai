@@ -6,6 +6,7 @@ from sqlalchemy.orm import aliased
 
 from app.database import get_db
 from app.deps import get_current_admin
+from app.errors import AppError
 from app.models import Order, User
 from app.schemas import AdminOrderActionBody, AdminOrderListOut, AdminOrderOut, PageMeta
 from app.services.billing import topup
@@ -76,6 +77,9 @@ async def confirm_order(
         order = await topup.confirm_order(db, out_trade_no, admin_id=int(admin.id), note=note)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="Không tìm thấy đơn nạp tiền") from exc
+    except AppError:
+        # 保留错误码交给全局处理器，管理端按 code 翻译
+        raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return await _order_out(db, order)
@@ -94,6 +98,9 @@ async def close_order(
         order = await topup.close_order_by_admin(db, out_trade_no, note=note)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="Không tìm thấy đơn nạp tiền") from exc
+    except AppError:
+        # 保留错误码交给全局处理器，管理端按 code 翻译
+        raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return await _order_out(db, order)

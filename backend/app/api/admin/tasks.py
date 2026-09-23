@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.database import get_db
 from app.deps import get_current_admin
+from app.errors import AppError
 from app.models import UsageEvent, User
 from app.schemas import PageMeta
 from app.schemas_tasks import AdminTaskListOut, AdminTaskRunOut, AdminTaskStatsOut, AdminUsageEventBriefOut, TaskRunOut
@@ -120,7 +121,7 @@ async def admin_get_task(
     try:
         task = await get_task_admin(db, task_id)
     except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail="Không tìm thấy tác vụ") from exc
     email = (
         await db.execute(select(User.email).where(User.id == task.requested_by))
     ).scalar_one_or_none()
@@ -138,7 +139,10 @@ async def admin_cancel_task(
     try:
         task = await cancel_task_admin(db, task_id)
     except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail="Không tìm thấy tác vụ") from exc
+    except AppError:
+        # 保留错误码交给全局处理器，管理端按 code 翻译
+        raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     email = (

@@ -228,6 +228,16 @@ def test_frontend_error_translations_match_catalog(locale: str) -> None:
     assert sorted(keys - set(ERRORS)) == [], f"{locale} 有多余的码"
 
 
+ADMIN_ERRORS_FILE = Path(__file__).resolve().parents[2] / "admin" / "src" / "lib" / "apiErrors.ts"
+
+
+def test_admin_error_translations_match_catalog() -> None:
+    """管理端 lib/apiErrors.ts 的越南语表与错误码目录一致。"""
+    keys = set(KEY_RE.findall(ADMIN_ERRORS_FILE.read_text(encoding="utf-8")))
+    assert sorted(set(ERRORS) - keys) == [], "admin 缺少翻译"
+    assert sorted(keys - set(ERRORS)) == [], "admin 有多余的码"
+
+
 def test_drama_api_has_no_chinese_http_detail() -> None:
     """api/drama 下不再直接抛中文 detail 的 HTTPException。"""
     drama_dir = Path(__file__).resolve().parents[1].joinpath("app/api/drama")

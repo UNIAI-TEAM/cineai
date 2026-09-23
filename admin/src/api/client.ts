@@ -1,4 +1,6 @@
+import { translateErrorCode } from "@/lib/apiErrors";
 import { clearAuth, getToken, setCachedUser, setToken, type AdminUser } from "@/lib/auth";
+import { formatMoney } from "@/lib/currency";
 
 export type PageMeta = {
   page: number;
@@ -8,10 +10,14 @@ export type PageMeta = {
 
 type ApiError = {
   detail?: string | { msg?: string }[];
+  code?: string;
+  params?: Record<string, unknown>;
 };
 
-// Parse FastAPI error detail into a string
+// Parse FastAPI error body into a string: mã lỗi đã đăng ký → tiếng Việt, nếu không thì dùng detail
 function errorMessage(data: ApiError, status: number): string {
+  const translated = translateErrorCode(data?.code, data?.params, (fen) => formatMoney(fen));
+  if (translated) return translated;
   const detail = data?.detail;
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail) && detail[0]?.msg) return detail[0].msg;

@@ -56,5 +56,5 @@ async def get_api_user(
 async def get_current_admin(user: User = Depends(get_current_user)) -> User:
     # Require role=admin for /api/admin routes
     if (user.role or "user") != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tài khoản này không có quyền quản trị")
     return user
