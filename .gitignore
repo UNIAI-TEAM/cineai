@@ -91,3 +91,11 @@ docs/brand/boards/
 # SDD scratch (superpowers)
 .superpowers/
 .omx/
+
+# Audio mock sinh lúc chạy (giữ file fixture đã track)
+backend/static/mock/audio_*.mp3
+
+# Ảnh sinh tạm, ảnh chụp màn hình, skill agent cục bộ
+output/
+screenshots/
+.agents/
