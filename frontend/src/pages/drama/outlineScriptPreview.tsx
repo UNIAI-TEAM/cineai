@@ -1,5 +1,5 @@
 /** 大纲页：剧本按场次解析展示 / 分段编辑 / 弹窗预览 */
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import { useI18n, type TFunction } from '../../i18n/context'
@@ -320,11 +320,14 @@ export function OutlineScriptPreview({
   const displayTotalSec = hasShotDuration ? shotStats!.totalSec : estimateTotalSec
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [draft, setDraft] = useState('')
+  // 草稿按哪种界面语言换的标签；保存时用同一语言换回
+  const draftLocaleRef = useRef(locale)
   const [saving, setSaving] = useState(false)
 
   // 进入分段编辑：结构标签换成界面语言
   function startEdit(index: number) {
     setEditingIndex(index)
+    draftLocaleRef.current = locale
     setDraft(toDisplayScript(blocks[index]?.raw || '', locale))
   }
 
@@ -334,7 +337,7 @@ export function OutlineScriptPreview({
     try {
       const next = blocks.map((b, i) =>
         // 保存前换回规范中文标签（后端解析依赖）
-        i === editingIndex ? { ...b, raw: toCanonicalScript(draft, locale).trim() } : b,
+        i === editingIndex ? { ...b, raw: toCanonicalScript(draft, draftLocaleRef.current).trim() } : b,
       )
       await onSaveScenes(joinOutlineSceneBlocks(next))
       setEditingIndex(null)

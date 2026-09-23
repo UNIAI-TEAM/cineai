@@ -494,7 +494,7 @@ export function PaymentSettingsPanel() {
           rows={rates.rows}
           units={rates.data?.units ?? []}
           unpriced={rates.data?.unpriced_models ?? []}
-          usdCny={rates.data?.usd_cny ?? form.billing_usd_cny}
+          usdCny={form.billing_usd_cny > 0 ? form.billing_usd_cny : (rates.data?.usd_cny ?? 0)}
           loading={rates.loading}
           loadError={rates.loadError}
           saveError={rates.saveError}

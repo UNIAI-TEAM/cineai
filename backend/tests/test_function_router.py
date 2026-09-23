@@ -78,3 +78,13 @@ def test_route_for_channel():
     r = fr.route_for_channel("byteplus", "dreamina-seedance-2-5-260628", "video", snapshot=snap)
     assert r and r.protocol == "ark"
     assert fr.route_for_channel("nope", "m", "video", snapshot=snap) is None
+
+
+def test_openai_ark_provider_without_base_url_filtered():
+    """openai/ark thiếu base URL thì không dùng được dù có key; volc_tts chỉ cần key."""
+    no_base = SystemModelChannel(id="openai", name="openai", base_url="", api_key="k", has_api_key=True,
+                                 protocol="openai", models=["gpt-5.6-sol"], enabled=True)
+    assert not fr._channel_ok(no_base)
+    volc = SystemModelChannel(id="volc", name="volc", base_url="", api_key="k", has_api_key=True,
+                              protocol="volc_tts", models=["seed-tts-2.0"], enabled=True)
+    assert fr._channel_ok(volc)

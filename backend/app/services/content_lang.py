@@ -147,7 +147,12 @@ def _project_sample_text(project: Any) -> str:
     parts: list[str] = []
     script = getattr(project, "__dict__", {}).get("script") if project is not None else None
     if script is not None:
-        parts.append(str(getattr(script, "source", "") or ""))
+        from app.services.drama.workflow import CANVAS_SOURCE_MARKER
+
+        source = str(getattr(script, "source", "") or "")
+        # 画布项目的中文占位 source 不代表用户语言
+        if CANVAS_SOURCE_MARKER not in source:
+            parts.append(source)
         summary = getattr(script, "summary", None)
         if isinstance(summary, dict):
             for key in ("synopsis", "seriesTitle", "logline"):

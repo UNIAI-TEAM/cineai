@@ -26,10 +26,10 @@ from app.services.text_lang import cut_words, is_cjk_text
 logger = logging.getLogger(__name__)
 
 
-def _fallback_overlay_title(text: str, shot_no: int) -> str:
+def _fallback_overlay_title(text: str, shot_no: int, lang: str | None = None) -> str:
     """Last resort when LLM omits title — never blind-slice mid-word (e.g. ERP→ER)."""
     if text and not is_cjk_text(text):
-        return _fallback_overlay_title_latin(text, shot_no)
+        return _fallback_overlay_title_latin(text, shot_no, lang)
     raw = re.sub(r"\s+", "", (text or "").strip())
     if not raw:
         return f"场景{shot_no}"
@@ -39,13 +39,13 @@ def _fallback_overlay_title(text: str, shot_no: int) -> str:
     return f"场景{shot_no}"
 
 
-def _fallback_overlay_title_latin(text: str, shot_no: int) -> str:
-    """越南语 / 英文旁白的标题兜底：保留空格，取首个短分句，否则「Cảnh N」。"""
+def _fallback_overlay_title_latin(text: str, shot_no: int, lang: str | None = None) -> str:
+    """越南语 / 英文旁白的标题兜底：保留空格，取首个短分句，否则「Cảnh N」/「Scene N」（lang=en）。"""
     raw = re.sub(r"\s+", " ", text.strip())
     clause = re.split(r"[,.;:!?]", raw, maxsplit=1)[0].strip()
     if 2 <= len(clause) <= 32 and not _looks_truncated_token(clause, raw):
         return clause
-    return f"Cảnh {shot_no}"
+    return f"Scene {shot_no}" if lang == "en" else f"Cảnh {shot_no}"
 
 
 def _fallback_overlay_subtitle(text: str) -> str:
@@ -93,18 +93,19 @@ def _looks_truncated_token(title: str, full_text: str) -> bool:
     return False
 
 
-def _normalize_overlay_title(title: str, text: str, shot_no: int) -> str:
+def _normalize_overlay_title(title: str, text: str, shot_no: int, lang: str | None = None) -> str:
     t = (title or "").strip()
     if not t or _looks_truncated_token(t, text):
-        return _fallback_overlay_title(text, shot_no)
-    return t[:32]
+        return _fallback_overlay_title(text, shot_no, lang)
+    # 越南语 / 英文按词截断，字数上限放宽（中文 32 字的信息量）
+    return t[:32] if is_cjk_text(t) else cut_words(t, 48, ellipsis=False)
 
 
 def _normalize_overlay_subtitle(subtitle: str, text: str) -> str:
     s = (subtitle or "").strip()
     if not s or _looks_truncated_token(s, text):
         return _fallback_overlay_subtitle(text)[:64]
-    return s[:64]
+    return s[:64] if is_cjk_text(s) else cut_words(s, 96, ellipsis=False)
 
 
 def storyboard_name_policy(allow_source_names: bool) -> str:
@@ -366,6 +367,7 @@ async def chat_storyboard(
         duration_min,
         duration_max,
         max_shot_duration,
+        lang=lang,
     )
 
 
@@ -481,6 +483,8 @@ def parse_storyboard(
     duration_min: int,
     duration_max: int,
     max_shot_duration: int,
+    *,
+    lang: str | None = None,
 ) -> StoryboardResult:
     raw = (content or "").strip()
     if not raw:
@@ -511,7 +515,7 @@ def parse_storyboard(
         text = str(item.get("text") or item.get("audio_text") or f"镜头{i}")
         title = str(item.get("title") or item.get("overlay_title") or "").strip()
         subtitle = str(item.get("subtitle") or item.get("overlay_subtitle") or "").strip()
-        title = _normalize_overlay_title(title, text, i)
+        title = _normalize_overlay_title(title, text, i, lang)
         subtitle = _normalize_overlay_subtitle(subtitle, text)
         img = str(item.get("img_prompt") or f"{text}")
         camera = str(item.get("camera", "缓慢横移"))
@@ -563,7 +567,7 @@ async def expand_content(
     topic = (topic or "").strip() or "人工智能如何改变日常生活"
     mode = "script" if mode == "script" else "theme"
     if mock:
-        return mock_expand_content(topic, mode)
+        return mock_expand_content(topic, mode, lang)
 
     if mode == "script":
         system = (
@@ -590,11 +594,13 @@ async def expand_content(
         max_tokens=4096,
         timeout=90.0,
     )
-    return parse_expand_content(content or "{}", topic, mode)
+    return parse_expand_content(content or "{}", topic, mode, lang=lang)
 
 
-def mock_expand_content(topic: str, mode: str) -> dict[str, str]:
-    # 非中文主题给越南语占位（mock 与 LLM 解析失败兜底共用）
+def mock_expand_content(topic: str, mode: str, lang: str | None = None) -> dict[str, str]:
+    # 非中文主题给越南语 / 英文占位（mock 与 LLM 解析失败兜底共用）
+    if lang == "en":
+        return _en_mock_expand_content(topic, mode)
     if not is_cjk_text(topic):
         return _vi_mock_expand_content(topic, mode)
     short = topic[:18].rstrip("？?。.!！") or "科普短片"
@@ -616,7 +622,26 @@ def mock_expand_content(topic: str, mode: str) -> dict[str, str]:
     return {"title": title[:24], "content": content}
 
 
-def parse_expand_content(raw: str, topic: str, mode: str) -> dict[str, str]:
+def _en_mock_expand_content(topic: str, mode: str) -> dict[str, str]:
+    """英文 mock 扩写：mode=script 返回完整口播稿，否则返回一句主题。"""
+    label = cut_words((topic or "").strip().rstrip("?？.!！。"), 60) or "the world around us"
+    title = cut_words(label, 48, ellipsis=False)
+    if mode == "script":
+        content = (
+            f"Have you ever wondered: {label}?\n\n"
+            "In the next three minutes, let's make it clear. "
+            "We'll start with something familiar, then look at the mechanism behind it, "
+            "and finish with an easy-to-remember takeaway.\n\n"
+            "Most people go with their first impression, but what really matters is cause and effect, "
+            "not what shows on the surface.\n\n"
+            "Remember: observe, ask how it works, then check it with an example."
+        )
+    else:
+        content = cut_words(f"{label}: explained with everyday examples, plus the most common misconceptions.", 100)
+    return {"title": title, "content": content}
+
+
+def parse_expand_content(raw: str, topic: str, mode: str, *, lang: str | None = None) -> dict[str, str]:
     text = (raw or "").strip()
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*", "", text)
@@ -626,15 +651,15 @@ def parse_expand_content(raw: str, topic: str, mode: str) -> dict[str, str]:
     except json.JSONDecodeError:
         m = re.search(r"\{[\s\S]*\}", text)
         if not m:
-            return mock_expand_content(topic, mode)
+            return mock_expand_content(topic, mode, lang)
         try:
             data = json.loads(m.group(0))
         except json.JSONDecodeError:
-            return mock_expand_content(topic, mode)
+            return mock_expand_content(topic, mode, lang)
     title = str(data.get("title") or "").strip() or topic[:18]
     content = str(data.get("content") or "").strip()
     if not content:
-        return mock_expand_content(topic, mode)
+        return mock_expand_content(topic, mode, lang)
     # 越南语 / 英文按词截断且放宽长度（同样信息量字符数约为中文的 3–4 倍）
     latin = not is_cjk_text(f"{title}{content}")
     if mode == "theme":

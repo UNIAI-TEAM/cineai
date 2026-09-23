@@ -54,3 +54,16 @@ def test_mock_expand_content_vietnamese():
     assert len(theme["content"]) <= 100
     script = mock_expand_content("Vì sao bầu trời có màu xanh", "script")
     assert "“Vì sao bầu trời có màu xanh”" in script["content"]
+
+
+def test_overlay_title_fallback_english_and_word_cut():
+    text = "Sunlight scatters in the air and the sky looks blue to us every day"
+    assert kepu_text._normalize_overlay_title("", text * 2, 3, "en") == "Scene 3"
+    long_sub = "How sunlight scatters through the atmosphere and makes the daytime sky look blue to everyone on the ground below"
+    out = kepu_text._normalize_overlay_subtitle(long_sub, "")
+    assert len(out) <= 96 and long_sub.startswith(out) and long_sub[len(out)] == " "
+
+
+def test_expand_fallback_follows_english_lang():
+    out = kepu_text.parse_expand_content("not json", "Why is the sky blue", "script", lang="en")
+    assert out["content"].startswith("Have you ever wondered")

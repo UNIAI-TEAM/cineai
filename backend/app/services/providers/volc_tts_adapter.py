@@ -11,6 +11,7 @@ import httpx
 
 from app.schemas_routing import ResolvedModelRoute
 from app.services.providers.base import ProviderNotSupported, TtsRequest, UpstreamError
+from app.services.providers.host_guard import same_host
 
 VOLC_TTS_DEFAULT_URL = "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
 BYTEPLUS_TTS_URL = "https://voice.ap-southeast-1.bytepluses.com/api/v3/tts/unidirectional"
@@ -122,10 +123,14 @@ class VolcTtsAdapter:
             "Content-Type": "application/json",
             "X-Api-Resource-Id": resource,
         }
+        url = route.base_url or settings.volc_tts_url or VOLC_TTS_DEFAULT_URL
         api_key = (route.api_key or "").strip()
         if api_key:
             headers["X-Api-Key"] = api_key
         else:
+            # Cặp app-id/access-key toàn cục chỉ gửi tới host đã cấu hình trong env, không gửi tới base URL lạ
+            if not same_host(url, settings.volc_tts_url or VOLC_TTS_DEFAULT_URL):
+                raise UpstreamError("Máy chủ TTS tuỳ chỉnh cần API key riêng")
             headers["X-Api-App-Id"] = settings.volc_tts_app_id
             headers["X-Api-Access-Key"] = settings.volc_tts_access_key
 
@@ -141,7 +146,6 @@ class VolcTtsAdapter:
         if additions:
             body["req_params"]["additions"] = additions
 
-        url = route.base_url or settings.volc_tts_url or VOLC_TTS_DEFAULT_URL
         async with httpx.AsyncClient(timeout=120.0) as client:
             resp = await client.post(url, headers=headers, json=body)
         if resp.status_code >= 400:

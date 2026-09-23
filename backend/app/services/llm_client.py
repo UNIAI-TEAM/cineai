@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -21,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 # DEFAULT_MAX_TOKENS 分集正文等结构化输出需要足够 completion 空间
 DEFAULT_MAX_TOKENS = 32768
+
+# Model reasoning của OpenAI chính hãng (o1/o3/o4-mini, gpt-5*) trả 400 khi temperature khác 1
+_OPENAI_REASONING_RE = re.compile(r"^(o\d|gpt-5)")
 
 
 class LlmUnavailableError(RuntimeError):
@@ -103,15 +107,17 @@ async def _post_chat(
     # kimi 系列仅允许 temperature=0.6，其它值会 400
     effective_temperature = 0.6 if model.lower().startswith("kimi") else temperature
 
+    official = is_official_openai(base)
     payload: dict[str, Any] = {
         "model": model,
-        "temperature": effective_temperature,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
     }
-    payload["max_completion_tokens" if is_official_openai(base) else "max_tokens"] = max_tokens
+    if not (official and _OPENAI_REASONING_RE.match(model.lower())):
+        payload["temperature"] = effective_temperature
+    payload["max_completion_tokens" if official else "max_tokens"] = max_tokens
     extra = _llm_extra_body(model)
     if extra:
         payload.update(extra)

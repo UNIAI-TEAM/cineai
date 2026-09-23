@@ -25,8 +25,12 @@ def _snapshot(snapshot: Any | None):
 
 
 def _channel_ok(ch: SystemModelChannel) -> bool:
-    """Provider có bật và có đủ thông tin kết nối (hoặc key thô) không."""
-    return ch.enabled and (channel_connection_ready(ch) or bool((ch.api_key or "").strip()))
+    """Provider có bật và có đủ thông tin kết nối không; openai/ark bắt buộc có base URL, volc_tts có thể chỉ cần key."""
+    if not ch.enabled:
+        return False
+    if channel_connection_ready(ch):
+        return True
+    return _protocol(ch) == "volc_tts" and bool((ch.api_key or "").strip())
 
 
 def _protocol(ch: SystemModelChannel) -> str:

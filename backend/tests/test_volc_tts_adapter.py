@@ -70,3 +70,16 @@ async def test_tts_legacy_app_id_headers(monkeypatch):
     await VolcTtsAdapter().tts(_route(api_key=""), base.TtsRequest(text="a", voice="v"))
     _, headers, _ = rec.calls[0]
     assert headers["X-Api-App-Id"] == "app" and headers["X-Api-Access-Key"] == "ak" and "X-Api-Key" not in headers
+
+
+async def test_tts_legacy_credentials_not_sent_to_foreign_host(monkeypatch):
+    """Provider không có key + base URL lạ → không gửi cặp app-id/access-key toàn cục."""
+    import pytest
+    from app.config import get_settings
+    s = get_settings()
+    monkeypatch.setattr(s, "volc_tts_app_id", "app"); monkeypatch.setattr(s, "volc_tts_access_key", "ak")
+    rec = _Recorder(httpx.Response(200, content=_ndjson([b"\x00" * 1200])))
+    monkeypatch.setattr(volc_tts_adapter.httpx, "AsyncClient", rec.client())
+    with pytest.raises(base.UpstreamError):
+        await VolcTtsAdapter().tts(_route(api_key="", base_url="https://evil.example/tts"), base.TtsRequest(text="a", voice="v"))
+    assert rec.calls == []

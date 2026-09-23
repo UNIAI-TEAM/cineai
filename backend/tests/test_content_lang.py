@@ -381,3 +381,13 @@ async def test_voice_suggestion_and_synthesis_use_same_speaker(captured, monkeyp
     assert await _synth_prompt("S_clone9", male_prompt) == "S_clone9"
     # 描述判断不出性别：合法音色照用
     assert await _synth_prompt(suggested, "Giọng đọc rõ ràng, tốc độ vừa phải.") == suggested
+
+
+def test_canvas_placeholder_source_does_not_force_zh():
+    """Dự án canvas cũ: source là câu giữ chỗ tiếng Trung, tiêu đề tiếng Việt → vi."""
+    from types import SimpleNamespace
+    from app.services.content_lang import project_content_lang
+    script = SimpleNamespace(source="自由画布创作项目，稍后在画布中完善故事与资产。", summary=None)
+    project = SimpleNamespace(params={}, title="Chuyện tình mùa hạ")
+    project.__dict__["script"] = script
+    assert project_content_lang(project) == "vi"

@@ -1,5 +1,5 @@
 /** 剧情大纲：左栏分集目录 + 右栏本集创意/摘要/剧本（对齐截图样式） */
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   BookOpen,
@@ -218,6 +218,8 @@ export function OutlineEpisodePanel({
   )
   const [editingSection, setEditingSection] = useState<SectionKey | null>(null)
   const [sectionDraft, setSectionDraft] = useState('')
+  // 草稿按哪种界面语言换的标签；保存时用同一语言换回，避免编辑中途切换语言导致标签无法还原
+  const draftLocaleRef = useRef(locale)
   const [titleDraft, setTitleDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -384,7 +386,7 @@ export function OutlineEpisodePanel({
         if (section === 'creative') return { ...ep, creative: sectionDraft, title: titleDraft || ep.title }
         if (section === 'summary') return { ...ep, summary: sectionDraft, title: titleDraft || ep.title }
         // 剧本正文：编辑框里是界面语言标签，保存前换回规范中文标签
-        return { ...ep, body: toCanonicalScript(sectionDraft, locale), title: titleDraft || ep.title }
+        return { ...ep, body: toCanonicalScript(sectionDraft, draftLocaleRef.current), title: titleDraft || ep.title }
       })
       await saveBodies(next)
       setEditingSection(null)
@@ -554,6 +556,7 @@ export function OutlineEpisodePanel({
   function startEdit(section: SectionKey) {
     if (!selected) return
     setEditingSection(section)
+    draftLocaleRef.current = locale
     setSectionDraft(
       section === 'creative'
         ? selected.creative || ''

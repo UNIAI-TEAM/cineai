@@ -484,6 +484,8 @@ async def patch_admin_routing_settings(
             prev_key = _decrypt_secret(row.api_key_ciphertext or "") if row.api_key_ciphertext else ""
             new_key = str(item.api_key).strip() if item.api_key and str(item.api_key).strip() else ""
             new_base = (item.base_url or "").strip().rstrip("/")
+            if item.protocol in ("openai", "ark") and not new_base:
+                raise ValueError(f"Nhà cung cấp {item.name}: cần Base URL")
             # Giữ key cũ khi đổi host sẽ gửi key tới máy chủ lạ: bắt nhập lại key
             if prev_key and not new_key and not item.clear_api_key and not same_host(new_base, row.base_url or ""):
                 raise ProviderHostChangedError()
