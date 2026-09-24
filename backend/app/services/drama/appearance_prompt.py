@@ -86,3 +86,10 @@ def apply_appearance_to_params(params: dict[str, Any], lang: str | None) -> dict
     canvas["generation"] = gen
     out["canvas"] = canvas
     return out
+
+
+def should_recompose_prompt(asset_type: str | None, patch: dict[str, Any] | None) -> bool:
+    """PATCH tư liệu có cần ghép lại prompt: chỉ nhân vật, và body có appearance hoặc promptManual."""
+    if (asset_type or "").lower() != "character" or not isinstance(patch, dict):
+        return False
+    return "appearance" in patch or "promptManual" in patch

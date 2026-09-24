@@ -132,6 +132,7 @@ ERRORS: dict[str, tuple[int, str]] = {
     "drama.asset_not_found": (404, "资产不存在"),
     "drama.character_asset_not_found": (404, "角色资产不存在"),
     "drama.character_asset_only": (400, "仅支持角色资产"),
+    "drama.appearance_extract_failed": (502, "外形字段拆分失败"),
     "drama.prompt_required": (400, "缺少提示词"),
     "drama.voice_prompt_required": (400, "缺少音色描述"),
     "drama.voice_generate_failed": (500, "音色生成失败，请稍后重试"),

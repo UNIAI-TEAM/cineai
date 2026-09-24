@@ -104,6 +104,7 @@ export const zhErrors = {
     'drama.asset_not_found': '资产不存在',
     'drama.character_asset_not_found': '角色资产不存在',
     'drama.character_asset_only': '仅支持角色资产',
+    'drama.appearance_extract_failed': '外形字段拆分失败，请重试',
     'drama.prompt_required': '请填写提示词',
     'drama.voice_prompt_required': '请填写音色描述',
     'drama.voice_generate_failed': '音色生成失败，请稍后重试',

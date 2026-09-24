@@ -176,7 +176,14 @@ async def estimate_task_fen(db: AsyncSession, task: TaskRun, settings: Settings 
             return _llm_fen("kepu.script", s, snap)
 
     if domain == "drama":
-        if task_type in {"script_summary", "fragment_plan", "agent_chat", "skill_optimize", "voice_prompt"}:
+        if task_type in {
+            "script_summary",
+            "fragment_plan",
+            "agent_chat",
+            "skill_optimize",
+            "voice_prompt",
+            "appearance_extract",
+        }:
             return _llm_fen("drama.script", s, snap)
         if task_type == "episode_script":
             total_eps = int(payload.get("total") or payload.get("episode_count") or 1)

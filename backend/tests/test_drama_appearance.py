@@ -1,12 +1,19 @@
-"""Ngoại hình nhân vật theo trường: chuẩn hóa, ghép prompt, áp vào params."""
+"""Ngoại hình nhân vật theo trường: chuẩn hóa, ghép prompt, áp vào params, AI tách trường."""
 
+import pytest
+
+from app.errors import AppError
+from app.services.drama import appearance_extract
 from app.services.drama.appearance_prompt import (
     APPEARANCE_KEYS,
     appearance_is_empty,
     apply_appearance_to_params,
     compose_appearance_prompt,
     normalize_appearance,
+    should_recompose_prompt,
 )
+from app.services.drama.script_summary_prompt import SCRIPT_SUMMARY_SYSTEM_PROMPT
+from app.services.drama.seed_asset_params import build_character_params
 
 
 def test_normalize_keeps_eight_keys_and_strips():
@@ -67,10 +74,6 @@ def test_apply_noop_when_appearance_empty():
     assert out["visualPrompt"] == "keep me"
 
 
-from app.services.drama.script_summary_prompt import SCRIPT_SUMMARY_SYSTEM_PROMPT
-from app.services.drama.seed_asset_params import build_character_params
-
-
 def test_summary_prompt_asks_for_appearance_fields():
     assert '"appearance"' in SCRIPT_SUMMARY_SYSTEM_PROMPT
     for key in APPEARANCE_KEYS:
@@ -101,3 +104,61 @@ def test_build_character_params_unchanged_without_appearance():
         assert params["visualImage"] == "A young woman in a white ao dai"
         assert "appearance" not in params
         assert "promptManual" not in params
+
+
+def test_should_recompose_only_for_character_with_appearance_keys():
+    assert should_recompose_prompt("character", {"appearance": {"hair": "x"}})
+    assert should_recompose_prompt("Character", {"promptManual": False})
+    assert not should_recompose_prompt("scene", {"appearance": {"hair": "x"}})
+    assert not should_recompose_prompt("character", {"visualPrompt": "x"})
+    assert not should_recompose_prompt("character", None)
+
+
+def test_manual_prompt_survives_later_appearance_edit():
+    params = {"appearance": {"hair": "short"}, "promptManual": True, "visualPrompt": "my own prompt"}
+    params = apply_appearance_to_params({**params, "appearance": {"hair": "long"}}, "vi")
+    assert params["visualPrompt"] == "my own prompt"
+    params = apply_appearance_to_params({**params, "promptManual": False}, "vi")
+    assert params["visualPrompt"] == "Hair: long"
+
+
+class _Asset:
+    id = 7
+    name = "Lan"
+    type = "character"
+    params = {"visualPrompt": "A young woman, 25, long black ponytail, white ao dai"}
+
+
+async def test_extract_normalizes_llm_output(monkeypatch):
+    async def fake_json(system, user, **kwargs):
+        assert "A young woman" in user
+        return {"hair": "long black ponytail", "age": 25, "junk": "x"}
+
+    monkeypatch.setattr(appearance_extract, "drama_chat_json", fake_json)
+    out = await appearance_extract.extract_appearance_fields(_Asset(), "vi")
+    assert tuple(out.keys()) == APPEARANCE_KEYS
+    assert out["hair"] == "long black ponytail"
+    assert out["age"] == "25"
+
+
+async def test_extract_all_empty_raises(monkeypatch):
+    async def fake_json(system, user, **kwargs):
+        return ["not", "a", "dict"]
+
+    monkeypatch.setattr(appearance_extract, "drama_chat_json", fake_json)
+    with pytest.raises(AppError) as err:
+        await appearance_extract.extract_appearance_fields(_Asset(), "vi")
+    assert err.value.code == "drama.appearance_extract_failed"
+
+
+async def test_extract_without_source_text_raises(monkeypatch):
+    class _Empty(_Asset):
+        params = {}
+
+    async def fake_json(*a, **k):
+        raise AssertionError("không được gọi LLM khi không có mô tả")
+
+    monkeypatch.setattr(appearance_extract, "drama_chat_json", fake_json)
+    with pytest.raises(AppError) as err:
+        await appearance_extract.extract_appearance_fields(_Empty(), "vi")
+    assert err.value.code == "drama.appearance_extract_failed"
