@@ -1,8 +1,9 @@
 /** Shared helpers for drama project workspace steps. */
 import type { DramaEpisodeBody, DramaProject, DramaScript } from '../../api/drama'
+import { DEFAULT_MIN_BODY_CHARS } from '../../lib/dramaEpisodeTarget'
 
-/** 与后端 MIN_EPISODE_CONTENT_CHARS 对齐：过短正文视为未完成 */
-export const MIN_EPISODE_BODY_CHARS = 500
+/** 与后端 MIN_EPISODE_CONTENT_CHARS 对齐：过短正文视为未完成（按目标时长的门槛见 lib/dramaEpisodeTarget） */
+export const MIN_EPISODE_BODY_CHARS = DEFAULT_MIN_BODY_CHARS
 export const MIN_EPISODE_CREATIVE_CHARS = 20
 
 export type OutlineDirectoryEpisode = {
@@ -45,13 +46,20 @@ export function isSubstantialEpisodeCreative(creative: string | undefined): bool
   return episodeBodyCharLen(creative) >= MIN_EPISODE_CREATIVE_CHARS
 }
 
-// 是否已有至少一集可用正文
-export function hasSubstantialEpisode(bodies: DramaEpisodeBody[]): boolean {
-  return bodies.some((ep) => isSubstantialEpisodeBody(ep.body))
+// 是否已有至少一集可用正文；minChars 为项目目标时长对应的门槛
+export function hasSubstantialEpisode(
+  bodies: DramaEpisodeBody[],
+  minChars: number = MIN_EPISODE_BODY_CHARS,
+): boolean {
+  return bodies.some((ep) => isSubstantialEpisodeBody(ep.body, minChars))
 }
 
-// 自动流水线仍缺的集数（跳过手动空集）
-export function autoMissingEpisodeCount(bodies: DramaEpisodeBody[], target: number): number {
+// 自动流水线仍缺的集数（跳过手动空集）；minChars 与后端 auto_missing_episode_numbers 一致按项目目标时长
+export function autoMissingEpisodeCount(
+  bodies: DramaEpisodeBody[],
+  target: number,
+  minChars: number = MIN_EPISODE_BODY_CHARS,
+): number {
   const byNumber = new Map<number, DramaEpisodeBody>()
   for (const ep of bodies) {
     const num = ep.episodeNumber || 0
@@ -65,7 +73,7 @@ export function autoMissingEpisodeCount(bodies: DramaEpisodeBody[], target: numb
       missing += 1
       continue
     }
-    if (isSubstantialEpisodeBody(ep.body)) continue
+    if (isSubstantialEpisodeBody(ep.body, minChars)) continue
     if (isManualEpisode(ep)) continue
     missing += 1
   }

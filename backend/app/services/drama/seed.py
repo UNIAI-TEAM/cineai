@@ -1075,6 +1075,24 @@ def _episode_number_of(episode: DramaEpisode) -> int:
         return 0
 
 
+async def load_episode_params_by_number(
+    db: AsyncSession, project_id: int, episode_number: int
+) -> dict[str, Any] | None:
+    # 按集号取已建分集行的 params（单集目标时长覆盖等）；未建行返回 None
+    rows = (
+        await db.execute(select(DramaEpisode.params).where(DramaEpisode.project_id == project_id))
+    ).scalars().all()
+    for params in rows:
+        if not isinstance(params, dict):
+            continue
+        try:
+            if int(params.get("episodeNumber") or 0) == int(episode_number):
+                return params
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
 def _episode_keep_score(episode: DramaEpisode) -> tuple[int, int, int]:
     """优先保留成片多、分镜多、更早创建的分集行。"""
     frags = list(episode.fragments or [])
@@ -1175,7 +1193,10 @@ async def seed_single_episode_from_script(
     item = require_confirmable_episode_body(
         script.episode_content,
         episode_number,
-        min_chars=episode_min_content_chars(project.params),
+        min_chars=episode_min_content_chars(
+            project.params,
+            await load_episode_params_by_number(db, int(project.id), episode_number),
+        ),
     )
     lang = project_content_lang(project)
     title = str(item.get("title") or default_episode_title(episode_number, lang, compact=True))

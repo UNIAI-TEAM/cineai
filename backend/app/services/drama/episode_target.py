@@ -107,6 +107,22 @@ def episode_content_length(target_sec: int) -> tuple[int, int, str]:
     return target_chars, min_chars, scenes
 
 
-def episode_min_content_chars(project_params: dict | None) -> int:
-    # 项目目标时长对应的正文最少字数（完成判定 / 进入分镜门槛）
-    return episode_content_length(resolve_episode_target_sec(None, project_params))[1]
+def episode_min_content_chars(project_params: dict | None, episode_params: dict | None = None) -> int:
+    """
+    正文最少字数（完成判定 / 进入分镜门槛）。
+    单集操作（确认进入分镜、单集重写）传 episode_params，按「分集 → 项目」解析；
+    整剧批量生成与进度统计只看项目设置（此时分集行大多尚未建立）。
+    """
+    return episode_content_length(resolve_episode_target_sec(episode_params, project_params))[1]
+
+
+def fragment_count_range(target_sec: int) -> tuple[int, int] | None:
+    """
+    目标时长 → 预计分镜条数区间 (最少, 最多)，供界面提示；自动模式返回 None（取决于剧本）。
+    单镜 6–15 秒：最少 ceil(目标/15)，最多 min(条数上限, ceil(目标/6))。
+    """
+    if not target_sec:
+        return None
+    max_count, _ = episode_fragment_budget(target_sec)
+    low = max(1, math.ceil(target_sec / 15))
+    return low, max(low, min(max_count, math.ceil(target_sec / 6)))

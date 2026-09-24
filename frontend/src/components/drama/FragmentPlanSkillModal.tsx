@@ -1,9 +1,9 @@
 /** AI 重新分镜确认：可选本次注入的 Agent Skill 与本集目标时长 */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { AgentSkillPicker } from './AgentSkillPicker'
 import { EpisodeTargetChips } from './EpisodeTargetChips'
-import { estimateFragmentCount, type EpisodeTargetSec } from '../../lib/dramaEpisodeTarget'
+import { estimateFragmentRange, formatFragmentRange, type EpisodeTargetSec } from '../../lib/dramaEpisodeTarget'
 import { useAgentSkillSelection } from '../../hooks/useAgentSkillSelection'
 import { useI18n } from '../../i18n/context'
 
@@ -34,11 +34,13 @@ export function FragmentPlanSkillModal({
 }: FragmentPlanSkillModalProps) {
   const { t } = useI18n()
   const [targetSec, setTargetSec] = useState<EpisodeTargetSec | undefined>(initialTargetSec)
-  // 每次打开重置为当前设置
+  // 仅在弹窗由关到开时重置为当前设置；打开期间设置变化不覆盖用户已选
+  const initialTargetRef = useRef(initialTargetSec)
+  initialTargetRef.current = initialTargetSec
   useEffect(() => {
-    if (open) setTargetSec(initialTargetSec)
-  }, [open, initialTargetSec])
-  const shotEstimate = targetSec == null ? 0 : estimateFragmentCount(targetSec, scriptEstimateSec)
+    if (open) setTargetSec(initialTargetRef.current)
+  }, [open])
+  const shotRange = targetSec == null ? null : estimateFragmentRange(targetSec, scriptEstimateSec)
   const { skills, selectedIds, toggleSkill, selectAll, selectNone, uploadSkill, uploading, uploadError } =
     useAgentSkillSelection()
 
@@ -87,11 +89,11 @@ export function FragmentPlanSkillModal({
           <div className="pf-dialog-target-block">
             <div className="pf-dialog-skill-label">{t('dramaProject.target.label')}</div>
             <EpisodeTargetChips value={targetSec} onChange={setTargetSec} />
-            {shotEstimate > 0 ? (
+            {shotRange ? (
               <p className="pf-dialog-target-hint">
                 {targetSec
-                  ? t('dramaProject.target.planHint', { n: shotEstimate })
-                  : t('dramaProject.target.planHintAuto', { n: shotEstimate })}
+                  ? t('dramaProject.target.planHint', { n: formatFragmentRange(shotRange) })
+                  : t('dramaProject.target.planHintAuto', { n: formatFragmentRange(shotRange) })}
               </p>
             ) : null}
           </div>

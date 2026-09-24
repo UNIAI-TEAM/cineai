@@ -77,6 +77,7 @@ from app.services.drama.jobs import (
 from app.config import get_settings
 from app.services.drama.seed import (
     clear_seed_error,
+    load_episode_params_by_number,
     require_confirmable_episode_body,
     seed_assets_from_script,
     seed_episodes_from_script,
@@ -307,7 +308,10 @@ async def confirm_episode_from_script(
         require_confirmable_episode_body(
             project.script.episode_content,
             body.episode_number,
-            min_chars=episode_min_content_chars(project.params),
+            min_chars=episode_min_content_chars(
+                project.params,
+                await load_episode_params_by_number(db, int(project.id), body.episode_number),
+            ),
         )
     except ValueError as exc:
         raise http_exception_for_value_error(exc) from exc

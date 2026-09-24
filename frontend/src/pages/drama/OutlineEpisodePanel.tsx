@@ -56,7 +56,6 @@ function formatOutlineShotDuration(sec: number, t: TFunction): string {
 type EpisodeShotStat = {
   fragmentCount: number
   totalSec: number
-  params: Record<string, unknown>
 }
 
 /** 与后端 _script_body_fingerprint 同算法：sha1(去 CRLF + trim) 前 16 位 */
@@ -279,17 +278,23 @@ export function OutlineEpisodePanel({
   const [localNotice, setLocalNotice] = useState('')
   const [scriptModalOpen, setScriptModalOpen] = useState(false)
   const [episodeCovers, setEpisodeCovers] = useState<Record<number, string>>({})
-  // episodeShotStats 按集号：已切分镜条数/总秒数、分集 params（目标时长覆盖、切分所用剧本指纹）
+  // episodeShotStats 按集号：已切分镜条数/总秒数
   const [episodeShotStats, setEpisodeShotStats] = useState<Record<number, EpisodeShotStat>>({})
-  // 项目级目标时长：决定正文最少字数（与后端确认门槛一致）
-  const projectTargetSec = resolveEpisodeTargetSec(projectParams)
-  const minBodyChars = minEpisodeBodyChars(projectTargetSec)
+  // episodeParamsByNo 按集号：已建分集行的 params（目标时长覆盖、切分所用剧本指纹）
+  const [episodeParamsByNo, setEpisodeParamsByNo] = useState<Record<number, Record<string, unknown>>>({})
+  // 单集目标时长（分集覆盖 → 项目）与对应正文门槛，与后端单集确认/重写一致
+  const targetSecOf = (epNo: number | undefined) =>
+    resolveEpisodeTargetSec(episodeParamsByNo[epNo || 0], projectParams)
+  const minBodyCharsOf = (epNo: number | undefined) => minEpisodeBodyChars(targetSecOf(epNo))
 
   const episodeBodies = parseEpisodeBodies(script)
   const directoryEpisodes = buildOutlineDirectory(episodeBodies, episodeCount)
   const displayEpisodes = mergeDirectoryEpisodeBodies(directoryEpisodes, episodeBodies)
   const selected =
     displayEpisodes.find((ep) => ep.episodeNumber === activeEpisodeNumber) || displayEpisodes[0] || null
+  // 本集目标时长与正文门槛（校验、占位提示、确认进入分镜共用）
+  const selectedTargetSec = targetSecOf(selected?.episodeNumber)
+  const minBodyChars = minBodyCharsOf(selected?.episodeNumber)
 
   useEffect(() => {
     if (!selected) return
@@ -323,9 +328,11 @@ export function OutlineEpisodePanel({
         if (cancelled) return
         const map: Record<number, string> = {}
         const shotMap: Record<number, EpisodeShotStat> = {}
+        const paramsMap: Record<number, Record<string, unknown>> = {}
         for (const ep of rows) {
           const epNo = Number(ep.params?.episodeNumber) || 0
           if (!epNo) continue
+          paramsMap[epNo] = (ep.params as Record<string, unknown>) || {}
           const frags = [...(ep.fragments || [])].sort(
             (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
           )
@@ -335,11 +342,7 @@ export function OutlineEpisodePanel({
               if (Number.isFinite(stored) && stored > 0) return sum + Math.round(stored)
               return sum + sumFragmentContentDuration(f.content || '')
             }, 0)
-            shotMap[epNo] = {
-              fragmentCount: frags.length,
-              totalSec,
-              params: (ep.params as Record<string, unknown>) || {},
-            }
+            shotMap[epNo] = { fragmentCount: frags.length, totalSec }
           }
           const first = frags.find((f) => (f.cover || '').trim() || (f.video || '').trim())
           if (!first) continue
@@ -348,10 +351,12 @@ export function OutlineEpisodePanel({
         }
         setEpisodeCovers(map)
         setEpisodeShotStats(shotMap)
+        setEpisodeParamsByNo(paramsMap)
       } catch {
         if (!cancelled) {
           setEpisodeCovers({})
           setEpisodeShotStats({})
+          setEpisodeParamsByNo({})
         }
       }
     })()
@@ -639,13 +644,12 @@ export function OutlineEpisodePanel({
   }, [storyType, selected, t])
 
   const bodyReady = isSubstantialEpisodeBody(selected?.body, minBodyChars)
-  // 本集目标时长（分集覆盖 → 项目）与剧本估时，供分镜确认弹窗与预览提示
+  // 本集剧本估时与分镜是否过期，供分镜确认弹窗与预览提示
   const selectedShotStat = episodeShotStats[selected?.episodeNumber || 0] || null
-  const selectedTargetSec = resolveEpisodeTargetSec(selectedShotStat?.params, projectParams)
   const selectedScriptSec = useMemo(() => estimateOutlineScriptSec(selected?.body || ''), [selected?.body])
   const selectedShotsStale = useScriptFingerprintMismatch(
     selected?.body || '',
-    String(selectedShotStat?.params?.fragment_source_fp || ''),
+    String(episodeParamsByNo[selected?.episodeNumber || 0]?.fragment_source_fp || ''),
   )
   const charHint = selected
     ? [
@@ -685,7 +689,7 @@ export function OutlineEpisodePanel({
       <ul className="drama-outline-ep-list">
         {directoryEpisodes.map((ep) => {
           const body = displayEpisodes.find((x) => x.episodeNumber === ep.episodeNumber)
-          const ready = isSubstantialEpisodeBody(body?.body, minBodyChars)
+          const ready = isSubstantialEpisodeBody(body?.body, minBodyCharsOf(ep.episodeNumber))
           const active = activeEpisodeNumber === ep.episodeNumber
           const shot = episodeShotStats[ep.episodeNumber || 0]
           const statusLabel = shot && shot.fragmentCount > 0 && shot.totalSec > 0

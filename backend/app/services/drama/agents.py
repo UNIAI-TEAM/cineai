@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.errors import AppError
@@ -17,6 +18,7 @@ from app.services.drama.script_summary_prompt import (
 # 正文过短阈值（汉字量近似用去空白后长度）
 MIN_EPISODE_CONTENT_CHARS = 450
 # 单集目标篇幅随项目目标时长变化，见 episode_target.episode_content_length
+logger = logging.getLogger(__name__)
 # 手动加集标记；自动流水线不会填这些空集
 MANUAL_EPISODE_ORIGIN = "manual"
 # 与创建项目上限对齐
@@ -170,6 +172,24 @@ def _content_length_hint(lang: str | None, target_sec: int | None = None) -> str
             "正文须能在该时长内演完（慢速口播约 3–5 秒一句），宁短勿长"
         )
     return hint
+
+
+def _log_body_length(kind: str, rows: list[dict[str, Any]], lang: str | None, target_sec: int | None) -> None:
+    """记录生成正文实际篇幅 vs 目标（字数/词数），用于校准 episode_content_length 的每秒字数系数。"""
+    target_chars, min_chars, _ = _length_spec(target_sec)
+    for row in rows:
+        body = str(row.get("body") or "")
+        logger.info(
+            "分集正文篇幅 kind=%s ep=%s lang=%s target_sec=%s target_chars=%s min_chars=%s chars=%s words=%s",
+            kind,
+            row.get("episodeNumber"),
+            lang or "zh",
+            target_sec,
+            target_chars,
+            min_chars,
+            _content_char_len(body),
+            len(body.split()),
+        )
 
 
 def _too_short_retry_hint(lang: str | None, target_sec: int | None, tail: str) -> str:
@@ -394,6 +414,7 @@ async def run_episode_body_from_brief(
             row = normalized[0]
             row["creative"] = brief or str(row.get("creative") or "")
             row["summary"] = syn or str(row.get("summary") or "")
+    _log_body_length("brief", [row], lang, target_sec)
     return [row]
 
 
@@ -982,6 +1003,7 @@ async def run_episode_script_batch(
 
     if not normalized:
         raise AppError("drama.llm_empty_output")
+    _log_body_length("batch", normalized, lang, target_sec)
     return normalized
 
 
@@ -1076,6 +1098,7 @@ async def run_episode_script_from_draft(
     if origin == MANUAL_EPISODE_ORIGIN:
         for item in normalized:
             item["origin"] = MANUAL_EPISODE_ORIGIN
+    _log_body_length("draft", normalized, lang, target_sec)
     return normalized
 
 
