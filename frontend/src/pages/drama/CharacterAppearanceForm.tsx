@@ -1,4 +1,4 @@
-/** Form 8 trường ngoại hình nhân vật + nút AI tách trường; chỉ hiển thị/sửa, việc lưu do DramaAssetDetailModal làm */
+/** Form 8 trường ngoại hình nhân vật + nút tách mô tả bằng AI; chỉ hiển thị/sửa, việc lưu do DramaAssetDetailModal làm */
 import { APPEARANCE_KEYS, appearanceIsEmpty, type Appearance, type AppearanceKey } from '../../lib/dramaAppearance'
 import { useI18n } from '../../i18n/context'
 
@@ -8,20 +8,22 @@ type Props = {
   onExtract: () => void
   extracting: boolean
   disabled: boolean
+  // Có mô tả nguồn (ô prompt / visualPrompt / visualImage) để AI tách hay không
+  canExtract: boolean
 }
 
 // Trường dài hiển thị bằng textarea 2 dòng
 const MULTILINE: ReadonlySet<AppearanceKey> = new Set(['outfit', 'style_note'])
 
 // Render form ngoại hình
-export function CharacterAppearanceForm({ value, onChange, onExtract, extracting, disabled }: Props) {
+export function CharacterAppearanceForm({ value, onChange, onExtract, extracting, disabled, canExtract }: Props) {
   const { t } = useI18n()
   const empty = appearanceIsEmpty(value)
   return (
     <section className="drama-appearance-form" aria-label={t('dramaAssets.appearance.title')}>
       <header className="drama-appearance-head">
         <strong>{t('dramaAssets.appearance.title')}</strong>
-        <button type="button" className="pf-btn pf-btn-sm" disabled={disabled || extracting} onClick={onExtract}>
+        <button type="button" className="pf-btn pf-btn-sm" disabled={disabled || extracting || !canExtract} onClick={onExtract}>
           {extracting ? t('dramaAssets.appearance.extracting') : t('dramaAssets.appearance.extract')}
         </button>
       </header>

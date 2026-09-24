@@ -61,7 +61,8 @@ export function useVoiceCatalog({ open, projectId, asset, onBound, onClose, onEr
         character_asset_id: asset.id,
       })
       const created = result.asset
-      if (!created) throw new Error(t('dramaAssets.voiceBind.synthFailed'))
+      // Không có file âm thanh cũng coi như tổng hợp thất bại (giống characterVoiceGenerate)
+      if (!created?.url) throw new Error(t('dramaAssets.voiceBind.synthFailed'))
       addVoiceAsset(created)
       const updated = await dramaApi.updateAsset(asset.id, { params: buildBoundParams(asset, created) })
       onBound(updated)

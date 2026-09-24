@@ -14,6 +14,7 @@ import { DramaImageLightbox } from './DramaImageLightbox'
 import { CharacterAppearanceForm } from './CharacterAppearanceForm'
 import {
   appearanceEqual,
+  appearanceIsEmpty,
   buildAppearanceSave,
   readAppearance,
   readPromptManual,
@@ -104,6 +105,14 @@ export function DramaAssetDetailModal({
   const dirty = promptDirty || appearanceDirty
   const imageVersions = readAssetImageVersions(asset)
   const actionBusy = busy || saving || uploading || Boolean(restoringVersionId)
+  // Tạo ảnh được khi có prompt, hoặc nhân vật đã điền trường ngoại hình (backend ghép prompt khi lưu)
+  const canGenerate = Boolean(promptDraft.trim()) || (isCharacter && !appearanceIsEmpty(appearanceDraft))
+  // Có mô tả nguồn để AI tách trường: ô prompt đang gõ hoặc mô tả đã lưu
+  const assetParams = (asset.params || {}) as Record<string, unknown>
+  const canExtract =
+    Boolean(promptDraft.trim()) ||
+    Boolean(String(assetParams.visualPrompt ?? '').trim()) ||
+    Boolean(String(assetParams.visualImage ?? '').trim())
 
   useEffect(() => {
     if (!open) return
@@ -167,12 +176,21 @@ export function DramaAssetDetailModal({
         })
         onUpdated(updated)
         setPromptDraft(readVisualPrompt(updated))
+        // Lưu xong mà vẫn không có prompt (vd. chỉnh tay đang để trống) thì không xếp hàng tạo ảnh
+        if (!readVisualPrompt(updated).trim()) {
+          onError(t('dramaAssets.detail.promptRequired'))
+          return
+        }
         onGenerate(updated)
       } catch (err) {
         onError(err instanceof Error ? err.message : t('dramaAssets.detail.savePromptFailed'))
       } finally {
         setSaving(false)
       }
+      return
+    }
+    if (!readVisualPrompt(asset).trim()) {
+      onError(t('dramaAssets.detail.promptRequired'))
       return
     }
     onGenerate(asset)
@@ -259,7 +277,7 @@ export function DramaAssetDetailModal({
             <button
               type="button"
               className="pf-btn drama-btn-primary"
-              disabled={actionBusy || !promptDraft.trim()}
+              disabled={actionBusy || !canGenerate}
               onClick={() => void handleGenerate()}
             >
               {busy ? t('dramaAssets.common.generating') : genLabel || t('dramaAssets.imageGen.generate')}
@@ -389,6 +407,7 @@ export function DramaAssetDetailModal({
               onChange={setAppearanceDraft}
               onExtract={() => void handleExtract()}
               extracting={extracting}
+              canExtract={canExtract}
               disabled={actionBusy || saving}
             />
           ) : null}
