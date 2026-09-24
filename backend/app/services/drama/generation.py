@@ -47,7 +47,7 @@ from app.services.drama.seedream_options import (
 )
 from app.services.drama.visual_prompt import resolve_visual_prompt_for_asset
 from app.services.content_lang import project_content_lang
-from app.services.seedance_segments import declare_spoken_language
+from app.services.seedance_segments import build_seedance_production_section, declare_spoken_language
 from app.services.drama.job_errors import gen_progress, with_error_code
 from app.services.drama.naming import default_asset_name
 from app.services.drama.voice_synthesis import build_voice_sample_text, synthesize_voice_asset
@@ -1509,6 +1509,8 @@ class FragmentVideoPrepared:
     generate_audio: bool = True
     content_labels: list[str] | None = None
     model_id: str | None = None
+    # 分镜实际使用的语音模式 dub|native（供后续 TTS 配音任务消费）
+    voice_mode: str = "native"
     # 旧 payload 字段，反序列化仍读取；新任务不再写入
     kie_api_kind: str | None = None
 
@@ -1521,6 +1523,7 @@ async def prepare_fragment_video_for_submit(
     fragment: DramaEpisodeFragment,
     *,
     model_id: str | None = None,
+    voice_mode: str | None = None,
 ) -> FragmentVideoPrepared:
     settings = get_settings()
     prompt = prepare_fragment_content(
@@ -1549,6 +1552,12 @@ async def prepare_fragment_video_for_submit(
             episode.params = ep_params
 
     mid = (model_id or "").strip() or None
+
+    from app.services.drama.voice_mode import VOICE_MODES, resolve_project_voice_mode
+
+    # Chế độ tiếng: task truyền xuống thì dùng, không có thì theo cài đặt dự án
+    mode = voice_mode if voice_mode in VOICE_MODES else resolve_project_voice_mode(project)
+    dub = mode == "dub"
 
     refs = (
         await db.execute(
@@ -1623,6 +1632,7 @@ async def prepare_fragment_video_for_submit(
                 ),
                 # 越南语 / 英语项目：口播行先声明语种（Seedance 原生配音）
                 "spoken_lang": project_content_lang(project),
+                "dub_voice": dub,
             }
         )
         return FragmentVideoPrepared(
@@ -1640,6 +1650,7 @@ async def prepare_fragment_video_for_submit(
                 content=prompt,
             ),
             model_id=mid,
+            voice_mode=mode,
         )
 
     ark = get_ark()
@@ -1660,16 +1671,32 @@ async def prepare_fragment_video_for_submit(
         )
         image_url = still.local_url or ""
 
+    lang = project_content_lang(project)
+    i2v_prompt = declare_spoken_language(prompt, None if dub else lang)
+    if dub:
+        # i2v không có khối ràng buộc âm thanh: thêm luật "chỉ diễn khẩu hình, không phát giọng"
+        i2v_prompt = (
+            build_seedance_production_section(
+                prompt,
+                dub_voice=True,
+                burn_subtitles=resolve_episode_burn_subtitles(episode.params if episode else None),
+                character_intro=resolve_episode_character_intro(episode.params if episode else None),
+                spoken_lang=lang,
+            )
+            + "\n\n"
+            + i2v_prompt
+        )
     return FragmentVideoPrepared(
         submit_mode="i2v",
         image_url=image_url,
-        # i2v 直接提交分镜正文：越南语 / 英语项目的口播行同样先声明语种
-        prompt=declare_spoken_language(prompt, project_content_lang(project)),
+        # i2v 直接提交分镜正文：越南语 / 英语项目的口播行同样先声明语种（dub 模式不声明，避免模型开口）
+        prompt=i2v_prompt,
         duration=duration,
         ratio=ratio,
         resolution=resolution,
         generate_audio=True,
         model_id=mid,
+        voice_mode=mode,
     )
 
 
@@ -1730,6 +1757,7 @@ def serialize_fragment_video_prepared(prepared: FragmentVideoPrepared) -> dict[s
         "generate_audio": prepared.generate_audio,
         "content_labels": prepared.content_labels,
         "model_id": prepared.model_id,
+        "voice_mode": prepared.voice_mode,
         "kie_api_kind": prepared.kie_api_kind,
     }
 
@@ -1762,6 +1790,7 @@ def deserialize_fragment_video_prepared(raw: dict[str, Any]) -> FragmentVideoPre
         generate_audio=bool(raw.get("generate_audio", True)),
         content_labels=labels,
         model_id=str(raw.get("model_id") or "") or None,
+        voice_mode=str(raw.get("voice_mode") or "native"),
         kie_api_kind=str(raw.get("kie_api_kind") or "") or None,
     )
 

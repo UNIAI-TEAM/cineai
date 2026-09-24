@@ -148,6 +148,11 @@ def _split_spoken_speaker(cue: str, body: str) -> tuple[str, str]:
     return head, m.group("text").strip()
 
 
+def split_spoken_speaker(cue: str, body: str) -> tuple[str, str]:
+    """Public：把口播行拆成（说话人段, 台词）；供漫剧配音拆句复用。"""
+    return _split_spoken_speaker(cue, body)
+
+
 def declare_spoken_language(script: str, lang: str | None) -> str:
     """越南语 / 英语项目：对白、旁白、内心独白行改成「说话人用越南语说：{台词}」；zh / 未知语言原样返回。
 
@@ -538,6 +543,7 @@ def build_seedance_production_section(
     segment_script: str,
     *,
     ambient_only: bool = False,
+    dub_voice: bool = False,
     burn_subtitles: bool = True,
     character_intro: bool = True,
     spoken_lang: str | None = None,
@@ -545,6 +551,7 @@ def build_seedance_production_section(
     """组装 Seedance 音频/字幕/BGM 强制约束（科普旁白 / 漫剧画面+对白混排）。
 
     ambient_only：科普后期 TTS 模式——模型只出与画面同步的环境音/动作音效，禁止口播与 BGM。
+    dub_voice：漫剧后期 TTS 配音——台词照常表演口型但不出声，只保留环境音/动作音效与 BGM。
     burn_subtitles=False：成片后再烧 SRT——保留口播，禁止画面内字幕。
     character_intro=False：禁止人物介绍叠字/字卡（与字幕开关独立）。
     spoken_lang：项目内容语言 zh|vi|en；vi / en 追加「口播语言」条目，字幕语言也按它（缺省按文字推断）。
@@ -578,6 +585,33 @@ def build_seedance_production_section(
         "禁止在画面内烧录字幕、标题、水印、字卡或口播文字；"
         "口播仅出声，文字叠字由后期完成。"
     )
+
+    if dub_voice:
+        lines = [
+            "1. 配音：本镜全部【旁白·…】【对白·…】【内心独白·…】台词由后期外部 TTS 配音；"
+            "视频内禁止生成任何人声（对白、旁白、独白、哼唱、呼喊、说话声）。",
+            "2. 表演：【对白·…】段落里说话的角色照常开口说台词——口型随台词自然开合，表情与手势到位，"
+            "节奏按台词长度与时间段，只是不出声；旁白与内心独白段落角色不开口。",
+            (
+                f"3. 字幕：{no_burn}"
+                if not burn_subtitles
+                else (
+                    f"3. 字幕：仅【旁白·…】【对白·…】台词烧录{sub_lang}字幕，底部居中；"
+                    "同一时刻只显示一句，随台词节奏逐句轮换，与台词逐字一致。"
+                )
+            ),
+            f"4. 背景音乐：{bgm_mood}；BGM 音量低于后期人声约 30%。",
+            "5. 音效：必须生成与画面同步的环境音与动作音效（按场景：脚步、风声、雨声、人群底噪、器物碰撞、开关门等），"
+            "层次清楚、音量克制，为后期人声留出空间。",
+        ]
+        if character_intro and "【人物介绍" in (segment_script or ""):
+            lines.append(
+                "6. 人物介绍叠字：【人物介绍·画面叠字·角色身旁】须贴在对应角色身旁短暂出现；"
+                "禁止居中大标题、禁止与字幕抢位；禁止念出介绍全文。"
+            )
+        elif not character_intro:
+            lines.append("6. 人物介绍：本镜禁止任何人物介绍叠字/字卡。")
+        return f"{SEEDANCE_PRODUCTION_SECTION_HEADER}\n" + "\n".join(lines)
 
     if drama_mixed:
         lines = [
