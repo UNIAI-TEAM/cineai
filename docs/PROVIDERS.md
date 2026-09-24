@@ -302,6 +302,14 @@ chỉ ở bước gửi, dữ liệu phân cảnh không đổi) — **chỉ khi
 định cho dự án vi/en, xem `docs/SEEDANCE_2_5.md` mục "后期配音模式" ngay sau §4.3) không khai báo ngôn ngữ
 này: Seedance chỉ ra tiếng môi trường, lời thoại thật lấy từ Seed Speech qua `fragment_dub` bên dưới.
 
+### Danh mục giọng BytePlus vi/en và khóa giọng
+
+- Nguồn: https://docs.byteplus.com/en/docs/byteplusvoice/tts-voice-list (lấy 2026-09-24). Dữ liệu nằm ở `backend/app/services/data/byteplus_tts_voices.json`, sinh bằng `backend/scripts/gen_byteplus_voices.py` từ Phụ lục A của `docs/superpowers/specs/2026-09-24-character-config-design.md`. Mỗi giọng có `name / gender / scenario / description / sample_url` (file mẫu trên CDN BytePlus, nghe thử không tốn phí).
+- Mỗi giọng chỉ đọc một ngôn ngữ. Tiếng Việt có 7 giọng (6 nữ, 1 nam), tiếng Anh 68.
+- `auto_pool`: 13 giọng cũ = `true` (tham gia giọng mặc định và pool thay thế tự động, `/api/voices`); giọng thêm sau = `false` (chỉ xuất hiện ở `GET /api/drama/voices/catalog` để chọn tay). Không đưa giọng mới vào pool vì `stable_pick` theo hash sẽ đổi giọng của nhân vật đang lồng tiếng tự động.
+- Khóa giọng: tư liệu giọng tạo từ tab "Chọn giọng" có `params.speakerLocked = true`. Khi tổng hợp mẫu và khi lồng tiếng (`resolve_bound_speaker`), giọng khóa được dùng nguyên nếu đọc được ngôn ngữ dự án (bỏ qua so khớp giới tính với mô tả, bỏ qua voice design); nếu dự án đã đổi ngôn ngữ thì rơi về luồng tự đoán và ghi log cảnh báo.
+- Frontend: nút "Gắn giọng / Đổi giọng" ở hộp thoại tư liệu nhân vật và hộp thoại gắn giọng chỉ hiện khi cờ riêng `DRAMA_CHARACTER_VOICE_PICK_ENABLED` (`frontend/src/lib/dramaVoiceBinding.ts`) bật, độc lập với cờ cũ `DRAMA_VOICE_BINDING_ENABLED` vẫn đang tắt.
+
 ### Seed Speech (TTS 2.0): endpoint, header, cắt văn bản dài, mã lỗi
 
 `VolcTtsAdapter.tts()` (`backend/app/services/providers/volc_tts_adapter.py`) gọi endpoint v3

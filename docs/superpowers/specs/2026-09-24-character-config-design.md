@@ -124,6 +124,21 @@
 - `generateVoice` lỗi khi chọn giọng → giữ nguyên binding cũ, báo lỗi qua `onError`.
 - Mã lỗi mới thêm vào bảng mã lỗi API (vi/en) theo `docs/superpowers/specs/2026-09-22-api-error-codes-design.md`.
 
+### 3.4 Quyết định khi lập kế hoạch
+
+1. **Ngôn ngữ giá trị `appearance`:** dự án vi/en → AI viết bằng tiếng Anh (giống tiền lệ `visualImage` ở `agents.run_script_summary`, vì model ảnh hiểu tiếng Anh tốt hơn); dự án zh → tiếng Trung. Người dùng gõ ngôn ngữ nào cũng được.
+2. **Catalog endpoint nhận `project_id` thay vì `lang`:** `GET /api/drama/voices/catalog?project_id=` tự suy ngôn ngữ nội dung dự án, trả `{lang, voices}`. Frontend không phải tự đoán ngôn ngữ.
+3. **Mô tả giọng giữ tiếng Anh gốc BytePlus;** không dịch 62 mô tả. Giao diện dịch nhãn giới tính và nhóm (`scenario`). `label_i18n` của 13 giọng cũ giữ nguyên; giọng mới `label_i18n` = tên giọng cho cả 3 ngôn ngữ.
+4. **`list_voices()` bỏ giọng `auto_pool: false`** để trang chọn giọng科普 studio và `voiceKeyForLang` ở frontend không đổi hành vi.
+5. **Dữ liệu 7+68 giọng vi/en chuyển vào `backend/app/services/data/byteplus_tts_voices.json`**, sinh từ Phụ lục A của spec bằng script ở Task 4; `voices.py` đọc file này thay cho tuple khai báo tay.
+6. **Giọng đã khóa bỏ qua "voice design"** (thiết kế giọng Volc) khi tổng hợp mẫu, vì người dùng đã chọn giọng cụ thể.
+7. **Tổng hợp lại (resynth) tư liệu giọng đã khóa giữ khóa** nếu `speaker` gửi lên trùng `params.speaker` hiện có.
+8. Cờ giao diện cũ `DRAMA_VOICE_BINDING_ENABLED = false` (`frontend/src/lib/dramaVoiceBinding.ts`) ẩn mọi lối vào hộp thoại gắn giọng. Thêm cờ riêng `DRAMA_CHARACTER_VOICE_PICK_ENABLED = true` chỉ mở nút "Gắn giọng / Đổi giọng" ở hộp thoại tư liệu nhân vật và hộp thoại gắn giọng (`AssetsStep`, `EpisodeEditPage`). Tab giọng, thư viện giọng, cảnh báo thiếu giọng vẫn theo cờ cũ. Backend `SEEDANCE_ATTACH_REFERENCE_AUDIO = False` nên giọng đã gắn hiện chỉ dùng cho lồng tiếng TTS.
+9. Các hàm gắn giọng (`VoiceBinding`, `readVoicePrompt`, `readAssetVoiceBinding`, `buildBoundParams`) chuyển từ `CharacterVoiceBindModal.tsx` sang `frontend/src/lib/dramaVoiceBinding.ts` để bỏ import vòng.
+10. Giữ 8 giọng tiếng Anh BytePlus ghi "chỉ hỗ trợ unidirectional streaming" trong danh mục vì adapter TTS gọi endpoint `/api/v3/tts/unidirectional`.
+11. `backend/.gitignore` thêm ngoại lệ `!app/services/data/` để file JSON danh mục giọng được commit.
+12. "Làm mới prompt từ kịch bản" (seed refresh) ghi đè `appearance` / `promptManual` bằng dữ liệu kịch bản — đó là thao tác người dùng chủ động chọn tạo lại từ kịch bản.
+
 ## 4. Kiểm thử
 
 Backend (pytest, phần lớn là unit):
