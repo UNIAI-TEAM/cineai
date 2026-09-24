@@ -242,6 +242,10 @@ export function AssetsStep({ projectId, onError }: AssetsStepProps) {
       )
       .map((j) => j.assetId),
   )
+  // 详情弹窗以列表中的最新资产为准（生图轮询/完成只回写列表，避免弹窗停在旧快照）
+  const detailAssetLive = detailAsset
+    ? assets.find((a) => a.id === detailAsset.id) ?? detailAsset
+    : null
   // 未出图：无有效 cover/url，且当前未在队列中
   const pending = filtered.filter((a) => needsImageGeneration(a) && !busyAssetIds.has(a.id))
   const queueBusy = busyAssetIds.size > 0
@@ -1017,12 +1021,12 @@ export function AssetsStep({ projectId, onError }: AssetsStepProps) {
         />
       ) : null}
 
-      {detailAsset && (detailAsset.type || '').toLowerCase() !== 'voice' ? (
+      {detailAssetLive && (detailAssetLive.type || '').toLowerCase() !== 'voice' ? (
         <DramaAssetDetailModal
-          asset={detailAsset}
+          asset={detailAssetLive}
           open
-          busy={busyAssetIds.has(detailAsset.id)}
-          genLabel={genButtonLabel(detailAsset)}
+          busy={busyAssetIds.has(detailAssetLive.id)}
+          genLabel={genButtonLabel(detailAssetLive)}
           onClose={() => setDetailAsset(null)}
           onUpdated={(updated) => {
             setAssets((prev) => (prev ?? []).map((a) => (a.id === updated.id ? updated : a)))
