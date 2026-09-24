@@ -210,6 +210,11 @@ export const viDramaProject = {
       subtitlePost: 'Phụ đề hậu kỳ',
       subtitleModel: 'Phụ đề do mô hình',
       subtitleNote: 'Phụ đề hậu kỳ được ghép sau khi có video; phụ đề do mô hình được in thẳng vào video lúc tạo.',
+      voice: 'Giọng thoại',
+      voiceDub: 'Lồng tiếng TTS',
+      voiceNative: 'Giọng của mô hình video',
+      voiceNote:
+        'Lồng tiếng TTS: video chỉ giữ tiếng môi trường, lời thoại được đọc bằng giọng TTS theo từng nhân vật, phát âm tiếng Việt chuẩn hơn. Đổi xong hãy tạo lại video các cảnh.',
       intro: 'Chữ giới thiệu nhân vật',
       introOff: 'Không hiện',
       introOn: 'Giới thiệu nhân vật',

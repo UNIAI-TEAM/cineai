@@ -210,6 +210,11 @@ export const enDramaProject = {
       subtitlePost: 'Added in post',
       subtitleModel: 'By the model',
       subtitleNote: 'Post subtitles are added after the video is done; model subtitles are burned in during generation.',
+      voice: 'Dialogue voice',
+      voiceDub: 'TTS dubbing',
+      voiceNative: 'Video model voice',
+      voiceNote:
+        'TTS dubbing keeps only ambient sound in the video and reads every line with a per-character TTS voice for clearer pronunciation. Regenerate shot videos after changing this.',
       intro: 'Character intro text',
       introOff: 'No intro text',
       introOn: 'Character intro',

@@ -51,9 +51,13 @@ import {
 import { DramaFragmentClipSpec } from '../../components/drama/DramaFragmentClipSpec'
 import { FragmentPlanSkillModal } from '../../components/drama/FragmentPlanSkillModal'
 import { DramaGenTaskDetail } from '../../components/drama/DramaGenTaskDetail'
+import { FragmentDubPanel } from '../../components/drama/FragmentDubPanel'
+import { mergeServerDubFields } from '../../lib/dramaFragmentDub'
 import { CircleAlert } from 'lucide-react'
 import { useDramaImageGenQueue } from '../../hooks/useDramaImageGenQueue'
 import { useMediaModelsCatalog } from '../../hooks/useMediaModelsCatalog'
+import { useFragmentDubPolling } from '../../hooks/useFragmentDubPolling'
+import { tasksApi } from '../../api/tasks'
 import { reconcileCatalogModel } from '../../lib/mediaModelChoice'
 import { enqueueDramaImageGen } from '../../lib/dramaImageGenQueue'
 import { formatDramaGenError } from '../../lib/dramaGenError'
@@ -205,6 +209,8 @@ function EpisodeEditInner() {
   const reloadRef = useRef<() => Promise<void>>(async () => {})
   const projectParamsRef = useRef<Record<string, unknown>>({})
   const episodeParamsRef = useRef<Record<string, unknown>>({})
+  // dubPollTimersRef 各分镜「重新配音」任务的轮询计时器，切换/离开分集时统一清理
+  const dubPollTimersRef = useRef<Set<ReturnType<typeof setInterval>>>(new Set())
 
   useEffect(() => {
     // Catalog về: model đã bị admin gỡ → Tự động (''); không ghim model mặc định
@@ -759,6 +765,71 @@ function EpisodeEditInner() {
     setPreviewVersionId(null)
   }, [selectedIndex, selected?.id])
 
+  // 离开/切换分集时清空所有「重新配音」轮询计时器，避免泄漏或串到别的分集
+  useEffect(() => {
+    const timers = dubPollTimersRef.current
+    return () => {
+      for (const timer of timers) clearInterval(timer)
+      timers.clear()
+    }
+  }, [eid])
+
+  // 视频生成完成后后端会自动入队配音；这里轮询直到没有分镜还在配音
+  useFragmentDubPolling(eid, fragments, setFragments)
+
+  // 轮询「重新配音」任务直到终态，再按 id 合并配音结果（只取 video/cover/params.dub/voice_mode，保留未保存编辑）
+  function pollDubTask(taskId: number) {
+    const timer: ReturnType<typeof setInterval> = setInterval(async () => {
+      try {
+        const task = await tasksApi.get(taskId)
+        if (!['succeeded', 'failed', 'cancelled'].includes(task.status)) return
+        clearInterval(timer)
+        dubPollTimersRef.current.delete(timer)
+        const ep = await dramaApi.getEpisode(eid)
+        setFragments((prev) => mergeServerDubFields(prev, ep.fragments || []))
+        // 终态后清掉「正在配音…」提示
+        setStatus((cur) => (cur === t('dramaEpisode.page.dubRunning') ? '' : cur))
+        if (task.status === 'failed') {
+          setError(
+            localizeStoredError(task.error_message, task.error_code, task.error_params) ||
+              t('dramaEpisode.page.dubFailed'),
+          )
+        }
+      } catch {
+        /* 轮询请求失败：下次重试 */
+      }
+    }, 3000)
+    dubPollTimersRef.current.add(timer)
+  }
+
+  // 对当前选中分镜重新配音（TTS，不重新生成视频）：入队后轮询任务到终态再刷新
+  async function redubSelected() {
+    if (!selected?.id || selectedIsGenerating) return
+    const ok = await dialog.confirm({
+      title: t('dramaEpisode.page.dubRedoConfirmTitle'),
+      message: t('dramaEpisode.page.dubRedoConfirmMsg'),
+      confirmText: t('dramaEpisode.page.dubRedo'),
+    })
+    if (!ok) return
+    const fragId = selected.id
+    setBusy(true)
+    setError('')
+    try {
+      const result = await dramaApi.dubFragment(fragId)
+      setFragments((prev) =>
+        prev.map((f) =>
+          f.id === fragId ? { ...f, video: result.video, cover: result.cover || f.cover, params: result.params } : f,
+        ),
+      )
+      setStatus(t('dramaEpisode.page.dubRunning'))
+      pollDubTask(result.task_id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('dramaEpisode.page.dubFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   useEffect(() => {
     if (!eid || !pid) return
     setBusy(false)
@@ -1025,6 +1096,9 @@ function EpisodeEditInner() {
                 cover: result.cover || '',
                 params: {
                   ...(f.params || {}),
+                  // voice_mode/dub đổi theo bản được khôi phục (backend trả params mới nhất)
+                  voice_mode: result.params?.voice_mode,
+                  dub: result.params?.dub,
                   video_versions: result.video_versions,
                   lastFrameUrl: result.lastFrameUrl || undefined,
                   generation: {
@@ -1697,6 +1771,13 @@ function EpisodeEditInner() {
             )}
           </div>
           </div>
+
+          <FragmentDubPanel
+            params={selected?.params}
+            hasVideo={selectedHasVideo}
+            disabled={busy || selectedIsGenerating}
+            onRedub={() => void redubSelected()}
+          />
 
           {selectedVersions.length > 0 && selected?.id ? (
             <div className="drama-ep-versions">

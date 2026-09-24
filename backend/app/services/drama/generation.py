@@ -47,7 +47,7 @@ from app.services.drama.seedream_options import (
 )
 from app.services.drama.visual_prompt import resolve_visual_prompt_for_asset
 from app.services.content_lang import project_content_lang
-from app.services.seedance_segments import declare_spoken_language
+from app.services.seedance_segments import build_seedance_production_section, declare_spoken_language
 from app.services.drama.job_errors import gen_progress, with_error_code
 from app.services.drama.naming import default_asset_name
 from app.services.drama.voice_synthesis import build_voice_sample_text, synthesize_voice_asset
@@ -451,7 +451,14 @@ def archive_fragment_video_version(fragment: DramaEpisodeFragment) -> dict[str, 
         "lastFrameUrl": archived_last or last_frame or None,
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "source": "generate",
+        # Chế độ tiếng của bản này: khôi phục lại khi kích hoạt (bản native không được lồng tiếng đè)
+        "voiceMode": str(params.get("voice_mode") or "native"),
     }
+    # Bản đang dùng là bản đã lồng tiếng: lưu kèm video gốc để lồng lại không bị chồng giọng
+    dub = params.get("dub") if isinstance(params.get("dub"), dict) else {}
+    raw_src = str(dub.get("sourceVideo") or "").strip()
+    if raw_src and str(dub.get("url") or "").strip() == video:
+        entry["rawVideo"] = _snapshot_version_media_url(raw_src, label=f"{stamp}_raw")
     versions = params.get("video_versions")
     if not isinstance(versions, list):
         versions = []
@@ -496,25 +503,29 @@ def activate_fragment_video_version(
                 last_frame = raw.strip()
                 break
         stamp = f"{int(datetime.now(timezone.utc).timestamp())}_{fragment.id}"
-        remaining.insert(
-            0,
-            {
-                "id": f"v_{stamp}_replaced",
-                "video": _snapshot_version_media_url(current_video, label=f"{stamp}_cur"),
-                "cover": _snapshot_version_media_url(
-                    (fragment.cover or "").strip(),
-                    label=f"{stamp}_cur_cover",
-                )
-                or (fragment.cover or "").strip(),
-                "lastFrameUrl": (
-                    _snapshot_version_media_url(last_frame, label=f"{stamp}_cur_last")
-                    if last_frame
-                    else None
-                ),
-                "createdAt": datetime.now(timezone.utc).isoformat(),
-                "source": "replaced",
-            },
-        )
+        replaced_entry: dict[str, Any] = {
+            "id": f"v_{stamp}_replaced",
+            "video": _snapshot_version_media_url(current_video, label=f"{stamp}_cur"),
+            "cover": _snapshot_version_media_url(
+                (fragment.cover or "").strip(),
+                label=f"{stamp}_cur_cover",
+            )
+            or (fragment.cover or "").strip(),
+            "lastFrameUrl": (
+                _snapshot_version_media_url(last_frame, label=f"{stamp}_cur_last")
+                if last_frame
+                else None
+            ),
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "source": "replaced",
+            "voiceMode": str(params.get("voice_mode") or "native"),
+        }
+        # Bản đang thay thế là bản đã lồng tiếng: lưu kèm video gốc để lồng lại không bị chồng giọng
+        cur_dub = params.get("dub") if isinstance(params.get("dub"), dict) else {}
+        cur_raw_src = str(cur_dub.get("sourceVideo") or "").strip()
+        if cur_raw_src and str(cur_dub.get("url") or "").strip() == current_video:
+            replaced_entry["rawVideo"] = _snapshot_version_media_url(cur_raw_src, label=f"{stamp}_cur_raw")
+        remaining.insert(0, replaced_entry)
 
     fragment.video = target_video[:1024]
     fragment.cover = str(target.get("cover") or "")[:1024]
@@ -524,6 +535,17 @@ def activate_fragment_video_version(
 
     params = dict(fragment.params or {})
     params["video_versions"] = remaining[:FRAGMENT_VIDEO_VERSION_LIMIT]
+    # Bản được khôi phục từng lồng tiếng: khôi phục params.dub kèm video gốc để lồng lại không chồng giọng
+    raw_video = str(target.get("rawVideo") or "").strip()
+    if raw_video:
+        params["dub"] = {"status": "done", "url": target_video, "sourceVideo": raw_video}
+    else:
+        params.pop("dub", None)
+    # Chế độ tiếng đi theo bản được khôi phục; bản cũ chưa ghi voiceMode: có rawVideo (từng lồng) → dub, còn lại native
+    target_mode = str(target.get("voiceMode") or "").strip()
+    if target_mode not in ("dub", "native"):
+        target_mode = "dub" if raw_video else "native"
+    params["voice_mode"] = target_mode
     fragment.params = params
     ratio = str(target.get("aspect_ratio") or params.get("aspect_ratio") or "9:16")
     resolution = str(target.get("resolution") or params.get("resolution") or "480p")
@@ -1509,6 +1531,8 @@ class FragmentVideoPrepared:
     generate_audio: bool = True
     content_labels: list[str] | None = None
     model_id: str | None = None
+    # 分镜实际使用的语音模式 dub|native（供后续 TTS 配音任务消费）
+    voice_mode: str = "native"
     # 旧 payload 字段，反序列化仍读取；新任务不再写入
     kie_api_kind: str | None = None
 
@@ -1521,6 +1545,7 @@ async def prepare_fragment_video_for_submit(
     fragment: DramaEpisodeFragment,
     *,
     model_id: str | None = None,
+    voice_mode: str | None = None,
 ) -> FragmentVideoPrepared:
     settings = get_settings()
     prompt = prepare_fragment_content(
@@ -1549,6 +1574,12 @@ async def prepare_fragment_video_for_submit(
             episode.params = ep_params
 
     mid = (model_id or "").strip() or None
+
+    from app.services.drama.voice_mode import VOICE_MODES, resolve_project_voice_mode
+
+    # Chế độ tiếng: task truyền xuống thì dùng, không có thì theo cài đặt dự án
+    mode = voice_mode if voice_mode in VOICE_MODES else resolve_project_voice_mode(project)
+    dub = mode == "dub"
 
     refs = (
         await db.execute(
@@ -1623,6 +1654,7 @@ async def prepare_fragment_video_for_submit(
                 ),
                 # 越南语 / 英语项目：口播行先声明语种（Seedance 原生配音）
                 "spoken_lang": project_content_lang(project),
+                "dub_voice": dub,
             }
         )
         return FragmentVideoPrepared(
@@ -1640,6 +1672,7 @@ async def prepare_fragment_video_for_submit(
                 content=prompt,
             ),
             model_id=mid,
+            voice_mode=mode,
         )
 
     ark = get_ark()
@@ -1660,16 +1693,32 @@ async def prepare_fragment_video_for_submit(
         )
         image_url = still.local_url or ""
 
+    lang = project_content_lang(project)
+    i2v_prompt = declare_spoken_language(prompt, None if dub else lang)
+    if dub:
+        # i2v không có khối ràng buộc âm thanh: thêm luật "chỉ diễn khẩu hình, không phát giọng"
+        i2v_prompt = (
+            build_seedance_production_section(
+                prompt,
+                dub_voice=True,
+                burn_subtitles=resolve_episode_burn_subtitles(episode.params if episode else None),
+                character_intro=resolve_episode_character_intro(episode.params if episode else None),
+                spoken_lang=lang,
+            )
+            + "\n\n"
+            + i2v_prompt
+        )
     return FragmentVideoPrepared(
         submit_mode="i2v",
         image_url=image_url,
-        # i2v 直接提交分镜正文：越南语 / 英语项目的口播行同样先声明语种
-        prompt=declare_spoken_language(prompt, project_content_lang(project)),
+        # i2v 直接提交分镜正文：越南语 / 英语项目的口播行同样先声明语种（dub 模式不声明，避免模型开口）
+        prompt=i2v_prompt,
         duration=duration,
         ratio=ratio,
         resolution=resolution,
         generate_audio=True,
         model_id=mid,
+        voice_mode=mode,
     )
 
 
@@ -1730,6 +1779,7 @@ def serialize_fragment_video_prepared(prepared: FragmentVideoPrepared) -> dict[s
         "generate_audio": prepared.generate_audio,
         "content_labels": prepared.content_labels,
         "model_id": prepared.model_id,
+        "voice_mode": prepared.voice_mode,
         "kie_api_kind": prepared.kie_api_kind,
     }
 
@@ -1762,6 +1812,7 @@ def deserialize_fragment_video_prepared(raw: dict[str, Any]) -> FragmentVideoPre
         generate_audio=bool(raw.get("generate_audio", True)),
         content_labels=labels,
         model_id=str(raw.get("model_id") or "") or None,
+        voice_mode=str(raw.get("voice_mode") or "native"),
         kie_api_kind=str(raw.get("kie_api_kind") or "") or None,
     )
 
@@ -1780,6 +1831,7 @@ async def apply_fragment_video_assets(
     task_result: "TaskResult | None" = None,
     provider_task_id: str | None = None,
     channel_id: str | None = None,
+    voice_mode: str = "native",
 ) -> DramaEpisodeFragment:
     from app.services import storage as storage_svc
     from app.services.ffmpeg_compose import extract_video_last_frame, extract_video_poster_frame
@@ -1832,6 +1884,8 @@ async def apply_fragment_video_assets(
     )
     params = dict(fragment.params or {})
     params.pop("generation_attempts", None)
+    params.pop("dub", None)  # video mới: kết quả lồng tiếng cũ không còn khớp
+    params["voice_mode"] = voice_mode
     gen = dict(params.get("generation") or {}) if isinstance(params.get("generation"), dict) else {}
     gen.update({
         "status": "done",

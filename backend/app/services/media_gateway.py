@@ -764,6 +764,8 @@ class MediaGateway:
         duration_hint: float = 4.0,
         emotion_hint: str | None = None,
         lang: str | None = None,
+        speech_rate: int = 0,
+        out_name: str | None = None,
     ) -> str:
         """Sinh lời bình theo route của chức năng: uỷ quyền cho TtsService (cascade slot → edge-tts).
 
@@ -779,6 +781,8 @@ class MediaGateway:
             shot_no=shot_no,
             emotion_hint=emotion_hint,
             lang=lang,
+            speech_rate=speech_rate,
+            out_name=out_name,
         )
 
     async def chat_storyboard(self, *args: Any, **kwargs: Any) -> kepu_text.StoryboardResult:

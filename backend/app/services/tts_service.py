@@ -48,11 +48,14 @@ class TtsService:
         shot_no=None,
         emotion_hint=None,
         lang=None,
+        speech_rate: int = 0,
+        out_name: str | None = None,
     ) -> str:
         """Sinh lời bình: mock trả file mock; thật thì thử từng model trong slot rồi mới edge-tts.
 
         lang: ngôn ngữ nội dung zh|vi|en (không truyền thì đoán theo văn bản); giọng không đọc được
         ngôn ngữ đó sẽ được đổi sang giọng mặc định của ngôn ngữ (voice_lang.voice_for_lang).
+        out_name: tên file trong thư mục dự án (mặc định shot_{shot_no:03d}_tts.mp3); speech_rate: tốc độ đọc BytePlus.
         """
         clean = (text or "").strip() or "这一幕。"
         lang = normalize_lang(lang) or guess_text_lang(clean)
@@ -67,8 +70,8 @@ class TtsService:
                 await self._tts_edge(clean, dest, voice_hint=speaker, lang=lang)
             return f"/static/mock/audio_{digest}.mp3"
 
-        dest = storage.project_dir(project_id or 0) / f"shot_{(shot_no or 0):03d}_tts.mp3"
-        req = TtsRequest(text=clean, voice=speaker, emotion_hint=emotion_hint)
+        dest = storage.project_dir(project_id or 0) / (out_name or f"shot_{(shot_no or 0):03d}_tts.mp3")
+        req = TtsRequest(text=clean, voice=speaker, emotion_hint=emotion_hint, lang=lang, speech_rate=int(speech_rate or 0))
         # Giọng clone S_* / giọng Volc do caller chỉ định: đưa provider volc_tts lên đầu để giữ đúng giọng nhân vật
         requested = voice_for_lang(resolve_volc_speaker((voice or "").strip(), ""), lang)
         for route in _prefer_volc_for_speaker(resolve_function_candidates(function_id), requested):

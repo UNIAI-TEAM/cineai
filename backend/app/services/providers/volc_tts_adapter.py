@@ -31,6 +31,63 @@ VOLC_TTS_STATIC_MODELS: list[dict[str, str]] = [
     {"id": "seed-icl-2.0", "label": "Voice clone (S_*)", "capability": "audio"},
 ]
 
+# Header cố định theo tài liệu BytePlus TTS v3
+BYTEPLUS_APP_KEY = "aGjiRDfUWi"
+# Mỗi request tối đa ngần này ký tự (tránh 40402003 TTSExceededTextLimit); văn bản dài cắt theo câu
+MAX_TTS_CHUNK_CHARS = 300
+# Ngôn ngữ nội dung → additions.explicit_language (zh để trống: mặc định đọc lẫn Trung-Anh)
+_EXPLICIT_LANG = {"vi": "vi", "en": "en"}
+# Câu gợi ý cảm xúc (context_texts, TTS 2.0) theo ngôn ngữ nội dung
+_EMOTION_TEMPLATES = {
+    "zh": "用「{hint}」的语气朗读",
+    "vi": "Hãy đọc với giọng {hint}",
+    "en": "Read this in a {hint} tone",
+}
+_SPEAKER_LANG_RE = re.compile(r"^(zh|en|vi)_")
+_SENTENCE_RE = re.compile(r"[^.!?。！？…\n]+[.!?。！？…]*\s*|\n+")
+# Mã lỗi openspeech coi là tạm thời (đổi kênh / thử lại được)
+_TRANSIENT_CODES = {55000000}
+
+
+class OpenspeechError(UpstreamError):
+    """Lỗi openspeech có mã nghiệp vụ (code) hoặc HTTP status."""
+
+    def __init__(self, message: str, *, code: int | None = None, status: int | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.status = status
+
+
+def speaker_lang(speaker: str) -> str | None:
+    """Ngôn ngữ suy từ tiền tố speaker (vi_/en_/zh_); không suy được trả None."""
+    m = _SPEAKER_LANG_RE.match((speaker or "").strip())
+    return m.group(1) if m else None
+
+
+def split_tts_text(text: str, max_chars: int | None = None) -> list[str]:
+    """Cắt văn bản thành các đoạn ≤ max_chars theo ranh giới câu; câu quá dài cắt theo khoảng trắng."""
+    limit = max_chars or MAX_TTS_CHUNK_CHARS
+    clean = (text or "").strip()
+    if len(clean) <= limit:
+        return [clean] if clean else []
+    sentences = [s.strip() for s in _SENTENCE_RE.findall(clean) if s.strip()]
+    pieces: list[str] = []
+    for sentence in sentences:
+        while len(sentence) > limit:
+            cut = sentence.rfind(" ", 0, limit + 1)
+            cut = cut if cut > 0 else limit
+            pieces.append(sentence[:cut].strip())
+            sentence = sentence[cut:].strip()
+        if sentence:
+            pieces.append(sentence)
+    chunks: list[str] = []
+    for piece in pieces:
+        if chunks and len(chunks[-1]) + 1 + len(piece) <= limit:
+            chunks[-1] = f"{chunks[-1]} {piece}"
+        else:
+            chunks.append(piece)
+    return chunks
+
 
 def resolve_volc_speaker(voice: str, default: str) -> str:
     """Resolve voice name to speaker using SPEAKER_ALIASES or fallback to default."""
@@ -58,21 +115,26 @@ def resource_id_for_speaker(speaker: str, default: str) -> str:
     return "seed-tts-1.0"
 
 
-def build_tts_additions(speaker: str, emotion_hint: str | None) -> str | None:
-    """Assemble openspeech additions (S_ clone + emotion context_texts)."""
+def build_tts_additions(speaker: str, emotion_hint: str | None, lang: str | None = None) -> str | None:
+    """Ghép additions openspeech: model_type cho giọng clone S_, explicit_language vi/en, context_texts theo ngôn ngữ."""
     additions: dict[str, Any] = {}
     if speaker.startswith("S_"):
         additions["model_type"] = 4
+    eff_lang = lang or speaker_lang(speaker)
+    explicit = _EXPLICIT_LANG.get(eff_lang or "")
+    if explicit:
+        additions["explicit_language"] = explicit
     hint = (emotion_hint or "").strip()
     if hint:
-        additions["context_texts"] = [f"用「{hint}」的语气朗读"]
+        template = _EMOTION_TEMPLATES.get(eff_lang or "", _EMOTION_TEMPLATES["zh"])
+        additions["context_texts"] = [template.format(hint=hint)]
     if not additions:
         return None
     return json.dumps(additions, ensure_ascii=False)
 
 
 def parse_openspeech_ndjson(raw: bytes) -> bytes:
-    """Parse openspeech NDJSON response: concatenate base64-decoded chunks until code 20000000."""
+    """Ghép các chunk base64 tới khi gặp 20000000; gặp mã lỗi khác thì raise OpenspeechError."""
     chunks: list[bytes] = []
     text = raw.decode("utf-8", errors="ignore")
     for line in text.splitlines():
@@ -88,6 +150,8 @@ def parse_openspeech_ndjson(raw: bytes) -> bytes:
             chunks.append(base64.b64decode(obj["data"]))
         elif code in {20000000, 20000001}:
             break
+        elif isinstance(code, int) and code != 0:
+            raise OpenspeechError(f"openspeech {code}: {str(obj.get('message') or '')[:200]}", code=code)
     return b"".join(chunks)
 
 
@@ -113,7 +177,7 @@ class VolcTtsAdapter:
         raise ProviderNotSupported("Volcengine TTS không hỗ trợ tạo video")
 
     async def tts(self, route: ResolvedModelRoute, req: TtsRequest) -> bytes:
-        """Convert text to speech via openspeech, return audio bytes."""
+        """Chuyển văn bản thành giọng qua openspeech; văn bản dài cắt nhiều request rồi nối MP3."""
         from app.config import get_settings
 
         settings = get_settings()
@@ -122,6 +186,7 @@ class VolcTtsAdapter:
         headers: dict[str, str] = {
             "Content-Type": "application/json",
             "X-Api-Resource-Id": resource,
+            "X-Api-App-Key": BYTEPLUS_APP_KEY,
         }
         url = route.base_url or settings.volc_tts_url or VOLC_TTS_DEFAULT_URL
         api_key = (route.api_key or "").strip()
@@ -134,26 +199,29 @@ class VolcTtsAdapter:
             headers["X-Api-App-Id"] = settings.volc_tts_app_id
             headers["X-Api-Access-Key"] = settings.volc_tts_access_key
 
-        body: dict[str, Any] = {
-            "user": {"uid": "framecut"},
-            "req_params": {
-                "text": req.text,
-                "speaker": speaker,
-                "audio_params": {"format": "mp3", "sample_rate": 24000},
-            },
-        }
-        additions = build_tts_additions(speaker, req.emotion_hint)
-        if additions:
-            body["req_params"]["additions"] = additions
-
+        audio_params: dict[str, Any] = {"format": "mp3", "sample_rate": 24000}
+        if req.speech_rate:
+            audio_params["speech_rate"] = max(-50, min(100, int(req.speech_rate)))
+        additions = build_tts_additions(speaker, req.emotion_hint, req.lang)
+        parts: list[bytes] = []
         async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(url, headers=headers, json=body)
-        if resp.status_code >= 400:
-            raise UpstreamError(f"openspeech HTTP {resp.status_code}: {resp.text[:300]}")
-        audio = parse_openspeech_ndjson(resp.content)
-        if not audio:
-            raise UpstreamError("openspeech trả về âm thanh rỗng")
-        return audio
+            for chunk in split_tts_text(req.text) or [req.text]:
+                body: dict[str, Any] = {
+                    "user": {"uid": "framecut"},
+                    "req_params": {"text": chunk, "speaker": speaker, "audio_params": audio_params},
+                }
+                if additions:
+                    body["req_params"]["additions"] = additions
+                resp = await client.post(url, headers=headers, json=body)
+                if resp.status_code >= 400:
+                    raise OpenspeechError(
+                        f"openspeech HTTP {resp.status_code}: {resp.text[:300]}", status=resp.status_code
+                    )
+                piece = parse_openspeech_ndjson(resp.content)
+                if not piece:
+                    raise UpstreamError("openspeech trả về âm thanh rỗng")
+                parts.append(piece)
+        return b"".join(parts)
 
     def cost_fen(self, model: str, raw_usage: dict[str, Any] | None) -> int | None:
         """Chi phí fen theo provider_rates; openspeech không trả usage nên thực tế luôn None."""
@@ -166,5 +234,13 @@ class VolcTtsAdapter:
         return False
 
     def is_transient_error(self, exc: BaseException) -> bool:
-        """Check if error is transient (network/transport error)."""
-        return isinstance(exc, httpx.TransportError)
+        """Lỗi mạng, HTTP 429/5xx, mã 55000000 hoặc vượt quota concurrency là tạm thời."""
+        if isinstance(exc, httpx.TransportError):
+            return True
+        if isinstance(exc, OpenspeechError):
+            if exc.code in _TRANSIENT_CODES:
+                return True
+            if exc.status is not None and (exc.status == 429 or exc.status >= 500):
+                return True
+            return "quota exceeded" in str(exc).lower()
+        return False

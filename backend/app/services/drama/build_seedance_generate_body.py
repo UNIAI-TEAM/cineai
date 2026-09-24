@@ -79,6 +79,8 @@ class BuildSeedanceGenerateBodyInput(TypedDict, total=False):
     character_intro: bool
     # 项目内容语言 zh|vi|en：vi / en 时口播行声明语种（SEEDANCE_2_5.md §4.3），zh / 缺省不变
     spoken_lang: str | None
+    # True=后期 TTS 配音：Seedance 只出环境音，台词只演口型
+    dub_voice: bool
 
 
 # 兼容历史布尔 / 字符串，解析分集 params 开关
@@ -531,6 +533,7 @@ def build_seedance_prompt_text(
     character_intro: bool = True,
     has_style_board: bool = False,
     spoken_lang: str | None = None,
+    dub_voice: bool = False,
 ) -> str:
     # 提交前拆分对白舞台指示并纠正空镜误标，保证强制约束与正文一致
     normalized = rewrite_dialogue_action_lines(content or "")
@@ -545,6 +548,7 @@ def build_seedance_prompt_text(
         build_visual_style_section(video_style_id, has_style_board=has_style_board),
         build_seedance_production_section(
             normalized,
+            dub_voice=dub_voice,
             burn_subtitles=burn_subtitles,
             character_intro=character_intro,
             spoken_lang=spoken_lang,
@@ -596,7 +600,8 @@ def build_seedance_prompt_text(
             resolve_other_asset_prompt_name,
         ),
         declare_spoken_language(
-            build_seedance_body_text(normalized, reference, resolved_catalog), spoken_lang
+            build_seedance_body_text(normalized, reference, resolved_catalog),
+            None if dub_voice else spoken_lang,
         ),
     ]
     return "\n\n".join(section for section in sections if section)
@@ -613,6 +618,7 @@ def build_seedance_content_items(
     character_intro: bool = True,
     style_board_url: str | None = None,
     spoken_lang: str | None = None,
+    dub_voice: bool = False,
 ) -> list[dict[str, Any]]:
     catalog = build_seedance_reference_catalog(reference, script=content)
     # 无角色/场景图时不挂画风板，避免板子变成唯一画面参考
@@ -626,6 +632,7 @@ def build_seedance_content_items(
         character_intro=character_intro,
         has_style_board=bool(board),
         spoken_lang=spoken_lang,
+        dub_voice=dub_voice,
     )
     items: list[dict[str, Any]] = []
 
@@ -733,6 +740,7 @@ def build_seedance_generate_body(input_params: BuildSeedanceGenerateBodyInput) -
             character_intro=bool(character_intro),
             style_board_url=style_board_url,
             spoken_lang=input_params.get("spoken_lang"),
+            dub_voice=bool(input_params.get("dub_voice")),
         ),
         "duration": resolve_seedance_duration_from_content(content, fallback=fallback),
         "resolution": resolve_seedance_resolution(input_params.get("resolution")),

@@ -1181,6 +1181,7 @@ async def submit_fragment_video_task(task: TaskRun) -> dict[str, Any]:
                 project,
                 frag,
                 model_id=(payload.get("model_id") or None),
+                voice_mode=(payload.get("voice_mode") or None),
             )
             now = datetime.now(UTC)
             next_payload = dict(payload)
@@ -1217,6 +1218,7 @@ async def submit_fragment_video_task(task: TaskRun) -> dict[str, Any]:
                 project,
                 frag,
                 model_id=(payload.get("model_id") or None),
+                voice_mode=(payload.get("voice_mode") or None),
             )
         else:
             prepared = deserialize_fragment_video_prepared(prepared_raw)
@@ -1257,6 +1259,7 @@ async def submit_fragment_video_task(task: TaskRun) -> dict[str, Any]:
         task_row.lease_until = None
         next_payload = dict(payload)
         next_payload.pop("prepared", None)
+        next_payload["voice_mode"] = prepared.voice_mode
         next_payload["nio_phase"] = "poll"
         next_payload["generation_attempts"] = attempts
         next_payload["attempt_limit"] = max_attempts
@@ -1538,7 +1541,23 @@ async def poll_fragment_video_task(task_id: int) -> None:
                     task_result=result,
                     provider_task_id=task.provider_task_id,
                     channel_id=task.provider_channel_id,
+                    voice_mode=str(payload.get("voice_mode") or "native"),
                 )
+                if str(payload.get("voice_mode") or "native") == "dub":
+                    from app.services.drama.fragment_dub import enqueue_fragment_dub_after_video
+
+                    try:
+                        # Phiên RIÊNG, không đụng db/task của finalize: rollback nội bộ khi vào hàng đợi
+                        # lỗi (hoặc trong task fragment_dub sau này) không được phép làm hỏng task video.
+                        await enqueue_fragment_dub_after_video(
+                            fragment_id,
+                            int(user.id),
+                            drama_project_id=int(ep.project.id),
+                            episode_id=int(episode_id),
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        # Lồng tiếng lỗi không làm hỏng task video: video gốc đã lưu, người dùng bấm "Lồng tiếng lại"
+                        logger.warning("tự động lồng tiếng: vào hàng đợi lỗi fragment_id=%s err=%s", fragment_id, exc)
                 # apply 已 commit：行锁复查。下载期间用户可能已取消（status=cancel_requested），
                 # 此时不能走常规 complete，也不能放任 frozen 全额退款，按实际用量结算为 cancelled。
                 async with AsyncSessionLocal() as recheck_db:
