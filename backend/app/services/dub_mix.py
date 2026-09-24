@@ -16,6 +16,7 @@ from app.services.ffmpeg_compose import (
     _find_cjk_font,
     _probe_has_audio,
     _run,
+    _strip_caption_punct,
     _which,
     probe_duration,
     probe_video_dimensions,
@@ -158,10 +159,13 @@ def _wrap_caption(text: str, max_chars: int) -> list[str]:
 def _caption_windows(
     captions: list[tuple[float, float, str]], max_chars: int
 ) -> list[tuple[float, float, str]]:
-    """Mỗi câu thoại → một hay nhiều cửa sổ phụ đề (chia thời lượng theo độ dài chữ), luôn một dòng."""
+    """Mỗi câu thoại → một hay nhiều cửa sổ phụ đề (chia thời lượng theo độ dài chữ), luôn một dòng.
+
+    Bỏ dấu câu như phụ đề ghép phim: dấu nháy đơn (vd. "don't") sẽ đóng chuỗi drawtext giữa chừng và làm vỡ filtergraph.
+    """
     out: list[tuple[float, float, str]] = []
     for start, end, text in captions:
-        chunks = _wrap_caption(" ".join((text or "").split()), max_chars)
+        chunks = _wrap_caption(_strip_caption_punct(text), max_chars)
         total = sum(len(c) for c in chunks) or 1
         cursor = start
         for chunk in chunks:

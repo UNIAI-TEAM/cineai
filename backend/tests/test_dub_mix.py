@@ -118,10 +118,11 @@ def test_cmd_burns_subtitles_synced_to_voice(tmp_path):
     plan = DubPlan(starts=[0.5, 3.0], tempos=[1.0, 1.0], out_duration=8.0, freeze_sec=0.0)
     cmd = build_dub_mix_cmd(
         "ffmpeg", tmp_path / "v.mp4", [tmp_path / "a.mp3", tmp_path / "b.mp3"], plan, tmp_path / "o.mp4",
-        has_video_audio=True, captions=[(0.5, 2.0, "Cậu chủ: về thôi"), (3.0, 4.0, "Ừ")], video_size=(720, 1280),
+        has_video_audio=True, captions=[(0.5, 2.0, "Cậu chủ: về thôi"), (3.0, 4.0, "I don't, 100%!")], video_size=(720, 1280),
     )
     graph = cmd[cmd.index("-filter_complex") + 1]
-    assert "drawtext=text='Cậu chủ\\: về thôi'" in graph
+    # Bỏ dấu câu như phụ đề ghép phim: dấu nháy/%/: không được lọt vào drawtext
+    assert "drawtext=text='Cậu chủ về thôi'" in graph and "drawtext=text='I dont 100'" in graph
     assert "between(t\\,0.50\\,2.00)" in graph and "between(t\\,3.00\\,4.00)" in graph
     assert cmd[cmd.index("-c:v") + 1] == "libx264"  # đốt chữ thì phải mã hoá lại hình
 
