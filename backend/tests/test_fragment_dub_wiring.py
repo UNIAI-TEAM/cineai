@@ -421,6 +421,51 @@ async def test_mark_fragment_dub_ended_cancel_path_has_no_registered_cancel_code
     assert frag.params["dub"]["error_code"] == "drama.dub_failed"
 
 
+async def test_mark_fragment_dub_ended_keeps_prior_url_and_source_video_on_redub_failure():
+    """Hồi quy round 3: phân cảnh đã lồng tiếng trước đó (video=D, dub={done,url:D,sourceVideo:R}),
+    người dùng bấm lồng lại → enqueue chuyển "running" nhưng vẫn giữ url/sourceVideo cũ; task fail
+    trước khi dub_fragment kịp chạy (freeze lỗi / huỷ / lỗi đầu run_fragment_dub_job) → hook KHÔNG
+    được suy sourceVideo từ fragment.video (lúc này vẫn là D, bản đã lồng), nếu không lần lồng tiếp
+    theo sẽ trộn TTS đè lên chính audio đã lồng thay vì video gốc R."""
+    frag = SimpleNamespace(
+        id=9,
+        video="/D_dub.mp4",  # đang xem bản đã lồng tiếng trước đó
+        params={
+            "voice_mode": "dub",
+            "dub": {
+                "status": "running",  # enqueue_fragment_dub vừa chuyển sang running cho lượt lồng lại
+                "url": "/D_dub.mp4",
+                "sourceVideo": "/R_raw.mp4",
+            },
+        },
+    )
+    task = _executor_task(task_type="fragment_dub", error_code=None)
+
+    await fragment_dub.mark_fragment_dub_ended(_executor_db(frag), task, "failed")
+
+    dub = frag.params["dub"]
+    assert dub["status"] == "failed"
+    assert dub["url"] == "/D_dub.mp4"
+    assert dub["sourceVideo"] == "/R_raw.mp4"
+    # Hệ quả đúng: lần lồng tiếp theo vẫn lấy video GỐC làm nguồn, không lồng chồng lên bản đã lồng
+    assert fragment_dub.dub_source_video(frag) == "/R_raw.mp4"
+
+
+async def test_mark_fragment_dub_ended_leaves_no_source_video_when_never_dubbed_before():
+    """Chưa từng lồng tiếng thành công lần nào (dub={status:running} không có url/sourceVideo) →
+    hook không tự bịa sourceVideo; dub_source_video tự rơi về fragment.video là đúng."""
+    frag = SimpleNamespace(id=9, video="/raw.mp4", params={"voice_mode": "dub", "dub": {"status": "running"}})
+    task = _executor_task(task_type="fragment_dub", error_code=None)
+
+    await fragment_dub.mark_fragment_dub_ended(_executor_db(frag), task, "failed")
+
+    dub = frag.params["dub"]
+    assert dub["status"] == "failed"
+    assert "sourceVideo" not in dub
+    assert "url" not in dub
+    assert fragment_dub.dub_source_video(frag) == "/raw.mp4"
+
+
 async def test_fail_task_fragment_dub_leaves_generation_untouched_and_marks_dub_failed(monkeypatch):
     """N1 + N2: _fail_task trên task fragment_dub không đụng params.generation (video vẫn còn),
     nhưng dọn params.dub khỏi trạng thái "running" treo mãi."""

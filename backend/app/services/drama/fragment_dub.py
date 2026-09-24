@@ -265,11 +265,12 @@ async def mark_fragment_dub_ended(db: AsyncSession, task: TaskRun, status: str) 
         code, params = task_error_code, getattr(task, "error_params", None)
     else:
         code, params = "drama.dub_failed", None
-    _write_dub(fragment, with_error_code(
-        {"status": "failed", "sourceVideo": fragment.video or dub.get("sourceVideo")},
-        code,
-        params,
-    ))
+    # Giữ nguyên url/sourceVideo cũ (nếu có) — chỉ đổi status + error, KHÔNG suy lại từ fragment.video:
+    # đang re-dub thì fragment.video vẫn là bản đã lồng cũ (D), nếu lấy làm sourceVideo thì lần lồng
+    # tiếp theo sẽ trộn TTS đè lên chính audio đã lồng thay vì video gốc (R). Hook không đổi fragment.video
+    # nên cặp url/sourceVideo cũ (ghi lại nguyên vẹn khi enqueue_fragment_dub chuyển sang "running") vẫn đúng.
+    prev = {k: v for k, v in dub.items() if k not in ("error", "error_code", "error_params")}
+    _write_dub(fragment, with_error_code({**prev, "status": "failed"}, code, params))
 
 
 async def enqueue_fragment_dub(
@@ -344,6 +345,10 @@ async def enqueue_fragment_dub_after_video(
             frag = await db.get(DramaEpisodeFragment, fragment_id)
             if not frag:
                 return
+            # Khác với mark_fragment_dub_ended: ở đây dùng frag.video làm sourceVideo LÀ ĐÚNG, vì hàm này
+            # chỉ gọi ngay sau apply_fragment_video_assets — apply đã pop hẳn params.dub cũ, nên frag.video
+            # lúc này chắc chắn là video thô (native) vừa áp, không phải bản đã lồng tiếng trước đó; và vì
+            # params.dub cũ đã bị pop nên không có url/sourceVideo nào để giữ lại cả (khởi tạo mới hoàn toàn).
             _write_dub(frag, with_error_code(
                 {"status": "failed", "sourceVideo": frag.video},
                 code,
