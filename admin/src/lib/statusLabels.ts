@@ -81,6 +81,7 @@ export const TASK_TYPE_LABELS: Record<string, string> = {
   agent_chat: "Trò chuyện với trợ lý phim ngắn",
   skill_optimize: "Tối ưu prompt Skill",
   voice_prompt: "Mô tả giọng nhân vật",
+  appearance_extract: "Tách ngoại hình nhân vật",
   content_expand: "Mở rộng chủ đề",
   script_summary: "Tóm tắt kịch bản",
   episode_script: "Kịch bản từng tập",
