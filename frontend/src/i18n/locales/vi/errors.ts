@@ -99,6 +99,7 @@ export const viErrors = {
     'drama.invalid_episode_number': 'Số tập không hợp lệ',
     'drama.episode_script_not_found': 'Không tìm thấy kịch bản tập {number}',
     'drama.episode_body_too_short': 'Tập {number} quá ngắn, hãy viết xong hoặc nhờ AI chỉnh rồi mới xác nhận làm phân cảnh',
+    'drama.invalid_episode_target': 'Thời lượng mong muốn không hợp lệ, hãy chọn Tự động, 30 giây, 60 giây, 90 giây, 2 phút hoặc 3 phút',
     'drama.episode_reload_failed': 'Đã lưu tập phim nhưng chưa tải lại được, vui lòng tải lại trang',
     'drama.asset_not_found': 'Không tìm thấy tư liệu',
     'drama.character_asset_not_found': 'Không tìm thấy nhân vật',

@@ -22,6 +22,7 @@ from app.models_drama import (
     DramaFragmentAssetRef,
     DramaProject,
 )
+from app.services.drama.episode_target import episode_min_content_chars, resolve_episode_target_sec
 from app.services.drama.build_fragments import (
     CAST_LINE_RE,
     build_fragments_from_episode_body,
@@ -946,6 +947,7 @@ async def seed_episodes_from_script(
                 already_introduced=series_introduced,
                 summary=summary,
                 lang=lang,
+                project_params=project.params,
             )
             for frag in planned:
                 series_introduced.update(
@@ -986,6 +988,7 @@ async def seed_episodes_from_script(
                 summary=summary,
                 preserve_protected=not force,
                 lang=lang,
+                project_params=project.params,
             )
             for frag in planned:
                 series_introduced.update(
@@ -1023,6 +1026,7 @@ async def seed_episodes_from_script(
             already_introduced=series_introduced,
             summary=summary,
             lang=lang,
+            project_params=project.params,
         )
         for frag in planned:
             series_introduced.update(
@@ -1035,8 +1039,10 @@ async def seed_episodes_from_script(
 def require_confirmable_episode_body(
     episode_content: Any,
     episode_number: int,
+    *,
+    min_chars: int = MIN_EPISODE_CONTENT_CHARS,
 ) -> dict[str, Any]:
-    """取出指定集正文；缺失或过短则报错。"""
+    """取出指定集正文；缺失或短于 min_chars（随项目目标时长）则报错。"""
     number = int(episode_number)
     if number < 1:
         raise AppError("drama.invalid_episode_number")
@@ -1052,7 +1058,7 @@ def require_confirmable_episode_body(
     if item is None:
         raise AppError("drama.episode_script_not_found", number=number)
     body = str(item.get("body") or item.get("content") or "")
-    if _body_char_len(body) < MIN_EPISODE_CONTENT_CHARS:
+    if _body_char_len(body) < min_chars:
         raise AppError("drama.episode_body_too_short", number=number)
     return item
 
@@ -1166,7 +1172,11 @@ async def seed_single_episode_from_script(
     script = project.script
     if not script:
         raise AppError("drama.script_missing")
-    item = require_confirmable_episode_body(script.episode_content, episode_number)
+    item = require_confirmable_episode_body(
+        script.episode_content,
+        episode_number,
+        min_chars=episode_min_content_chars(project.params),
+    )
     lang = project_content_lang(project)
     title = str(item.get("title") or default_episode_title(episode_number, lang, compact=True))
     body = str(item.get("body") or item.get("content") or "")
@@ -1227,6 +1237,7 @@ async def seed_single_episode_from_script(
             already_introduced=series_introduced,
             summary=summary,
             lang=lang,
+            project_params=project.params,
         )
     else:
         target.name = title
@@ -1240,6 +1251,7 @@ async def seed_single_episode_from_script(
                 summary=summary,
                 preserve_protected=not force,
                 lang=lang,
+                project_params=project.params,
             )
     await db.commit()
     reloaded = await _reload_episode(db, int(target.id))
@@ -1280,8 +1292,10 @@ async def _replace_episode_fragments(
     preserve_protected: bool = False,
     continuation: bool = False,
     lang: str | None = None,
+    project_params: dict | None = None,
 ) -> list[dict[str, Any]]:
     # 删除旧分镜并重建；preserve_protected 时保留已有视频/手改分镜；lang 为项目内容语言（规则切分的字幕 cue）
+    # project_params：规则切分时按「分集 → 项目」解析目标时长
     existing = await _list_episode_fragments(db, episode.id)
     protected = (
         sorted(
@@ -1312,6 +1326,7 @@ async def _replace_episode_fragments(
             already_introduced=already_introduced,
             summary=summary,
             lang=lang,
+            target_sec=resolve_episode_target_sec(episode.params, project_params),
         )
     )
     # 全量重拆时跳过与已拍前缀等量的草稿；续拆（continuation）则草稿全是后续镜

@@ -1360,9 +1360,11 @@ def build_fragments_from_episode_body(
     include_subtitles: bool = True,
     include_character_intro: bool = True,
     lang: str | None = None,
+    target_sec: int | None = None,
 ) -> list[dict[str, Any]]:
     """
     将一集正文拆成多场分镜草稿。
+    target_sec：本集目标时长（0=自动不压缩；None=默认 90s 预算）。
     lang：项目内容语言（字幕 cue 语言）；None 时按台词文字猜。
     already_introduced：本剧更早分集已介绍过的角色（跨集去重）。
     summary：剧本摘要，用于 stub 资产补全人物介绍文案。
@@ -1481,6 +1483,10 @@ def build_fragments_from_episode_body(
                 }
             )
 
+    from app.services.drama.episode_target import EPISODE_TARGET_DEFAULT, episode_fragment_budget
     from app.services.drama.fragment_budget import trim_episode_fragment_drafts
 
-    return trim_episode_fragment_drafts(fragments)
+    max_count, max_total = episode_fragment_budget(
+        EPISODE_TARGET_DEFAULT if target_sec is None else target_sec
+    )
+    return trim_episode_fragment_drafts(fragments, max_count=max_count, max_total_sec=max_total)

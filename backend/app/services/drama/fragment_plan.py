@@ -36,6 +36,7 @@ from app.services.drama.fragment_asset_limit import (
     cap_fragment_asset_ids,
     strip_unlisted_asset_mentions,
 )
+from app.services.drama.episode_target import EPISODE_TARGET_DEFAULT, episode_fragment_budget
 from app.services.drama.fragment_budget import cap_llm_fragment_items, trim_episode_fragment_drafts
 from app.services.drama.fragment_content_duration import sum_fragment_content_duration_seconds
 from app.services.drama.fragment_plan_prompt import (
@@ -597,9 +598,11 @@ async def plan_fragments_with_llm(
     include_subtitles: bool = True,
     include_character_intro: bool = True,
     lang: str | None = None,
+    target_sec: int = EPISODE_TARGET_DEFAULT,
 ) -> list[dict[str, Any]]:
     """
     调用 LLM 规划分镜并规范化。
+    target_sec：本集目标成片时长（0=自动，按剧本完整拆分）；决定条数与总时长预算。
     lang：内容语言；vi / en 时画面行用英文、对白/旁白用该语言，行首标签（空镜：/旁白（VO）：）保持原样。
     若模型结果为空则抛错，由上层决定是否回退规则切分。
     already_introduced：本剧更早分集已介绍角色。
@@ -621,6 +624,7 @@ async def plan_fragments_with_llm(
         core_hook=core_hook,
         locked_summaries=locked,
         include_subtitles=include_subtitles,
+        target_sec=target_sec,
     )
     raw = await run_task_json(
         db,
@@ -641,7 +645,8 @@ async def plan_fragments_with_llm(
     if not isinstance(items, list) or not items:
         raise AppError("drama.llm_empty_output")
 
-    items = cap_llm_fragment_items(items)
+    max_count, max_total = episode_fragment_budget(target_sec)
+    items = cap_llm_fragment_items(items, max_items=max_count)
 
     drafts = normalize_llm_fragment_items(
         items,
@@ -664,7 +669,7 @@ async def plan_fragments_with_llm(
     )
     if not drafts:
         raise AppError("drama.llm_empty_output")
-    drafts = trim_episode_fragment_drafts(drafts)
+    drafts = trim_episode_fragment_drafts(drafts, max_count=max_count, max_total_sec=max_total)
     logger.info(
         "LLM 分镜完成 episode=%s ep_no=%s fragments=%s introduced_before=%s locked=%s",
         episode_name,

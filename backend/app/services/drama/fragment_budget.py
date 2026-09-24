@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Any
 
@@ -213,25 +214,39 @@ def _pick_merge_index(drafts: list[dict[str, Any]], *, compress: bool = False) -
     return best_idx
 
 
+def _capped_duration_sec(draft: dict[str, Any]) -> int:
+    # 单镜实际成片秒数（@duration 合计可能因每段下限 3s 超出硬上限，成片仍按上限计）
+    return min(draft_duration_sec(draft), FRAGMENT_TOTAL_MAX)
+
+
 def trim_episode_fragment_drafts(
     drafts: list[dict[str, Any]],
     *,
-    max_count: int = EPISODE_FRAGMENT_MAX,
-    max_total_sec: int = EPISODE_DURATION_BUDGET_SEC,
+    max_count: int | None = EPISODE_FRAGMENT_MAX,
+    max_total_sec: int | None = EPISODE_DURATION_BUDGET_SEC,
 ) -> list[dict[str, Any]]:
-    """合并相邻短镜，使条数与总时长贴近短剧预算。"""
+    """
+    合并相邻短镜，使条数与总时长贴近短剧预算。
+    max_count / max_total_sec 为 None 表示不限（自动模式：按剧本保留全部内容）。
+    超预算压缩至少保留 ceil(max_total_sec / 单镜上限) 条，不会把整集塞进一镜。
+    """
     if not drafts:
         return drafts
     merged = [dict(d) for d in drafts]
 
-    while len(merged) > max_count:
+    while max_count and len(merged) > max_count:
         idx = _pick_merge_index(merged)
         if idx is None:
             break
         merged[idx] = merge_fragment_drafts(merged[idx], merged[idx + 1])
         merged.pop(idx + 1)
 
-    while sum(draft_duration_sec(d) for d in merged) > max_total_sec and len(merged) > 1:
+    min_keep = max(1, math.ceil(max_total_sec / FRAGMENT_TOTAL_MAX)) if max_total_sec else len(merged)
+    while (
+        max_total_sec
+        and sum(_capped_duration_sec(d) for d in merged) > max_total_sec
+        and len(merged) > min_keep
+    ):
         idx = _pick_merge_index(merged, compress=True)
         if idx is None:
             break

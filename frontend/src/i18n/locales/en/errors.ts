@@ -99,6 +99,7 @@ export const enErrors = {
     'drama.invalid_episode_number': 'Invalid episode number',
     'drama.episode_script_not_found': 'Couldn’t find the script for episode {number}',
     'drama.episode_body_too_short': 'Episode {number} is too short. Finish it or let AI improve it before confirming the storyboard',
+    'drama.invalid_episode_target': 'Invalid target length. Choose Auto, 30s, 60s, 90s, 2 min or 3 min',
     'drama.episode_reload_failed': 'The episode was saved but couldn’t be reloaded. Please refresh the page',
     'drama.asset_not_found': 'Asset not found',
     'drama.character_asset_not_found': 'Character not found',

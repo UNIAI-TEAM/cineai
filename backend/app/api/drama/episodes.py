@@ -65,6 +65,7 @@ from app.services.drama.generation import (
     reconcile_orphaned_fragment_generations,
 )
 from app.services.drama.build_fragments import prepare_fragment_content
+from app.services.drama.episode_target import episode_min_content_chars, normalize_episode_target_sec
 from app.services.drama.fragment_content_duration import resolve_seedance_duration_from_content
 from app.services.drama.billing_util import record_seed_assets_llm_usage
 from app.services.drama.jobs import (
@@ -303,7 +304,11 @@ async def confirm_episode_from_script(
     if not project.script:
         raise AppError("drama.script_missing")
     try:
-        require_confirmable_episode_body(project.script.episode_content, body.episode_number)
+        require_confirmable_episode_body(
+            project.script.episode_content,
+            body.episode_number,
+            min_chars=episode_min_content_chars(project.params),
+        )
     except ValueError as exc:
         raise http_exception_for_value_error(exc) from exc
 
@@ -469,6 +474,11 @@ async def plan_episode_fragments(
     if req.subtitle_enabled is not None:
         params["subtitleEnabled"] = bool(req.subtitle_enabled)
         params["subtitleMode"] = "model" if bool(req.subtitle_enabled) else "post"
+    if req.episode_target_sec is not None:
+        target = normalize_episode_target_sec(req.episode_target_sec)
+        if target is None:
+            raise AppError("drama.invalid_episode_target")
+        params["episodeTargetSec"] = target
     if req.skill_ids is None:
         params.pop("fragment_plan_skill_ids", None)
     else:
