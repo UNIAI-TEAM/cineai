@@ -69,6 +69,12 @@ class ImageResult:
     model: str = ""
 
 
+def _is_public_url(url: str) -> bool:
+    """True khi host của URL không phải localhost/LAN (upstream trên cloud mới tải được)."""
+    host = (urlparse(url).hostname or "").lower()
+    return bool(host) and host not in {"localhost", "127.0.0.1", "::1"} and not host.startswith(("192.168.", "10."))
+
+
 class MediaGateway:
     """Cổng duy nhất mà pipeline/drama/tools gọi để sinh ảnh, video, TTS."""
 
@@ -794,8 +800,7 @@ class MediaGateway:
             return raw
         if raw.startswith("http://"):
             # Upstream trên cloud không tải được LAN/localhost; chỉ giữ khi host công khai
-            host = (urlparse(raw).hostname or "").lower()
-            if host and host not in {"localhost", "127.0.0.1", "::1"} and not host.startswith(("192.168.", "10.")):
+            if _is_public_url(raw):
                 return raw
         if prefer_https:
             # Seedance cần https công khai; ảnh /static nội bộ phải đẩy lên OSS trước
@@ -806,9 +811,7 @@ class MediaGateway:
                     return str(public)
                 # Không bật OSS: nếu site có domain https công khai (PUBLIC_BASE_URL) thì Ark tải thẳng /static qua đó
                 site_url = storage.to_public_url(raw) if raw.startswith("/static/") else raw
-                site_host = (urlparse(site_url).hostname or "").lower()
-                if site_url.startswith("https://") and site_host not in {"localhost", "127.0.0.1", "::1"} \
-                        and not site_host.startswith(("192.168.", "10.")):
+                if site_url.startswith("https://") and _is_public_url(site_url):
                     return site_url
                 raise UpstreamError(
                     "Seedance 需要公网可访问的图片 URL（请启用 OSS 并确保参考图已上传），"
