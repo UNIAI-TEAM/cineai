@@ -1,0 +1,91 @@
+# Build 3 image → push Harbor → SSH pull & up app trên server (một nút, workflow_dispatch).
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: registry-harbor.ubos.vn
+  DEPLOY_DIR: /home/devops/cineai
+
+jobs:
+  build-push:
+    name: Build & push (${{ matrix.key }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - key: api
+            context: ./backend
+            image: registry-harbor.ubos.vn/cineai/printfilm-api:latest
+          - key: web
+            context: ./frontend
+            image: registry-harbor.ubos.vn/cineai/printfilm-web:latest
+          - key: admin-web
+            context: ./admin
+            image: registry-harbor.ubos.vn/cineai/printfilm-admin-web:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Harbor
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.context }}/Dockerfile
+          push: true
+          tags: ${{ matrix.image }}
+          cache-from: type=gha,scope=${{ matrix.key }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.key }}
+
+  deploy:
+    name: Deploy to server
+    runs-on: ubuntu-latest
+    needs: build-push
+    steps:
+      - name: Configure SSH key
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Pull images and restart app services
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          REGISTRY_USERNAME_Q=$(printf '%q' "$REGISTRY_USERNAME")
+          REGISTRY_PASSWORD_Q=$(printf '%q' "$REGISTRY_PASSWORD")
+          ssh -i ~/.ssh/deploy_key \
+            -p "${{ secrets.REMOTE_PORT }}" \
+            -o StrictHostKeyChecking=accept-new \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }}" \
+            "env REGISTRY_USERNAME=${REGISTRY_USERNAME_Q} REGISTRY_PASSWORD=${REGISTRY_PASSWORD_Q} bash -s" \
+            <<'REMOTE_SCRIPT'
+          set -euo pipefail
+          cd /home/devops/cineai
+          echo "$REGISTRY_PASSWORD" | docker login registry-harbor.ubos.vn \
+            -u "$REGISTRY_USERNAME" --password-stdin
+          docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml \
+            pull api web admin-web
+          docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml \
+            up -d api web admin-web
+          docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml ps
+          REMOTE_SCRIPT
