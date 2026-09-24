@@ -213,7 +213,10 @@ def test_build_seedance_production_section_ambient_only():
     assert "后期外部 TTS" in section
     assert "禁止任何旁白" in section
     assert "禁止任何 BGM" in section
-    assert "操作环境音" in section
+    assert "与画面内容同步的环境音与动作音效" in section
+    assert "操作环境音" not in section
+    assert "按画面实际场景" in section
+    assert "人声" in section
     assert "第三人称旁白配音" not in section
     assert "轻快专业" not in section
 
