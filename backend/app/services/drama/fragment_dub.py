@@ -28,7 +28,7 @@ from app.services.drama.dub_lines import extract_dub_lines
 from app.services.drama.dub_voices import CharacterVoice, resolve_line_speaker, voice_source_asset_id
 from app.services.drama.generation import fragment_generation_status
 from app.services.drama.job_errors import gen_error_fields, with_error_code
-from app.services.drama.voice_synthesis import _drama_tts_model, infer_character_speaker, usable_speaker
+from app.services.drama.voice_synthesis import _drama_tts_model, resolve_bound_speaker
 from app.services.dub_mix import run_dub_mix
 from app.services.tasks.service import ACTIVE_TASK_STATUSES, create_task
 from app.services.voice_lang import default_voice_for_lang
@@ -106,8 +106,14 @@ async def load_dub_voices(db: AsyncSession, project: Any, lang: str) -> tuple[li
         vparams = (voice.params or {}) if voice is not None else {}
         speaker = str(vparams.get("speaker") or "").strip()
         prompt = str(vparams.get("voicePrompt") or params.get("voicePrompt") or "")
-        if not usable_speaker(speaker, lang, voice_prompt=prompt, character_name=asset.name):
-            speaker = infer_character_speaker(prompt, asset.name, key_asset_id=asset.id, lang=lang)
+        speaker = resolve_bound_speaker(
+            speaker,
+            lang,
+            locked=vparams.get("speakerLocked") is True,
+            voice_prompt=prompt,
+            character_name=asset.name,
+            key_asset_id=asset.id,
+        )
         if kind == "narration":
             narrator = narrator or speaker
             continue

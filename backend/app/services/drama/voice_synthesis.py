@@ -72,6 +72,39 @@ def usable_speaker(
     return not (wanted and have and wanted != have)
 
 
+def lockable_speaker(speaker: str | None) -> bool:
+    """speaker có được phép khóa không: giọng trong danh mục hoặc giọng nhân bản S_*."""
+    from app.services.voices import VOICE_PRESETS
+
+    sp = (speaker or "").strip()
+    if not sp:
+        return False
+    return sp.startswith("S_") or any(p["speaker"] == sp for p in VOICE_PRESETS)
+
+
+def resolve_bound_speaker(
+    speaker: str | None,
+    lang: str,
+    *,
+    locked: bool,
+    voice_prompt: str,
+    character_name: str | None,
+    key_asset_id: int,
+) -> str:
+    """speaker thực dùng cho nhân vật: đã khóa và đọc được ngôn ngữ dự án → dùng nguyên;
+    còn lại theo luồng cũ (usable_speaker → infer_character_speaker)."""
+    from app.services.voice_lang import voice_supports_lang
+
+    sp = (speaker or "").strip()
+    if locked and sp:
+        if voice_supports_lang(sp, lang):
+            return sp
+        logger.warning("Giọng đã khóa không đọc được ngôn ngữ dự án, tự chọn lại speaker=%s lang=%s", sp, lang)
+    if usable_speaker(sp, lang, voice_prompt=voice_prompt, character_name=character_name):
+        return sp
+    return infer_character_speaker(voice_prompt, character_name, key_asset_id=key_asset_id, lang=lang)
+
+
 # 拉丁字母角色名在试听句里的最大长度（按词截断，不切半个词）
 _LATIN_NAME_MAX = 24
 
@@ -215,6 +248,7 @@ async def synthesize_voice_asset(
     speaker: str | None = None,
     character_name: str | None = None,
     character_asset: DramaAsset | None = None,
+    speaker_locked: bool = False,
 ) -> DramaAsset:
     """按提示词合成音色参考音频并写回 voice 资产。"""
     settings = get_settings()
@@ -232,7 +266,7 @@ async def synthesize_voice_asset(
     audio_url: str | None = None
     resolved_speaker = (speaker or "").strip()
     voice_design_meta: dict[str, Any] = {}
-    if voice_design_enabled(settings) and not settings.ark_mock:
+    if voice_design_enabled(settings) and not settings.ark_mock and not speaker_locked:
         try:
             audio_url, designed_speaker = await _synthesize_via_voice_design(
                 settings=settings,
@@ -261,13 +295,14 @@ async def synthesize_voice_asset(
         # 调用方给的 speaker（如「生成音色描述」推荐的）能读项目语言且性别与描述一致就照用；
         # 缺失 / 无效 / 性别不符才按同一键（角色资产 id + 名）重新推断
         character_label = character_asset.name if character_asset is not None else display_name
-        if not usable_speaker(resolved_speaker, lang, voice_prompt=prompt, character_name=character_label):
-            resolved_speaker = infer_character_speaker(
-                prompt,
-                character_label,
-                key_asset_id=character_asset.id if character_asset is not None else asset.id,
-                lang=lang,
-            )
+        resolved_speaker = resolve_bound_speaker(
+            resolved_speaker,
+            lang,
+            locked=speaker_locked,
+            voice_prompt=prompt,
+            character_name=character_label,
+            key_asset_id=character_asset.id if character_asset is not None else asset.id,
+        )
         logger.info(
             "合成音色资产(TTS) project_id=%s asset_id=%s speaker=%s name=%s",
             project.id,
@@ -295,6 +330,10 @@ async def synthesize_voice_asset(
     params["voicePrompt"] = prompt
     params["sampleText"] = text
     params["speaker"] = resolved_speaker
+    if speaker_locked and resolved_speaker == (speaker or "").strip():
+        params["speakerLocked"] = True
+    else:
+        params.pop("speakerLocked", None)
     if resolved_speaker.startswith("S_"):
         params["designedSpeakerId"] = resolved_speaker
     params["characterName"] = display_name

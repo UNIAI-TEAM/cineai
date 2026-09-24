@@ -165,6 +165,7 @@ sequenceDiagram
 | 漫剧助手聊天 | `drama` | `agent_chat` | 同步 ephemeral |
 | Skill 优化提示词 | `drama` | `skill_optimize` | 同步 ephemeral |
 | 角色音色描述 | `drama` | `voice_prompt` | 同步 ephemeral |
+| 角色外形字段拆分 | `drama` | `appearance_extract` | 同步 ephemeral |
 | 剧本摘要 | `drama` | `script_summary` | 异步任务 |
 | 分集大纲 + 分集正文 | `drama` | `episode_script` | 异步任务（大纲与每集各记 llm_chat） |
 | AI 分镜 | `drama` | `fragment_plan` | 异步任务 |

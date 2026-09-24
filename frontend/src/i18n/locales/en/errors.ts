@@ -104,6 +104,7 @@ export const enErrors = {
     'drama.asset_not_found': 'Asset not found',
     'drama.character_asset_not_found': 'Character not found',
     'drama.character_asset_only': 'Only character assets are supported',
+    'drama.appearance_extract_failed': 'Could not split the appearance into fields, please try again',
     'drama.prompt_required': 'Please enter a prompt',
     'drama.voice_prompt_required': 'Please describe the voice',
     'drama.voice_generate_failed': 'Couldn’t generate the voice. Please try again later',

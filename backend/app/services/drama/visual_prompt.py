@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models_drama import DramaAsset, DramaProject
 from app.services.billing import record_llm_chat_line
 from app.services.content_lang import is_zh, project_content_lang
+from app.services.drama.appearance_prompt import has_field_composed_prompt
 from app.services.drama.llm import drama_chat_text
 from app.errors import AppError
 from app.services.llm_client import LlmUnavailableError
@@ -304,6 +305,11 @@ async def resolve_visual_prompt_for_asset(
     bodies = _episode_bodies(project.script.episode_content) if project.script else []
 
     if not force_refresh and stored and not is_weak_visual_prompt(stored, name, kind):
+        return stored
+    # Prompt ghép từ trường ngoại hình hoặc người dùng chỉnh tay: giữ nguyên, không để LLM "bù" prompt yếu
+    if not force_refresh and stored and (
+        params.get("promptManual") is True or has_field_composed_prompt(kind, params)
+    ):
         return stored
 
     min_len = MIN_PROMPT_LEN.get(kind, 80)

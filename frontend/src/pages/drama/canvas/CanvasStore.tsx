@@ -483,6 +483,10 @@ export function CanvasStoreProvider({ projectId, children }: CanvasStoreProvider
           importedFromProjectId: source.project_id,
           visualPrompt: promptHint || visualImage || prevParams.visualPrompt,
           visualImage: visualImage || promptHint || prevParams.visualImage,
+          // Nhân vật nhận prompt nhập từ thư viện: chuyển chỉnh tay để backend không ghép đè từ trường ngoại hình
+          ...((currentAsset?.type || '').toLowerCase() === 'character' && (promptHint || visualImage)
+            ? { promptManual: true }
+            : {}),
           canvas: {
             ...(typeof prevParams.canvas === 'object' && prevParams.canvas
               ? (prevParams.canvas as Record<string, unknown>)

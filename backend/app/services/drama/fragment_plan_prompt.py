@@ -8,6 +8,7 @@ from typing import Any
 from app.services.content_lang import is_zh, lang_display_name
 from app.services.drama.episode_target import (
     EPISODE_TARGET_DEFAULT,
+    episode_content_length,
     episode_fragment_budget,
     fragment_plan_budget_lines,
 )
@@ -194,7 +195,8 @@ def build_fragment_plan_user_prompt(
         ]
     )
     max_count, max_total = episode_fragment_budget(target_sec)
-    if max_total is not None and body_len > max_total * 6:
+    # 超出剧本生成的目标字数（同一口径，90s ≈ 550）才提示压缩；正好达标的正文不应被要求删减
+    if max_total is not None and body_len > episode_content_length(target_sec)[0]:
         lines.insert(
             lines.index("【分集场记正文】"),
             f"【场记偏长（约 {body_len} 字）】规划时请主动压缩：合并场次、删次要动作，仍只输出 ≤{max_count} 条 fragments。",

@@ -14,7 +14,7 @@ import {
   type DramaAsset,
   type DramaProjectListItem,
 } from '../../api/drama'
-import { readAssetVoiceBinding } from './CharacterVoiceBindModal'
+import { readAssetVoiceBinding } from '../../lib/dramaVoiceBinding'
 import { DramaImageLightbox } from './DramaImageLightbox'
 import { displayDramaAssetName, filterDramaLibraryAssets, isDramaLibraryAsset } from '../../lib/dramaLibraryAssets'
 import { displayDramaTitle } from '../../lib/dramaWorkflow'

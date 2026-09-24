@@ -32,3 +32,11 @@ test('character labels are English for vi / en projects and drop Chinese stub va
   )
   assert.ok(zh.includes('身份：治水首领'))
 })
+
+test('short field-composed or hand-edited character prompt is returned as stored (no duplicated labels)', () => {
+  const stored = 'Gender: female. Age: about 20. Hair: short black hair. Outfit: faded brown ao ba ba, conical hat. Role: lead'
+  const composed = asset({ name: 'Lan', params: { visualPrompt: stored, visualImage: stored, roleType: 'lead', appearance: { gender: 'female', age: 'about 20', hair: 'short black hair', outfit: 'faded brown ao ba ba, conical hat' }, promptManual: false } })
+  assert.equal(readVisualPrompt(composed), stored)
+  const manual = asset({ name: 'Lan', params: { visualPrompt: 'A young girl standing on a wooden boat at dawn, long black braid, faded ao ba ba. Role: lead', roleType: 'lead', promptManual: true } })
+  assert.equal(readVisualPrompt(manual), 'A young girl standing on a wooden boat at dawn, long black braid, faded ao ba ba. Role: lead')
+})

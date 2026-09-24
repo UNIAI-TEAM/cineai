@@ -26,7 +26,11 @@ from app.errors import AppError
 from app.services.billing import record_line, record_llm_chat_line
 from app.services.content_lang import project_content_lang
 from app.services.drama.billing_util import record_seed_assets_llm_usage
-from app.services.drama.seed import load_episode_params_by_number, seed_assets_from_episode_body
+from app.services.drama.seed import (
+    load_episode_min_chars_overrides,
+    load_episode_params_by_number,
+    seed_assets_from_episode_body,
+)
 from app.services.drama.agents import (
     auto_missing_episode_numbers,
     count_completed_episodes,
@@ -428,6 +432,8 @@ async def run_episode_scripts_job(
         # 单集目标时长：决定正文篇幅与「正文已完成」阈值
         episode_target_sec = resolve_episode_target_sec(None, project.params)
         min_body_chars = episode_content_length(episode_target_sec)[1]
+        # 单集覆盖了目标时长的集按各自阈值判定，避免把已按短时长写好的正文当作缺失重写
+        min_chars_overrides = await load_episode_min_chars_overrides(db, int(project.id), project.params)
 
         summary = script.summary if isinstance(script.summary, dict) else {}
         existing: list = []
@@ -441,7 +447,9 @@ async def run_episode_scripts_job(
 
         def _done(episodes: list) -> int:
             # 1..total 中正文达标的集数（阈值随项目目标时长）
-            return count_completed_episodes(episodes, total, min_chars=min_body_chars)
+            return count_completed_episodes(
+                episodes, total, min_chars=min_body_chars, min_chars_by_number=min_chars_overrides
+            )
 
         if summary.get("episodeCount") != total:
             summary = {**summary, "episodeCount": total}
@@ -509,7 +517,9 @@ async def run_episode_scripts_job(
 
             guard = 0
             while True:
-                missing = auto_missing_episode_numbers(existing, total, min_chars=min_body_chars)
+                missing = auto_missing_episode_numbers(
+                    existing, total, min_chars=min_body_chars, min_chars_by_number=min_chars_overrides
+                )
                 if not missing:
                     break
                 generated = _done(existing)

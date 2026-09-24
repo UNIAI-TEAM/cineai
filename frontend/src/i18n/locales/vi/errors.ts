@@ -104,6 +104,7 @@ export const viErrors = {
     'drama.asset_not_found': 'Không tìm thấy tư liệu',
     'drama.character_asset_not_found': 'Không tìm thấy nhân vật',
     'drama.character_asset_only': 'Chỉ áp dụng cho tư liệu nhân vật',
+    'drama.appearance_extract_failed': 'Không tách được các trường ngoại hình, vui lòng thử lại',
     'drama.prompt_required': 'Vui lòng nhập prompt',
     'drama.voice_prompt_required': 'Vui lòng mô tả giọng',
     'drama.voice_generate_failed': 'Không tạo được giọng, vui lòng thử lại sau',

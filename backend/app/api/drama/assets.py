@@ -19,13 +19,17 @@ from app.models import User
 from app.models_drama import DramaAsset, DramaProject
 from app.schemas_drama import (
     DramaActivateImageVersionRequest,
+    DramaAppearanceExtractRequest,
     DramaAssetCreate,
     DramaAssetOut,
     DramaAssetUpdate,
     SeedAssetsFromScriptOut,
 )
+from app.services.content_lang import project_content_lang
 from app.services.drama.access import get_owned_drama_project
-from app.services.billing import run_billed_ephemeral
+from app.services.drama.appearance_extract import extract_appearance_fields
+from app.services.drama.appearance_prompt import apply_appearance_to_params, should_recompose_prompt
+from app.services.billing import record_llm_chat_line, run_billed_ephemeral
 from app.services.billing.http import http_exception_for_value_error
 from app.services.drama.billing_util import record_seed_assets_llm_usage
 from app.services.drama.jobs import dispatch_seed_assets_job
@@ -157,8 +161,6 @@ async def update_asset(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> DramaAssetOut:
-    from app.models_drama import DramaProject
-
     result = await db.execute(
         select(DramaAsset)
         .join(DramaProject, DramaAsset.project_id == DramaProject.id)
@@ -172,15 +174,56 @@ async def update_asset(
         if val is None:
             continue
         if field == "params" and isinstance(val, dict):
-            asset.params = _merge_asset_params(
-                asset.params if isinstance(asset.params, dict) else {},
-                val,
-            )
+            prev_params = asset.params if isinstance(asset.params, dict) else {}
+            asset.params = _merge_asset_params(prev_params, val)
+            if should_recompose_prompt(asset.type, val, prev_params):
+                project = await db.get(DramaProject, asset.project_id)
+                asset.params = apply_appearance_to_params(asset.params, project_content_lang(project))
         else:
             setattr(asset, field, val)
     await db.commit()
     await db.refresh(asset)
     return DramaAssetOut.model_validate(asset)
+
+
+@router.post("/assets/{asset_id}/appearance/extract")
+async def extract_asset_appearance(
+    asset_id: int,
+    req: DramaAppearanceExtractRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """AI 把角色外形描述拆成 8 个字段并返回，不写库：前端填入表单草稿，用户确认后经 PATCH 保存（届时才重拼 prompt）。"""
+    asset = await db.get(DramaAsset, asset_id)
+    if not asset:
+        raise AppError("drama.asset_not_found")
+    project = await get_owned_drama_project(db, asset.project_id, user)
+    if (asset.type or "").lower() != "character":
+        raise AppError("drama.character_asset_only")
+    lang = project_content_lang(project)
+
+    async def _do_extract() -> dict[str, str]:
+        appearance = await extract_appearance_fields(asset, lang, req.source_text if req else None)
+        await record_llm_chat_line(db, user_id=user.id, domain="drama", drama_project_id=project.id)
+        return appearance
+
+    try:
+        task, appearance = await run_billed_ephemeral(
+            db,
+            user,
+            domain="drama",
+            task_type="appearance_extract",
+            executor=_do_extract,
+            payload={"asset_id": asset.id},
+            drama_project_id=project.id,
+            asset_id=asset.id,
+            commit=True,
+        )
+    except ValueError as exc:
+        raise http_exception_for_value_error(exc) from exc
+
+    logger.info("外形字段已拆分 project_id=%s asset_id=%s task_id=%s", project.id, asset.id, task.id)
+    return {"ok": True, "appearance": appearance, "task_id": task.id}
 
 
 @router.post("/assets/{asset_id}/upload", response_model=DramaAssetOut)
