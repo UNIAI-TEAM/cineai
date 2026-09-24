@@ -24,6 +24,7 @@ from app.services.content_lang import project_content_lang
 from app.services.drama.naming import default_voice_name
 from app.services.drama.access import get_owned_drama_project
 from app.services.drama.generation import generate_voice_asset_audio
+from app.services.drama.voice_synthesis import lockable_speaker
 from app.services.billing import record_llm_chat_line, run_billed_ephemeral
 from app.services.billing.http import http_exception_for_value_error
 from app.services.drama.jobs import dispatch_asset_image_job, dispatch_asset_video_job
@@ -258,6 +259,13 @@ async def generate_voice(
         await db.commit()
         await db.refresh(asset)
 
+    prev_params = asset.params if isinstance(asset.params, dict) else {}
+    requested = (body.speaker or "").strip()
+    # 手选音色，或对已锁定音色用同一 speaker 重新合成 → 保持锁定
+    speaker_locked = lockable_speaker(requested) and (
+        body.speaker_locked or (prev_params.get("speakerLocked") is True and prev_params.get("speaker") == requested)
+    )
+
     params = dict(asset.params or {})
     params["generation"] = {"status": "generating"}
     params["voicePrompt"] = prompt
@@ -283,6 +291,7 @@ async def generate_voice(
             sample_text=body.sample_text,
             speaker=body.speaker,
             character_asset=character_asset,
+            speaker_locked=speaker_locked,
         )
     except Exception as exc:  # noqa: BLE001
         params = dict(asset.params or {})

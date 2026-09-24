@@ -261,6 +261,7 @@ class DramaVoiceGenerateRequest(BaseModel):
         default=None,
         description="关联角色资产 ID，用于 voice_design image_prompt",
     )
+    speaker_locked: bool = Field(default=False, description="用户手选音色：锁定 speaker，配音时不按描述性别改换")
 
 
 class DramaFragmentSaveItem(BaseModel):
