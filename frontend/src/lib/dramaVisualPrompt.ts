@@ -1,6 +1,7 @@
 /** 从资产 params 读取/拼装视觉生图提示词（对齐 manju buildCharacterParams + 弱提示检测） */
 import type { DramaAsset } from '../api/drama'
 import { CJK_RE } from './contentLang.ts'
+import { appearanceIsEmpty, readAppearance } from './dramaAppearance.ts'
 
 const WEAK_PROMPT = /^(character|scene|prop|material|none|image|audio|video)\s+\S+$/i
 
@@ -100,6 +101,16 @@ export function readVisualPrompt(asset: DramaAsset, lang?: PromptLang): string {
     String(params.visualPrompt || params.visualImage || canvasPrompt || '').trim()
 
   if (stored && !isWeakVisualPrompt(stored, name, kind)) {
+    return stored
+  }
+
+  /* 按字段拼出的 / 手动编辑的角色提示词本身就是成品（已含身份/定位标签），短也不当弱占位再拼一遍，
+     否则会重复追加「Role: …」（与后端 has_field_composed_prompt / promptManual 规则一致） */
+  if (
+    stored &&
+    kind === 'character' &&
+    (params.promptManual === true || !appearanceIsEmpty(readAppearance({ params })))
+  ) {
     return stored
   }
 
