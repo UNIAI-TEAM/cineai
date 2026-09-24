@@ -50,6 +50,7 @@ import {
 } from '../../lib/dramaProjectOutputSettings'
 import { DramaFragmentClipSpec } from '../../components/drama/DramaFragmentClipSpec'
 import { FragmentPlanSkillModal } from '../../components/drama/FragmentPlanSkillModal'
+import { resolveEpisodeTargetSec, type EpisodeTargetSec } from '../../lib/dramaEpisodeTarget'
 import { DramaGenTaskDetail } from '../../components/drama/DramaGenTaskDetail'
 import { FragmentDubPanel } from '../../components/drama/FragmentDubPanel'
 import { mergeServerDubFields } from '../../lib/dramaFragmentDub'
@@ -1250,7 +1251,7 @@ function EpisodeEditInner() {
   }
 
   // 入队后轮询至完成（字幕方式沿用顶栏当前设置）
-  async function startPlanFragments(skillIds: number[]) {
+  async function startPlanFragments(skillIds: number[], targetSec?: EpisodeTargetSec) {
     setPlanModalOpen(false)
     setBusy(true)
     setError('')
@@ -1262,6 +1263,7 @@ function EpisodeEditInner() {
         fallback_rules: true,
         skill_ids: skillIds,
         subtitle_enabled: subtitleModeUsesModelOutput(subtitleMode),
+        episode_target_sec: targetSec,
       })
       const started = Date.now()
       while (Date.now() - started < 10 * 60 * 1000) {
@@ -1975,7 +1977,8 @@ function EpisodeEditInner() {
         open={planModalOpen}
         message={t('dramaEpisode.page.planModalMsg')}
         onCancel={() => setPlanModalOpen(false)}
-        onConfirm={(skillIds) => void startPlanFragments(skillIds)}
+        initialTargetSec={resolveEpisodeTargetSec(episodeParams, projectParams)}
+        onConfirm={(skillIds, targetSec) => void startPlanFragments(skillIds, targetSec)}
       />
 
       {detailAsset && (detailAsset.type || '').toLowerCase() !== 'voice' ? (

@@ -546,6 +546,7 @@ export function OutlineStep({
 
       <OutlineEpisodePanel
         projectId={projectId}
+        projectParams={project.params}
         script={script}
         episodeCount={episodeCount}
         summaryReady={summaryStatus === 'completed' || Boolean(summary)}

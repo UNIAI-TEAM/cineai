@@ -27,7 +27,6 @@ import {
   isSubstantialEpisodeBody,
   isSubstantialEpisodeCreative,
   mergeDirectoryEpisodeBodies,
-  MIN_EPISODE_BODY_CHARS,
   MIN_EPISODE_CREATIVE_CHARS,
   parseEpisodeBodies,
 } from './dramaWorkspaceUtils'
@@ -35,6 +34,12 @@ import { sumFragmentContentDuration } from './dramaEpisodeEditUtils'
 import { OutlineScriptParseModal, OutlineScriptPreview } from './outlineScriptPreview'
 import { storedJobError } from '../../lib/dramaJobError'
 import { toCanonicalScript, toDisplayScript } from '../../lib/dramaScriptLocalize'
+import {
+  minEpisodeBodyChars,
+  resolveEpisodeTargetSec,
+  type EpisodeTargetSec,
+} from '../../lib/dramaEpisodeTarget'
+import { estimateOutlineScriptSec } from './outlineScriptPreview'
 
 type SectionKey = 'creative' | 'summary' | 'body'
 
@@ -47,8 +52,50 @@ function formatOutlineShotDuration(sec: number, t: TFunction): string {
   return s ? t('dramaProject.durMinSec', { m, s }) : t('dramaProject.durMin', { m })
 }
 
+/** 本集已切分镜的汇总 */
+type EpisodeShotStat = {
+  fragmentCount: number
+  totalSec: number
+  params: Record<string, unknown>
+}
+
+/** 与后端 _script_body_fingerprint 同算法：sha1(去 CRLF + trim) 前 16 位 */
+async function scriptBodyFingerprint(body: string): Promise<string> {
+  const normalized = body.replace(/\r\n/g, '\n').trim()
+  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(normalized))
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, 16)
+}
+
+/** 剧本是否在上次切分镜之后被改过（无指纹或无正文时视为未改） */
+function useScriptFingerprintMismatch(body: string, storedFp: string): boolean {
+  const [mismatch, setMismatch] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    if (!storedFp || !body.trim() || !globalThis.crypto?.subtle) {
+      setMismatch(false)
+      return
+    }
+    void scriptBodyFingerprint(body)
+      .then((fp) => {
+        if (!cancelled) setMismatch(fp !== storedFp)
+      })
+      .catch(() => {
+        if (!cancelled) setMismatch(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [body, storedFp])
+  return mismatch
+}
+
 type OutlineEpisodePanelProps = {
   projectId: number
+  /** 项目 params：单集目标时长默认值（episodeTargetSec） */
+  projectParams?: Record<string, unknown> | null
   script: DramaScript | null
   episodeCount: number
   summaryReady: boolean
@@ -198,6 +245,7 @@ function SectionCard({
 // 分集目录 + 本集三卡片
 export function OutlineEpisodePanel({
   projectId,
+  projectParams,
   script,
   episodeCount,
   summaryReady,
@@ -231,9 +279,11 @@ export function OutlineEpisodePanel({
   const [localNotice, setLocalNotice] = useState('')
   const [scriptModalOpen, setScriptModalOpen] = useState(false)
   const [episodeCovers, setEpisodeCovers] = useState<Record<number, string>>({})
-  const [episodeShotStats, setEpisodeShotStats] = useState<
-    Record<number, { fragmentCount: number; totalSec: number }>
-  >({})
+  // episodeShotStats 按集号：已切分镜条数/总秒数、分集 params（目标时长覆盖、切分所用剧本指纹）
+  const [episodeShotStats, setEpisodeShotStats] = useState<Record<number, EpisodeShotStat>>({})
+  // 项目级目标时长：决定正文最少字数（与后端确认门槛一致）
+  const projectTargetSec = resolveEpisodeTargetSec(projectParams)
+  const minBodyChars = minEpisodeBodyChars(projectTargetSec)
 
   const episodeBodies = parseEpisodeBodies(script)
   const directoryEpisodes = buildOutlineDirectory(episodeBodies, episodeCount)
@@ -272,7 +322,7 @@ export function OutlineEpisodePanel({
         }
         if (cancelled) return
         const map: Record<number, string> = {}
-        const shotMap: Record<number, { fragmentCount: number; totalSec: number }> = {}
+        const shotMap: Record<number, EpisodeShotStat> = {}
         for (const ep of rows) {
           const epNo = Number(ep.params?.episodeNumber) || 0
           if (!epNo) continue
@@ -285,7 +335,11 @@ export function OutlineEpisodePanel({
               if (Number.isFinite(stored) && stored > 0) return sum + Math.round(stored)
               return sum + sumFragmentContentDuration(f.content || '')
             }, 0)
-            shotMap[epNo] = { fragmentCount: frags.length, totalSec }
+            shotMap[epNo] = {
+              fragmentCount: frags.length,
+              totalSec,
+              params: (ep.params as Record<string, unknown>) || {},
+            }
           }
           const first = frags.find((f) => (f.cover || '').trim() || (f.video || '').trim())
           if (!first) continue
@@ -406,8 +460,8 @@ export function OutlineEpisodePanel({
       setLocalError(t('dramaProject.panel.creativeMin', { n: MIN_EPISODE_CREATIVE_CHARS }))
       return
     }
-    if (mode === 'brief' && !isSubstantialEpisodeBody(selected.body)) {
-      setLocalError(t('dramaProject.panel.bodyMinForBrief', { n: MIN_EPISODE_BODY_CHARS }))
+    if (mode === 'brief' && !isSubstantialEpisodeBody(selected.body, minBodyChars)) {
+      setLocalError(t('dramaProject.panel.bodyMinForBrief', { n: minBodyChars }))
       return
     }
     if (mode === 'full') {
@@ -462,8 +516,8 @@ export function OutlineEpisodePanel({
 
   async function handleConfirmEnter() {
     if (!selected?.episodeNumber) return
-    if (!isSubstantialEpisodeBody(selected.body)) {
-      setLocalError(t('dramaProject.panel.bodyMinForEnter', { n: MIN_EPISODE_BODY_CHARS }))
+    if (!isSubstantialEpisodeBody(selected.body, minBodyChars)) {
+      setLocalError(t('dramaProject.panel.bodyMinForEnter', { n: minBodyChars }))
       return
     }
     setLocalError('')
@@ -489,7 +543,7 @@ export function OutlineEpisodePanel({
   }
 
   // 首次进入：确认剧本 + 按所选 Skill 做 AI 分镜
-  async function startEnterWithSkills(skillIds: number[]) {
+  async function startEnterWithSkills(skillIds: number[], targetSec?: EpisodeTargetSec) {
     if (!selected?.episodeNumber) return
     setEnterSkillOpen(false)
     setConfirming(true)
@@ -505,6 +559,7 @@ export function OutlineEpisodePanel({
           force: true,
           fallback_rules: true,
           skill_ids: skillIds,
+          episode_target_sec: targetSec,
         })
       } catch (planErr) {
         onError(planErr instanceof Error ? planErr.message : t('dramaProject.panel.planQueueFailed'))
@@ -583,7 +638,15 @@ export function OutlineEpisodePanel({
     return tags
   }, [storyType, selected, t])
 
-  const bodyReady = isSubstantialEpisodeBody(selected?.body)
+  const bodyReady = isSubstantialEpisodeBody(selected?.body, minBodyChars)
+  // 本集目标时长（分集覆盖 → 项目）与剧本估时，供分镜确认弹窗与预览提示
+  const selectedShotStat = episodeShotStats[selected?.episodeNumber || 0] || null
+  const selectedTargetSec = resolveEpisodeTargetSec(selectedShotStat?.params, projectParams)
+  const selectedScriptSec = useMemo(() => estimateOutlineScriptSec(selected?.body || ''), [selected?.body])
+  const selectedShotsStale = useScriptFingerprintMismatch(
+    selected?.body || '',
+    String(selectedShotStat?.params?.fragment_source_fp || ''),
+  )
   const charHint = selected
     ? [
         selected.creative
@@ -622,7 +685,7 @@ export function OutlineEpisodePanel({
       <ul className="drama-outline-ep-list">
         {directoryEpisodes.map((ep) => {
           const body = displayEpisodes.find((x) => x.episodeNumber === ep.episodeNumber)
-          const ready = isSubstantialEpisodeBody(body?.body)
+          const ready = isSubstantialEpisodeBody(body?.body, minBodyChars)
           const active = activeEpisodeNumber === ep.episodeNumber
           const shot = episodeShotStats[ep.episodeNumber || 0]
           const statusLabel = shot && shot.fragmentCount > 0 && shot.totalSec > 0
@@ -848,7 +911,7 @@ export function OutlineEpisodePanel({
           open={openSections.has('body')}
           busy={busy}
           generateBusy={generateBusy}
-          placeholder={t('dramaProject.panel.bodyPlaceholder', { n: MIN_EPISODE_BODY_CHARS })}
+          placeholder={t('dramaProject.panel.bodyPlaceholder', { n: minBodyChars })}
           regenerateLabel={
             selectedGenerating && generatingMode === 'body'
               ? t('dramaProject.generating')
@@ -864,9 +927,11 @@ export function OutlineEpisodePanel({
           scriptPreview={
             <OutlineScriptPreview
               text={selected.body || ''}
-              empty={t('dramaProject.panel.bodyPlaceholder', { n: MIN_EPISODE_BODY_CHARS })}
+              empty={t('dramaProject.panel.bodyPlaceholder', { n: minBodyChars })}
               busy={busy}
-              shotStats={episodeShotStats[selected.episodeNumber || 0] || null}
+              shotStats={selectedShotStat}
+              targetSec={selectedTargetSec}
+              shotsStale={selectedShotsStale}
               onSaveScenes={handleSaveScenes}
             />
           }
@@ -890,10 +955,12 @@ export function OutlineEpisodePanel({
           title={t('dramaProject.enter')}
           message={t('dramaProject.panel.enterMsg')}
           confirmText={confirming ? t('dramaProject.entering') : t('dramaProject.startPlan')}
+          initialTargetSec={selectedTargetSec}
+          scriptEstimateSec={selectedScriptSec}
           onCancel={() => {
             if (!confirming) setEnterSkillOpen(false)
           }}
-          onConfirm={(skillIds) => void startEnterWithSkills(skillIds)}
+          onConfirm={(skillIds, targetSec) => void startEnterWithSkills(skillIds, targetSec)}
         />
       </>
     )
@@ -907,10 +974,12 @@ export function OutlineEpisodePanel({
         title={t('dramaProject.enter')}
         message={t('dramaProject.panel.enterMsg')}
         confirmText={confirming ? t('dramaProject.entering') : t('dramaProject.startPlan')}
+        initialTargetSec={selectedTargetSec}
+        scriptEstimateSec={selectedScriptSec}
         onCancel={() => {
           if (!confirming) setEnterSkillOpen(false)
         }}
-        onConfirm={(skillIds) => void startEnterWithSkills(skillIds)}
+        onConfirm={(skillIds, targetSec) => void startEnterWithSkills(skillIds, targetSec)}
       />
     </div>
   )

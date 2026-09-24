@@ -6,6 +6,8 @@ import { useI18n, type TFunction } from '../../i18n/context'
 import { messages } from '../../i18n/messages'
 import { localizeScriptActionLine, localizeScriptMetaLine } from '../../lib/dramaScriptLabels'
 import { displayScriptSpeaker, toCanonicalScript, toDisplayScript } from '../../lib/dramaScriptLocalize'
+import { isScriptOverTarget } from '../../lib/dramaEpisodeTarget'
+import { formatEpisodeTargetLabel } from '../../components/drama/EpisodeTargetChips'
 
 export type OutlineSceneBlock = {
   /** 原始整段（含场头行），写回时原样拼接 */
@@ -214,6 +216,14 @@ function formatClockDuration(sec: number, t: TFunction): string {
   return s ? t('dramaProject.durMinSec', { m, s }) : t('dramaProject.durMin', { m })
 }
 
+/** 整集剧本估时（各场估算之和，秒） */
+export function estimateOutlineScriptSec(text: string): number {
+  return parseOutlineSceneBlocks(text).reduce(
+    (sum, block) => sum + (summarizeOutlineScene(block.body).estimatedSec || 0),
+    0,
+  )
+}
+
 function formatEstimateDuration(sec: number, t: TFunction): string {
   return t('dramaProject.preview.about', { dur: sec <= 0 ? '—' : formatClockDuration(sec, t) })
 }
@@ -294,6 +304,10 @@ type OutlineScriptPreviewProps = {
   busy?: boolean
   /** 已切分分镜时优先展示镜头合计时长 */
   shotStats?: OutlineShotDurationStats | null
+  /** 本集目标时长（秒，0=自动）；传入则展示目标并在剧本明显超长时提示 */
+  targetSec?: number
+  /** 剧本在上次切分镜后已修改：镜头合计可能过期 */
+  shotsStale?: boolean
   /** 分段保存：返回更新后的完整 body */
   onSaveScenes?: (nextBody: string) => Promise<void> | void
 }
@@ -304,6 +318,8 @@ export function OutlineScriptPreview({
   empty,
   busy,
   shotStats,
+  targetSec,
+  shotsStale,
   onSaveScenes,
 }: OutlineScriptPreviewProps) {
   const { t, locale } = useI18n()
@@ -317,7 +333,8 @@ export function OutlineScriptPreview({
     [blockStats],
   )
   const hasShotDuration = Boolean(shotStats && shotStats.fragmentCount > 0 && shotStats.totalSec > 0)
-  const displayTotalSec = hasShotDuration ? shotStats!.totalSec : estimateTotalSec
+  const hasTarget = targetSec != null
+  const overTarget = hasTarget && isScriptOverTarget(targetSec, estimateTotalSec)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [draft, setDraft] = useState('')
   // 草稿按哪种界面语言换的标签；保存时用同一语言换回
@@ -350,28 +367,53 @@ export function OutlineScriptPreview({
     return <p className="drama-outline-section-empty">{empty}</p>
   }
 
+  // 汇总条：场次数 · 剧本估时 · 目标时长 · 已切镜头合计；剧本超长 / 镜头过期时附提示
   const summaryBar =
     blocks.length > 0 ? (
-      <div className="drama-outline-script-summary">
-        <span>
-          {blocks[0].whole
-            ? t('dramaProject.preview.onePart')
-            : t('dramaProject.preview.sceneCount', { n: blocks.length })}
-        </span>
-        {hasShotDuration ? (
+      <>
+        <div className="drama-outline-script-summary">
           <span>
-            {t('dramaProject.preview.shotTotal', {
-              n: shotStats!.fragmentCount,
-              dur: formatClockDuration(displayTotalSec, t),
-            })}
+            {blocks[0].whole
+              ? t('dramaProject.preview.onePart')
+              : t('dramaProject.preview.sceneCount', { n: blocks.length })}
           </span>
-        ) : displayTotalSec > 0 ? (
-          <span>{t('dramaProject.preview.total', { dur: formatClockDuration(displayTotalSec, t) })}</span>
+          {estimateTotalSec > 0 ? (
+            <span>
+              {hasTarget
+                ? t('dramaProject.preview.scriptEst', { dur: formatClockDuration(estimateTotalSec, t) })
+                : t('dramaProject.preview.total', { dur: formatClockDuration(estimateTotalSec, t) })}
+            </span>
+          ) : null}
+          {hasTarget ? (
+            <span>
+              {targetSec
+                ? t('dramaProject.preview.target', { dur: formatEpisodeTargetLabel(targetSec, t) })
+                : t('dramaProject.preview.targetAuto')}
+            </span>
+          ) : null}
+          {hasShotDuration ? (
+            <span>
+              {t('dramaProject.preview.shotTotal', {
+                n: shotStats!.fragmentCount,
+                dur: formatClockDuration(shotStats!.totalSec, t),
+              })}
+            </span>
+          ) : null}
+          <span className="drama-outline-script-summary-hint">
+            {hasShotDuration ? t('dramaProject.preview.durFromShots') : t('dramaProject.preview.durEstimated')}
+          </span>
+        </div>
+        {overTarget ? (
+          <p className="drama-ep-script-issue is-warn" role="status">
+            {t('dramaProject.preview.overTarget', { target: formatEpisodeTargetLabel(targetSec, t) })}
+          </p>
         ) : null}
-        <span className="drama-outline-script-summary-hint">
-          {hasShotDuration ? t('dramaProject.preview.durFromShots') : t('dramaProject.preview.durEstimated')}
-        </span>
-      </div>
+        {hasShotDuration && shotsStale ? (
+          <p className="drama-ep-script-issue is-warn" role="status">
+            {t('dramaProject.preview.staleShots')}
+          </p>
+        ) : null}
+      </>
     ) : null
 
   if (blocks.length === 1 && blocks[0].whole) {
@@ -419,7 +461,7 @@ export function OutlineScriptPreview({
               {t('dramaProject.preview.sceneLabel', { n: block.label })}
             </span>
             {block.title ? <strong>{block.title}</strong> : null}
-            {blockStats[i]?.estimatedSec && !hasShotDuration ? (
+            {blockStats[i]?.estimatedSec ? (
               <span className="drama-outline-scene-duration">
                 {formatEstimateDuration(blockStats[i].estimatedSec, t)}
               </span>

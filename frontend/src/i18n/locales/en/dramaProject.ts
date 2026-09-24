@@ -140,6 +140,12 @@ export const enDramaProject = {
       shotTotal: '{n} shots · {dur} total',
       total: '{dur} total',
       durFromShots: 'Duration from the split shots',
+      scriptEst: 'Script est. {dur}',
+      target: 'Target {dur}',
+      targetAuto: 'Target: auto',
+      overTarget:
+        'The script is much longer than the {target} target. AI will trim content when splitting shots. To keep everything, raise the length or pick Auto.',
+      staleShots: 'The script changed after the last split, so the shot count may be outdated. Split the shots again.',
       durEstimated: 'Estimated duration; the storyboard shots take over once created',
       editPart: 'Edit section',
       editScene: 'Edit scene',
@@ -199,6 +205,14 @@ export const enDramaProject = {
       planMsg:
         'AI will re-plan the shots for “{name}” (replacing its current shots and videos). This usually takes a few dozen seconds. Pick the Skills to use this time. Subtitles keep the episode’s current setting.',
     },
+    target: {
+      label: 'Target length',
+      auto: 'Auto',
+      sec: '{n}s',
+      min: '{n} min',
+      planHint: 'About {n} shots, each one video generation',
+      planHintAuto: 'Split by script content, about {n} shots, each one video generation',
+    },
     settings: {
       title: 'Project settings',
       done: 'Done',
@@ -222,6 +236,9 @@ export const enDramaProject = {
       linkOn: 'Chain last frames',
       linkOff: 'Generate in parallel',
       linkNote: 'When on, each shot uses the previous shot’s last frame for a more consistent look.',
+      target: 'Episode length',
+      targetNote:
+        'AI writes the script and splits shots to fit this length. Each shot is at most 15 seconds and is one video generation. Pick Auto to keep the whole script.',
     },
     output: {
       resolution: 'Resolution',

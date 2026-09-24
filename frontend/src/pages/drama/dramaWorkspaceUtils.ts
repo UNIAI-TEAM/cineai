@@ -33,9 +33,12 @@ export function isManualEpisode(ep: DramaEpisodeBody | undefined): boolean {
   return ep?.origin === 'manual'
 }
 
-// 正文是否达到可进入下一步的长度
-export function isSubstantialEpisodeBody(body: string | undefined): boolean {
-  return episodeBodyCharLen(body) >= MIN_EPISODE_BODY_CHARS
+// 正文是否达到可进入下一步的长度；minChars 随项目目标时长（见 lib/dramaEpisodeTarget）
+export function isSubstantialEpisodeBody(
+  body: string | undefined,
+  minChars: number = MIN_EPISODE_BODY_CHARS,
+): boolean {
+  return episodeBodyCharLen(body) >= minChars
 }
 
 export function isSubstantialEpisodeCreative(creative: string | undefined): boolean {
