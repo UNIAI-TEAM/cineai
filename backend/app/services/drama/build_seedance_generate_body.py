@@ -24,6 +24,7 @@ from app.services.seedance_segments import (
     is_production_meta_line,
     rewrite_misclassified_visual_voice_lines,
     script_has_narration_cue,
+    silence_voice_lines_for_dub,
     strip_character_intro_cues,
     strip_model_burn_subtitle_cues,
 )
@@ -538,11 +539,14 @@ def build_seedance_prompt_text(
     # 提交前拆分对白舞台指示并纠正空镜误标，保证强制约束与正文一致
     normalized = rewrite_dialogue_action_lines(content or "")
     normalized = rewrite_misclassified_visual_voice_lines(normalized)
-    if not burn_subtitles:
+    if not burn_subtitles or dub_voice:
         # 后期模式：去掉字幕 cue /「同步字幕」前缀，避免模型仍按字烧屏
         normalized = strip_model_burn_subtitle_cues(normalized)
     if not character_intro:
         normalized = strip_character_intro_cues(normalized)
+    if dub_voice:
+        # 后期 TTS 配音：正文不能留台词原文，否则 Seedance 会照念（字幕改由配音阶段按 TTS 时间轴叠加）
+        normalized = silence_voice_lines_for_dub(normalized)
     resolved_catalog = catalog or build_seedance_reference_catalog(reference, script=normalized)
     sections = [
         build_visual_style_section(video_style_id, has_style_board=has_style_board),

@@ -91,3 +91,69 @@ def test_resolve_speaker_prefix_match_requires_word_boundary():
     # "Lanh" bắt đầu bằng "Lan" nhưng ký tự tiếp theo "h" không phải ranh giới từ → KHÔNG được khớp "Lan"
     result = resolve_line_speaker(_line(speaker="Lanh"), chars, lang="vi", narrator="n")
     assert result != "VOICE_LAN" and result.startswith("vi_")
+
+
+# --- Không đọc tên người nói, đúng mốc @duration ---
+
+def test_asset_speaker_token_stripped_even_when_name_has_punctuation():
+    lines = extract_dub_lines(
+        "【对白·慢速清晰·同步字幕】@asset:12（giận dữ）：Anh đi đi!",
+        names_by_asset_id={12: "Nguyễn Văn A, CEO"},
+    )
+    assert lines[0].text == "Anh đi đi!"
+    assert lines[0].speaker == "Nguyễn Văn A, CEO" and lines[0].speaker_asset_id == 12
+    assert lines[0].emotion == "giận dữ"
+
+
+def test_asset_speaker_token_with_space_and_ascii_colon():
+    lines = extract_dub_lines("【对白】@asset:12 : Đi thôi.", names_by_asset_id={12: "Minh"})
+    assert lines[0].text == "Đi thôi." and lines[0].speaker == "Minh"
+
+
+def test_speaker_name_with_abbreviation_dot_is_not_read():
+    lines = extract_dub_lines("【对白·慢速清晰·同步字幕】Dr. Lâm：Xin chào.")
+    assert lines[0].speaker == "Dr. Lâm" and lines[0].text == "Xin chào."
+
+
+def test_known_character_name_with_comma_is_not_read():
+    lines = extract_dub_lines(
+        "【对白·慢速清晰·同步字幕】Nguyễn Văn A, CEO：Họp thôi.",
+        names_by_asset_id={3: "Nguyễn Văn A, CEO"},
+    )
+    assert lines[0].speaker == "Nguyễn Văn A, CEO" and lines[0].text == "Họp thôi."
+
+
+def test_vietnamese_and_english_narrator_labels_are_not_read():
+    vi = extract_dub_lines("【旁白·慢速清晰】Người dẫn chuyện：Ba năm sau.")
+    en = extract_dub_lines("【旁白】Narrator: Three years later.")
+    assert vi[0].kind == "narration" and vi[0].text == "Ba năm sau."
+    assert en[0].kind == "narration" and en[0].text == "Three years later."
+
+
+def test_colon_inside_narration_sentence_is_kept():
+    lines = extract_dub_lines("【旁白】Anh ấy nói rằng: cuộc đời thật khó.")
+    assert lines[0].text == "Anh ấy nói rằng: cuộc đời thật khó."
+
+
+def test_vo_os_markers_are_not_passed_as_emotion():
+    lines = extract_dub_lines("【内心独白】Lan（os，buồn bã）：Mình sai rồi.")
+    assert lines[0].emotion == "buồn bã" and lines[0].text == "Mình sai rồi."
+
+
+def test_duration_blocks_give_script_start_and_slot_end():
+    content = "\n".join([
+        "【字幕：底部居中·越南语·逐句轮换·与口播同步】",
+        "@duration:4",
+        "【画面·无配音仅环境音】△ Linh kéo tay Hùng lên xe.",
+        "@duration:3",
+        "【画面·无配音仅环境音】Tài xế（kính cẩn）。",
+        "@duration:5",
+        "【对白·慢速清晰·同步字幕】Tài xế：Cậu chủ, tôi đến đón cậu.",
+        "【对白·慢速清晰·同步字幕】Mèo：Ừ.",
+        "@duration:3",
+        "【对白·慢速清晰·同步字幕】Mèo（thở dài）：Về thôi.",
+    ])
+    lines = extract_dub_lines(content)
+    assert [l.text for l in lines] == ["Cậu chủ, tôi đến đón cậu.", "Ừ.", "Về thôi."]
+    assert [l.start_sec for l in lines] == [7.0, None, 12.0]
+    assert [l.end_sec for l in lines] == [12.0, 12.0, 15.0]

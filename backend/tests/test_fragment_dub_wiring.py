@@ -247,7 +247,7 @@ def _fake_session_factory(gets: dict):
 
 async def test_run_fragment_dub_job_propagates_dub_failure(monkeypatch):
     frag = SimpleNamespace(id=9, episode_id=2)
-    episode = SimpleNamespace(id=2, project_id=3)
+    episode = SimpleNamespace(id=2, project_id=3, params={})
     project = SimpleNamespace(id=3)
     user = SimpleNamespace(id=4)
     gets = {
@@ -258,7 +258,7 @@ async def test_run_fragment_dub_job_propagates_dub_failure(monkeypatch):
     }
     monkeypatch.setattr(fragment_dub, "AsyncSessionLocal", _fake_session_factory(gets))
 
-    async def boom(db, u, p, f, *, task_run_id=None):
+    async def boom(db, u, p, f, *, task_run_id=None, burn_subtitles=False):
         raise RuntimeError("dub lỗi")
 
     monkeypatch.setattr(fragment_dub, "dub_fragment", boom)
@@ -269,7 +269,7 @@ async def test_run_fragment_dub_job_propagates_dub_failure(monkeypatch):
 
 async def test_run_fragment_dub_job_returns_status_on_success(monkeypatch):
     frag = SimpleNamespace(id=9, episode_id=2)
-    episode = SimpleNamespace(id=2, project_id=3)
+    episode = SimpleNamespace(id=2, project_id=3, params={"subtitleMode": "model"})
     project = SimpleNamespace(id=3)
     user = SimpleNamespace(id=4)
     gets = {
@@ -280,13 +280,18 @@ async def test_run_fragment_dub_job_returns_status_on_success(monkeypatch):
     }
     monkeypatch.setattr(fragment_dub, "AsyncSessionLocal", _fake_session_factory(gets))
 
-    async def ok(db, u, p, f, *, task_run_id=None):
+    seen = {}
+
+    async def ok(db, u, p, f, *, task_run_id=None, burn_subtitles=False):
+        seen["burn_subtitles"] = burn_subtitles
         return {"status": "done"}
 
     monkeypatch.setattr(fragment_dub, "dub_fragment", ok)
 
     result = await fragment_dub.run_fragment_dub_job(99, 9, 4)
     assert result == {"ok": True, "status": "done"}
+    # Tập bật "phụ đề do mô hình" → lồng tiếng tự đốt phụ đề khớp giọng TTS
+    assert seen["burn_subtitles"] is True
 
 
 async def test_run_fragment_dub_job_raises_when_fragment_missing(monkeypatch):

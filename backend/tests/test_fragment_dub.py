@@ -55,9 +55,10 @@ def wired(monkeypatch, tmp_path):
     async def fake_local(url):
         return tmp_path / Path(url).name
 
-    def fake_mix(video, clips, dest):
+    def fake_mix(video, clips, dest, subtitles=None):
+        calls.setdefault("subtitles", []).append(subtitles)
         dest.write_bytes(b"mp4")
-        return DubPlan(starts=[0.2] * len(clips), tempo=1.0, out_duration=8.0, freeze_sec=0.0)
+        return DubPlan(starts=[0.2] * len(clips), tempos=[1.0] * len(clips), out_duration=8.0, freeze_sec=0.0)
 
     async def fake_record(db, **kw):
         calls["usage"].append(kw)

@@ -135,15 +135,17 @@ vi/en → `dub`，zh → `native`（旧数据没有 `voice_mode` 字段的历史
   `{台词}`」（`declare_spoken_language()`：对白/旁白/内心独白行改写成「说话人用越南语说：{台词}」再提交）。
 - **`dub`**：**不**做上面这层语种声明改写（`declare_spoken_language(..., lang=None)`）——口播交给后期外部
   TTS（Seed Speech，见 `docs/PROVIDERS.md`「Seed Speech (TTS 2.0)」与 `docs/BILLING.md`「漫剧配音」）。
-  强制约束段改用专门的 `dub_voice` 分支，核心要求：
-  - 「本镜全部【旁白·…】【对白·…】【内心独白·…】台词由后期外部 TTS 配音；视频内禁止生成任何人声（对白、
-    旁白、独白、哼唱、呼喊、说话声）。」
-  - 「【对白·…】段落里说话的角色照常开口说台词——口型随台词自然开合，表情与手势到位，节奏按台词长度与
-    时间段，只是不出声；旁白与内心独白段落角色不开口。」（口型照演，只是不出声）
-  - `generate_audio` 仍保持 `true`（`build_seedance_generate_body.py` 固定提交）：Seedance 依旧要生成与
-    画面同步的环境音/动作音效、按需求生成 BGM，只是不允许出现人声——不是把 `generate_audio` 关掉。
-  - 字幕/BGM/人物介绍规则与 `native` 的漫剧混排分支基本一致，只是字幕来源改成台词文本本身（后期没有
-    Seedance 出的台词音轨可对齐）。
+  强制约束段改用专门的 `dub_voice` 分支，并且**正文里不再出现任何台词原文**——实测只写「禁止人声」压不住：
+  Seedance 看到 `【对白】角色：台词` 就会照念。提交前 `silence_voice_lines_for_dub()`（`seedance_segments.py`，
+  reference 与 i2v 两条提交路径都走）把口播行改写成：
+  - 【对白】→ `【画面·角色无声口型】角色（情绪）开口说一句台词：嘴唇随台词自然开合……全程不发出任何声音`，
+    保留原时间段，口型仍落在台词该出现的时间；
+  - 【内心独白】/ 角色 vo → 角色闭口的神情戏；【旁白】→ 延续上一画面的环境音段；
+  - 去掉 `【字幕…】` `【BGM…】` cue 与「同步字幕」前缀。
+  强制约束同步改为：禁止任何人声（含耳语/笑声/叹气/自编台词）、禁止模型烧字幕、禁止 BGM，只保留与画面同步的
+  环境音与动作音效。`generate_audio` 仍为 `true`（要环境音，不是关掉音轨）。
+  - 分集选了「模型字幕」时，字幕改由配音阶段按 TTS 实际时间轴烧录（`run_dub_mix(subtitles=...)`，drawtext；
+    FFmpeg 缺 drawtext 时跳过并记日志），与配音逐句同步。
   - 生成的视频先落 `params.dub.sourceVideo`（原始无人声/无声台词视频），后期配音完成后 `fragment.video`
     才指向带 Seed Speech 配音的成片；重新生成视频会换新 `sourceVideo`，避免「lồng tiếng lại」在旧版本上
     重复叠加人声。
@@ -157,12 +159,14 @@ vi/en → `dub`，zh → `native`（旧数据没有 `voice_mode` 字段的历史
 Seedance 吐出「口型对上但不出声」的原始视频（`sourceVideo`）后，`dub_fragment()` 把每句 TTS 音频与它交给
 `run_dub_mix()` 合成最终 `fragment.video`：
 
-- **尊重脚本时间戳**：`plan_dub_timeline()` 优先把每句台词放在脚本给的时间点（`start_sec`）；没有时间戳的
-  句子按「上一句结尾 + 0.25s 间隔」（首句为 0.2s 起点）顺序排。
-- **不重叠**：任何一句的起点都不会早于「上一句结尾 + 0.25s（`GAP`）」，即使脚本时间戳比这更早也会被推后。
-- **超时先提速到 ×1.25，仍不够再定格尾帧**：如果按时间戳/顺序排完最后一句仍超出原视频时长，先整体提速
-  （`atempo` 依次试 1.1×→1.2×→1.25×，`MAX_TEMPO=1.25`），提到 1.25× 还放不下就不再压缩语速，改为用
-  `tpad=stop_mode=clone` 定格视频最后一帧补时长（`freeze_sec`），绝不裁剪台词。
+- **尊重脚本时间戳**：`extract_dub_lines()`（`services/drama/dub_lines.py`）按 `@duration:N` 块累加出每句的
+  起点 `start_sec`（块内第一句 = 块起点，后续句顺接）与块终点 `end_sec`；`mm:ss-mm:ss` 行直接用该时间段。
+  拆句时说话人一律去掉（`@asset:N`、带逗号/缩写点的名字、「Người dẫn chuyện / Narrator」等旁白名），TTS 只念台词。
+- **按块逐段提速，不整体提速**：`plan_dub_timeline()` 以「有时间戳的句子」为起点分段，每段的可用时长 =
+  下一段起点 − `GAP`（且不超过本块 `end_sec`，最后一段不超过视频末尾 − `TAIL`）；放不下时只给这一段提速，
+  最多 ×1.25（`MAX_TEMPO`，`atempo` 保持音高），其余台词保持原速、仍落在脚本时间点。
+- **不重叠、不裁台词**：任何一句的起点都不会早于「上一句结尾 + 0.25s（`GAP`）」；提速到上限仍放不下就把后句
+  顺延，最终超出视频时用 `tpad=stop_mode=clone` 定格尾帧补时长（`freeze_sec`），绝不裁剪台词。
 - **环境音靠 sidechain 让位，不是简单调低音量**：原片环境音轨先固定衰减到 `AMBIENT_VOLUME=0.6`，再用
   FFmpeg `sidechaincompress` 以台词音轨为触发信号，有人声时自动压低环境音、无人声时恢复，而不是全程
   统一调低（`build_dub_mix_cmd()`）。
