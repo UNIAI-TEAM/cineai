@@ -6489,6 +6489,17 @@ button.pf-shot-editable:disabled {
   overflow: auto;
 }
 
+.pf-dialog-target-block {
+  position: relative;
+  z-index: 1;
+}
+
+.pf-dialog-target-hint {
+  margin: 6px 0 0;
+  color: var(--pf-muted);
+  font-size: 0.78rem;
+}
+
 .pf-dialog-skill-label {
   margin: 0 0 8px;
   color: var(--pf-ink);

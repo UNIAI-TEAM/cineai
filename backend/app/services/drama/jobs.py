@@ -26,7 +26,7 @@ from app.errors import AppError
 from app.services.billing import record_line, record_llm_chat_line
 from app.services.content_lang import project_content_lang
 from app.services.drama.billing_util import record_seed_assets_llm_usage
-from app.services.drama.seed import seed_assets_from_episode_body
+from app.services.drama.seed import load_episode_params_by_number, seed_assets_from_episode_body
 from app.services.drama.agents import (
     auto_missing_episode_numbers,
     count_completed_episodes,
@@ -53,6 +53,7 @@ from app.services.drama.job_errors import (
     with_error_code,
 )
 from app.services.drama.naming import default_episode_title
+from app.services.drama.episode_target import episode_content_length, resolve_episode_target_sec
 from app.services.drama.generation import (
     apply_fragment_video_assets,
     build_failed_generation_params,
@@ -424,6 +425,10 @@ async def run_episode_scripts_job(
         script = project.script
         # 内容语言：每个 job 只算一次（推断会扫剧本正文）
         content_lang = project_content_lang(project)
+        # 单集目标时长：决定正文篇幅与「正文已完成」阈值
+        episode_target_sec = resolve_episode_target_sec(None, project.params)
+        min_body_chars = episode_content_length(episode_target_sec)[1]
+
         summary = script.summary if isinstance(script.summary, dict) else {}
         existing: list = []
         content = script.episode_content
@@ -433,6 +438,11 @@ async def run_episode_scripts_job(
             existing = list(content)
 
         total = resolve_episode_target(summary, project.params, script.params)
+
+        def _done(episodes: list) -> int:
+            # 1..total 中正文达标的集数（阈值随项目目标时长）
+            return count_completed_episodes(episodes, total, min_chars=min_body_chars)
+
         if summary.get("episodeCount") != total:
             summary = {**summary, "episodeCount": total}
             script.summary = summary
@@ -468,7 +478,7 @@ async def run_episode_scripts_job(
                     logger.info(
                         "force 续跑跳过清空 project_id=%s done=%s/%s",
                         project_id,
-                        count_completed_episodes(existing, total),
+                        _done(existing),
                         total,
                     )
 
@@ -491,18 +501,18 @@ async def run_episode_scripts_job(
                     )
             logger.info("分集大纲就绪 project_id=%s titles=%s", project_id, len(existing))
             await _sync_task_progress(
-                count_completed_episodes(existing, total),
+                _done(existing),
                 total,
                 phase="generating",
-                message=f"分集大纲就绪，开始生成 {count_completed_episodes(existing, total)}/{total}",
+                message=f"分集大纲就绪，开始生成 {_done(existing)}/{total}",
             )
 
             guard = 0
             while True:
-                missing = auto_missing_episode_numbers(existing, total)
+                missing = auto_missing_episode_numbers(existing, total, min_chars=min_body_chars)
                 if not missing:
                     break
-                generated = count_completed_episodes(existing, total)
+                generated = _done(existing)
                 logger.info(
                     "生成下一集 project_id=%s progress=%s/%s missing=%s",
                     project_id,
@@ -517,6 +527,7 @@ async def run_episode_scripts_job(
                     total=total,
                     creative=creative,
                     lang=content_lang,
+                    target_sec=episode_target_sec,
                 )
                 existing = merge_episode_bodies(existing, batch)
                 script.episode_content = {"episodes": existing}
@@ -524,7 +535,7 @@ async def run_episode_scripts_job(
                 params["episode_content_status"] = "generating"
                 params["episode_count"] = total
                 params["episode_content_progress"] = {
-                    "done": count_completed_episodes(existing, total),
+                    "done": _done(existing),
                     "total": total,
                 }
                 script.params = params
@@ -546,7 +557,7 @@ async def run_episode_scripts_job(
                 content = script.episode_content
                 if isinstance(content, dict) and isinstance(content.get("episodes"), list):
                     existing = list(content["episodes"])
-                done_now = count_completed_episodes(existing, total)
+                done_now = _done(existing)
                 logger.info(
                     "分集进度更新 project_id=%s progress=%s/%s",
                     project_id,
@@ -563,7 +574,7 @@ async def run_episode_scripts_job(
                 if guard > max(total * 2, 24):
                     raise AppError(
                         "drama.episode_gen_incomplete",
-                        done=count_completed_episodes(existing, total),
+                        done=_done(existing),
                         total=total,
                     )
                 if not batch:
@@ -619,6 +630,11 @@ async def _run_single_episode_script_job(
         script = project.script
         # 内容语言：每个 job 只算一次（推断会扫剧本正文）
         content_lang = project_content_lang(project)
+        # 单集目标时长（分集覆盖 → 项目）：决定正文篇幅
+        episode_target_sec = resolve_episode_target_sec(
+            await load_episode_params_by_number(db, int(project.id), episode_number),
+            project.params,
+        )
         summary = script.summary if isinstance(script.summary, dict) else {}
         existing: list = []
         content = script.episode_content
@@ -687,6 +703,7 @@ async def _run_single_episode_script_job(
                     title=ep_title,
                     character_asset_names=character_asset_names,
                     lang=content_lang,
+                    target_sec=episode_target_sec,
                 )
             elif mode == "full":
                 if len(ep_creative) < 20:
@@ -700,6 +717,7 @@ async def _run_single_episode_script_job(
                     title=ep_title,
                     character_asset_names=character_asset_names,
                     lang=content_lang,
+                    target_sec=episode_target_sec,
                 )
             elif mode == "brief":
                 ep_body = str((current or {}).get("body") or (current or {}).get("content") or "").strip()
@@ -726,6 +744,7 @@ async def _run_single_episode_script_job(
                     creative=project_source,
                     character_asset_names=character_asset_names,
                     lang=content_lang,
+                    target_sec=episode_target_sec,
                 )
             if origin == "manual":
                 for item in batch:
@@ -929,6 +948,7 @@ async def run_episode_fragment_plan_job(
         )
 
         include_character_intro = resolve_episode_character_intro(ep_params)
+        target_sec = resolve_episode_target_sec(ep_params, project.params)
         ep_no = int(ep_params.get("episodeNumber") or 0) or None
         from app.services.agent.compose import parse_skill_ids
 
@@ -1009,6 +1029,7 @@ async def run_episode_fragment_plan_job(
                 include_subtitles=include_subtitles,
                 include_character_intro=include_character_intro,
                 lang=content_lang,
+                target_sec=target_sec,
             )
         except (DramaLlmUnavailableError, RuntimeError, Exception) as exc:  # noqa: BLE001
             logger.exception("LLM 分镜失败 episode_id=%s err=%s", episode_id, exc)
@@ -1029,6 +1050,7 @@ async def run_episode_fragment_plan_job(
                 include_subtitles=include_subtitles,
                 include_character_intro=include_character_intro,
                 lang=content_lang,
+                target_sec=target_sec,
             )
             mode_used = "rules_fallback"
             continuation = False

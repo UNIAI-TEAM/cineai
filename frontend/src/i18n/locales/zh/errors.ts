@@ -99,6 +99,7 @@ export const zhErrors = {
     'drama.invalid_episode_number': '集号无效',
     'drama.episode_script_not_found': '找不到第 {number} 集剧本',
     'drama.episode_body_too_short': '第 {number} 集正文过短，请先写完或让 AI 优化后再确认进入分镜',
+    'drama.invalid_episode_target': '目标时长无效，请从 自动/30秒/60秒/90秒/2分钟/3分钟 中选择',
     'drama.episode_reload_failed': '分集已保存但未能刷新，请刷新页面',
     'drama.asset_not_found': '资产不存在',
     'drama.character_asset_not_found': '角色资产不存在',

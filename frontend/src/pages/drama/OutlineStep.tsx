@@ -21,6 +21,7 @@ import { DramaImageStyleModal } from './DramaImageStyleModal'
 import { DramaProjectSettingsModal } from './DramaProjectSettingsModal'
 import { OutlineEpisodePanel } from './OutlineEpisodePanel'
 import { storedJobError } from '../../lib/dramaJobError'
+import { minEpisodeBodyChars, resolveEpisodeTargetSec } from '../../lib/dramaEpisodeTarget'
 
 type MetaModalKey = 'source' | 'summary' | 'project'
 
@@ -234,9 +235,11 @@ export function OutlineStep({
         ) || 0
       const bodies = parseEpisodeBodies(current)
       const epStatus = getEpisodeContentStatus(current)
-      const autoMissing = autoMissingEpisodeCount(bodies, target)
+      // 整剧完成判定与后端批量生成一致：按项目目标时长的正文门槛
+      const minBodyChars = minEpisodeBodyChars(resolveEpisodeTargetSec(project.params))
+      const autoMissing = autoMissingEpisodeCount(bodies, target, minBodyChars)
       const complete =
-        epStatus !== 'failed' && autoMissing === 0 && hasSubstantialEpisode(bodies)
+        epStatus !== 'failed' && autoMissing === 0 && hasSubstantialEpisode(bodies, minBodyChars)
       if (complete) {
         notifyOutlineReady(true)
         return
@@ -546,6 +549,7 @@ export function OutlineStep({
 
       <OutlineEpisodePanel
         projectId={projectId}
+        projectParams={project.params}
         script={script}
         episodeCount={episodeCount}
         summaryReady={summaryStatus === 'completed' || Boolean(summary)}

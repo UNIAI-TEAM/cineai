@@ -1,8 +1,10 @@
-/** 大纲「项目设置」：内容语言/画幅/画风/字幕/配音/人物介绍/尾帧衔接（全局可改；分镜页只读） */
+/** 大纲「项目设置」：内容语言/单集时长/画幅/画风/字幕/配音/人物介绍/尾帧衔接（全局可改；分镜页只读） */
 import { useState } from 'react'
 import Modal from '../../components/ui/Modal'
 import { useI18n } from '../../i18n/context'
 import { DramaImageStyleModal } from './DramaImageStyleModal'
+import { EpisodeTargetChips } from '../../components/drama/EpisodeTargetChips'
+import { resolveEpisodeTargetSec } from '../../lib/dramaEpisodeTarget'
 import {
   characterIntroModeEnabled,
   readEpisodeCharacterIntroMode,
@@ -102,6 +104,7 @@ export function DramaProjectSettingsModal({
   const subtitleMode = readEpisodeSubtitleMode(projectParams)
   const characterIntroMode = readEpisodeCharacterIntroMode(projectParams)
   const linkLastFrame = coerceLinkLastFrame(projectParams)
+  const episodeTargetSec = resolveEpisodeTargetSec(projectParams)
   // 内容语言：后端返回的 content_lang 已含老项目推断；zh 只在项目本就是中文时可选
   const contentLang: ContentLang =
     normalizeContentLang(project.content_lang) || normalizeContentLang(projectParams.content_lang) || 'vi'
@@ -182,6 +185,18 @@ export function DramaProjectSettingsModal({
             onChange={(lang) => void handleContentLangChange(lang)}
           />
           <p className="drama-muted">{t('contentLang.changeHint')}</p>
+        </section>
+
+        <section className="drama-project-settings-section">
+          <div className="drama-project-settings-head">
+            <h4>{t('dramaProject.settings.target')}</h4>
+          </div>
+          <EpisodeTargetChips
+            value={episodeTargetSec}
+            disabled={saving}
+            onChange={(sec) => void patchProjectParams({ episodeTargetSec: sec })}
+          />
+          <p className="drama-muted">{t('dramaProject.settings.targetNote')}</p>
         </section>
 
         <section className="drama-project-settings-section">

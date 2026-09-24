@@ -72,3 +72,31 @@ def test_cap_llm_fragment_items_merges_lines():
     capped = cap_llm_fragment_items(items, max_items=3)
     assert len(capped) == 3
     assert len(capped[-1]["lines"]) >= 2
+
+
+def _long_drafts(n: int) -> list[dict]:
+    # 每条多段 @duration，模拟长剧本规则切分的草稿
+    return [
+        _draft(
+            f"@duration:5\n镜{i}画面。\n@duration:5\n镜{i}对白一。\n@duration:4\n镜{i}对白二。",
+            scene=f"场{i // 7}",
+        )
+        for i in range(n)
+    ]
+
+
+def test_trim_over_budget_never_collapses_to_single_fragment():
+    # 回归：21 条约 245s 的长剧本曾被压缩成 1 条 15s，整集内容塞进一镜
+    trimmed = trim_episode_fragment_drafts(_long_drafts(21))
+    assert len(trimmed) >= EPISODE_DURATION_BUDGET_SEC // 15
+    assert all(draft_duration_sec(d) <= 15 for d in trimmed)
+
+
+def test_trim_auto_mode_keeps_all_content():
+    # max_total_sec=None：自动模式，不按总时长压缩，也不因条数合并丢镜
+    drafts = _long_drafts(21)
+    trimmed = trim_episode_fragment_drafts(drafts, max_count=None, max_total_sec=None)
+    assert len(trimmed) == 21
+    joined = "\n".join(d["content"] for d in trimmed)
+    for i in range(21):
+        assert f"镜{i}对白二" in joined

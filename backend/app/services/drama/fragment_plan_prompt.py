@@ -6,6 +6,11 @@ import re
 from typing import Any
 
 from app.services.content_lang import is_zh, lang_display_name
+from app.services.drama.episode_target import (
+    EPISODE_TARGET_DEFAULT,
+    episode_fragment_budget,
+    fragment_plan_budget_lines,
+)
 
 FRAGMENT_PLAN_SYSTEM_PROMPT = """你是短剧视频分镜导演，负责把「场记剧本」拆成适合 AI 视频模型（Seedance 2.5）逐条生成的分镜。
 
@@ -47,7 +52,7 @@ FRAGMENT_PLAN_SYSTEM_PROMPT = """你是短剧视频分镜导演，负责把「�
 
 ## 硬性规则
 1. duration_sec 必须在 4–15 之间，优先 6–15；单镜叙事完整、可单独成片。
-2. 按剧情节奏与场面转换拆镜；**整集 fragments 不得超过 10 条（含开幕镜）**，目标成片 **60–90 秒**。同场景连续对白优先合并为一镜，删去重复反应/过渡空镜，勿一句一对白一镜。
+2. 按剧情节奏与场面转换拆镜；**整集条数与成片时长以用户消息【篇幅硬约束】为准**（默认 ≤10 条、60–90 秒）。同场景连续对白优先合并为一镜，删去重复反应/过渡空镜，勿一句一对白一镜。
 3. lines 只写画面、动作、对白、旁白；保留角色真实姓名。
    - 纯画面 / 空镜 / 景别必须写成「空镜：…」「远景：…」「近景：…」「特写：…」「全景：…」等，**禁止**写成旁白或「角色名：台词」。
    - 只有真正要口播的内容才写「角色名：对白」或「旁白（VO）：…」。
@@ -115,8 +120,9 @@ def build_fragment_plan_user_prompt(
     core_hook: str | None = None,
     locked_summaries: list[str] | None = None,
     include_subtitles: bool = True,
+    target_sec: int = EPISODE_TARGET_DEFAULT,
 ) -> str:
-    # 拼装用户侧：集号/背景元信息 + 分集正文 + 资产目录
+    # 拼装用户侧：集号/背景元信息 + 分集正文 + 资产目录；target_sec 为本集目标时长（0=自动）
     ep_no = int(episode_number or 0)
     ep_label = f"第{ep_no}集" if ep_no > 0 else "本集"
     locked = [str(s).strip() for s in (locked_summaries or []) if str(s).strip()]
@@ -176,7 +182,7 @@ def build_fragment_plan_user_prompt(
         [
             "",
             "【篇幅硬约束｜必须遵守】",
-            "- fragments 数组长度 ≤ 10（含开幕镜）；整集成片目标 60–90 秒。",
+            *fragment_plan_budget_lines(target_sec),
             "- 同场景、同角色组的连续对白合并为一镜；跳过纯过渡/重复反应。",
             "- 镜内 @duration 单段 3–15 秒，整镜合计不得超过 15 秒。",
             "- 每镜最多 3 个出镜角色、2 件道具；不要把整场出场人物都写进 character_names。",
@@ -187,10 +193,11 @@ def build_fragment_plan_user_prompt(
             "【可用资产目录｜拆镜时 character_names / scene_name / prop_names 尽量使用下列名称】",
         ]
     )
-    if body_len > 550:
+    max_count, max_total = episode_fragment_budget(target_sec)
+    if max_total is not None and body_len > max_total * 6:
         lines.insert(
             lines.index("【分集场记正文】"),
-            f"【场记偏长（约 {body_len} 字）】规划时请主动压缩：合并场次、删次要动作，仍只输出 ≤10 条 fragments。",
+            f"【场记偏长（约 {body_len} 字）】规划时请主动压缩：合并场次、删次要动作，仍只输出 ≤{max_count} 条 fragments。",
         )
     if not asset_catalog:
         lines.append("（暂无资产）")

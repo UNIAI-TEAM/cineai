@@ -422,7 +422,14 @@ export const dramaApi = {
   /** 单集 AI（LLM）重新分镜；轮询 episode.params.fragment_plan_status */
   planEpisodeFragments: (
     episodeId: number,
-    body?: { force?: boolean; fallback_rules?: boolean; skill_ids?: number[]; subtitle_enabled?: boolean },
+    body?: {
+      force?: boolean
+      fallback_rules?: boolean
+      skill_ids?: number[]
+      subtitle_enabled?: boolean
+      /** 本集目标成片秒数（0=自动）；不传沿用分集→项目设置 */
+      episode_target_sec?: number
+    },
   ) =>
     request<DramaEpisode>(`/api/drama/episodes/${episodeId}/plan_fragments`, {
       method: 'POST',
@@ -431,6 +438,7 @@ export const dramaApi = {
         fallback_rules: body?.fallback_rules ?? true,
         skill_ids: body?.skill_ids,
         subtitle_enabled: body?.subtitle_enabled,
+        episode_target_sec: body?.episode_target_sec,
       }),
     }),
   saveFragments: (

@@ -24,6 +24,7 @@ from app.schemas_drama import (
 from app.services.billing import run_billed_ephemeral
 from app.services.content_lang import lang_display_name, project_content_lang, request_lang
 from app.services.drama.naming import default_episode_title
+from app.services.drama.episode_target import episode_min_content_chars
 from app.services.drama.job_errors import clear_job_error
 from app.services.drama.access import get_owned_drama_project
 from app.services.drama.agents import (
@@ -179,7 +180,9 @@ async def episode_script(
                 "task_id": None,
                 "episodes": [],
                 "total_generated": count_completed_episodes(
-                    _existing_episodes(project.script.episode_content), total
+                    _existing_episodes(project.script.episode_content),
+                    total,
+                    min_chars=episode_min_content_chars(project.params),
                 ),
                 "total_target": total,
                 "done": False,
@@ -283,7 +286,9 @@ async def episode_script(
             "task_id": task_id,
             "episodes": [],
             "total_generated": count_completed_episodes(
-                _existing_episodes(project.script.episode_content), total
+                _existing_episodes(project.script.episode_content),
+                total,
+                min_chars=episode_min_content_chars(project.params),
             ),
             "total_target": total,
             "done": False,
@@ -293,7 +298,9 @@ async def episode_script(
 
     if str(params.get("episode_content_status") or "") == "generating" and not body.force:
         existing = _existing_episodes(project.script.episode_content)
-        generated = count_completed_episodes(existing, total)
+        generated = count_completed_episodes(
+            existing, total, min_chars=episode_min_content_chars(project.params)
+        )
         logger.info(
             "分集剧本已在生成中，跳过重复入队 project_id=%s progress=%s/%s",
             project.id,
@@ -342,7 +349,9 @@ async def episode_script(
         await db.rollback()
         raise http_exception_for_value_error(exc) from exc
     existing = _existing_episodes(project.script.episode_content)
-    generated = count_completed_episodes(existing, total)
+    generated = count_completed_episodes(
+        existing, total, min_chars=episode_min_content_chars(project.params)
+    )
     logger.info(
         "已入队分集剧本 project_id=%s user_id=%s task_id=%s force=%s target=%s done=%s",
         project.id,

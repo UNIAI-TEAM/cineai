@@ -140,6 +140,12 @@ export const viDramaProject = {
       shotTotal: '{n} cảnh · tổng {dur}',
       total: 'Tổng {dur}',
       durFromShots: 'Thời lượng tính theo các cảnh đã chia',
+      scriptEst: 'Kịch bản ước tính {dur}',
+      target: 'Mục tiêu {dur}',
+      targetAuto: 'Mục tiêu: tự động',
+      overTarget:
+        'Kịch bản dài hơn nhiều so với mục tiêu {target}. Khi chia cảnh, AI sẽ lược bớt nội dung. Muốn giữ đủ thì tăng thời lượng hoặc chọn Tự động.',
+      staleShots: 'Kịch bản đã đổi sau lần chia cảnh gần nhất, số cảnh ở đây có thể đã cũ. Hãy chia cảnh lại.',
       durEstimated: 'Thời lượng ước tính, sang phân cảnh sẽ tính theo từng cảnh',
       editPart: 'Sửa phần này',
       editScene: 'Sửa phân đoạn',
@@ -199,6 +205,14 @@ export const viDramaProject = {
       planMsg:
         'AI sẽ chia lại phân cảnh của “{name}” (thay toàn bộ phân cảnh và video hiện có), thường mất vài chục giây. Có thể chọn Skill dùng cho lần này. Phụ đề giữ theo cài đặt hiện tại của tập.',
     },
+    target: {
+      label: 'Thời lượng mong muốn',
+      auto: 'Tự động',
+      sec: '{n} giây',
+      min: '{n} phút',
+      planHint: 'Khoảng {n} cảnh, mỗi cảnh là một lần tạo video',
+      planHintAuto: 'Chia theo nội dung kịch bản, khoảng {n} cảnh, mỗi cảnh là một lần tạo video',
+    },
     settings: {
       title: 'Cài đặt dự án',
       done: 'Xong',
@@ -222,6 +236,9 @@ export const viDramaProject = {
       linkOn: 'Nối khung hình cuối',
       linkOff: 'Tạo song song',
       linkNote: 'Khi bật, cảnh sau dùng khung hình cuối của cảnh trước để hình ảnh liền mạch hơn.',
+      target: 'Thời lượng mỗi tập',
+      targetNote:
+        'AI viết kịch bản và chia cảnh theo thời lượng này. Mỗi cảnh dài tối đa 15 giây và là một lần tạo video. Chọn Tự động để giữ đủ nội dung kịch bản.',
     },
     output: {
       resolution: 'Độ phân giải',

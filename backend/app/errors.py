@@ -126,6 +126,7 @@ ERRORS: dict[str, tuple[int, str]] = {
     "drama.invalid_episode_number": (400, "集号无效"),
     "drama.episode_script_not_found": (400, "找不到第 {number} 集剧本"),
     "drama.episode_body_too_short": (400, "第 {number} 集正文过短，请先写完或让 AI 优化后再确认进入分镜"),
+    "drama.invalid_episode_target": (400, "目标时长无效，请从 自动/30秒/60秒/90秒/2分钟/3分钟 中选择"),
     "drama.episode_reload_failed": (400, "分集写入后未能重新加载"),
     # 漫剧：资产
     "drama.asset_not_found": (404, "资产不存在"),

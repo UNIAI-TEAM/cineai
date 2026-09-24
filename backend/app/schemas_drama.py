@@ -298,6 +298,8 @@ class DramaPlanFragmentsRequest(BaseModel):
     skill_ids: list[int] | None = None
     # subtitle_enabled 是否为本次分镜注入字幕提示；None 表示沿用分集当前设置
     subtitle_enabled: bool | None = None
+    # episode_target_sec 本集目标成片秒数（0=自动 / 30 / 60 / 90 / 120 / 180）；None 表示沿用分集→项目设置
+    episode_target_sec: int | None = Field(default=None, ge=0, le=600)
 
 
 class DramaActivateVideoVersionRequest(BaseModel):

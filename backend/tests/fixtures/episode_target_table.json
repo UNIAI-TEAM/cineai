@@ -1,0 +1,64 @@
+{
+ "_comment": "episode_target.py（backend）与 lib/dramaEpisodeTarget.ts（frontend）共用的单集目标时长预算表；改公式时两边一起改并重新生成本文件。",
+ "default_target_sec": 90,
+ "fragment_max_sec": 15,
+ "rows": [
+  {
+   "target_sec": 0,
+   "max_fragments": 30,
+   "max_total_sec": null,
+   "shot_range": null,
+   "min_body_chars": 450
+  },
+  {
+   "target_sec": 30,
+   "max_fragments": 4,
+   "max_total_sec": 30,
+   "shot_range": [
+    2,
+    4
+   ],
+   "min_body_chars": 150
+  },
+  {
+   "target_sec": 60,
+   "max_fragments": 7,
+   "max_total_sec": 60,
+   "shot_range": [
+    4,
+    7
+   ],
+   "min_body_chars": 300
+  },
+  {
+   "target_sec": 90,
+   "max_fragments": 10,
+   "max_total_sec": 90,
+   "shot_range": [
+    6,
+    10
+   ],
+   "min_body_chars": 450
+  },
+  {
+   "target_sec": 120,
+   "max_fragments": 14,
+   "max_total_sec": 120,
+   "shot_range": [
+    8,
+    14
+   ],
+   "min_body_chars": 450
+  },
+  {
+   "target_sec": 180,
+   "max_fragments": 20,
+   "max_total_sec": 180,
+   "shot_range": [
+    12,
+    20
+   ],
+   "min_body_chars": 450
+  }
+ ]
+}
