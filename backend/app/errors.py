@@ -153,6 +153,8 @@ ERRORS: dict[str, tuple[int, str]] = {
     "drama.compose_no_videos": (400, "本集还没有可拼接的分镜视频"),
     "drama.compose_clip_download_failed": (400, "无法下载分镜视频，请稍后重试"),
     "drama.compose_failed": (500, "全片合成失败，请稍后重试"),
+    "drama.dub_no_video": (400, "该分镜还没有可用视频，无法配音"),
+    "drama.dub_failed": (500, "配音失败，请稍后重试"),
     # 漫剧：导演 Skill
     "drama.skill_not_found": (404, "Skill 不存在"),
     "drama.skill_md_only": (400, "请上传 .md 文件"),

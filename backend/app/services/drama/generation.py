@@ -452,6 +452,11 @@ def archive_fragment_video_version(fragment: DramaEpisodeFragment) -> dict[str, 
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "source": "generate",
     }
+    # Bản đang dùng là bản đã lồng tiếng: lưu kèm video gốc để lồng lại không bị chồng giọng
+    dub = params.get("dub") if isinstance(params.get("dub"), dict) else {}
+    raw_src = str(dub.get("sourceVideo") or "").strip()
+    if raw_src and str(dub.get("url") or "").strip() == video:
+        entry["rawVideo"] = _snapshot_version_media_url(raw_src, label=f"{stamp}_raw")
     versions = params.get("video_versions")
     if not isinstance(versions, list):
         versions = []
@@ -496,25 +501,28 @@ def activate_fragment_video_version(
                 last_frame = raw.strip()
                 break
         stamp = f"{int(datetime.now(timezone.utc).timestamp())}_{fragment.id}"
-        remaining.insert(
-            0,
-            {
-                "id": f"v_{stamp}_replaced",
-                "video": _snapshot_version_media_url(current_video, label=f"{stamp}_cur"),
-                "cover": _snapshot_version_media_url(
-                    (fragment.cover or "").strip(),
-                    label=f"{stamp}_cur_cover",
-                )
-                or (fragment.cover or "").strip(),
-                "lastFrameUrl": (
-                    _snapshot_version_media_url(last_frame, label=f"{stamp}_cur_last")
-                    if last_frame
-                    else None
-                ),
-                "createdAt": datetime.now(timezone.utc).isoformat(),
-                "source": "replaced",
-            },
-        )
+        replaced_entry: dict[str, Any] = {
+            "id": f"v_{stamp}_replaced",
+            "video": _snapshot_version_media_url(current_video, label=f"{stamp}_cur"),
+            "cover": _snapshot_version_media_url(
+                (fragment.cover or "").strip(),
+                label=f"{stamp}_cur_cover",
+            )
+            or (fragment.cover or "").strip(),
+            "lastFrameUrl": (
+                _snapshot_version_media_url(last_frame, label=f"{stamp}_cur_last")
+                if last_frame
+                else None
+            ),
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "source": "replaced",
+        }
+        # Bản đang thay thế là bản đã lồng tiếng: lưu kèm video gốc để lồng lại không bị chồng giọng
+        cur_dub = params.get("dub") if isinstance(params.get("dub"), dict) else {}
+        cur_raw_src = str(cur_dub.get("sourceVideo") or "").strip()
+        if cur_raw_src and str(cur_dub.get("url") or "").strip() == current_video:
+            replaced_entry["rawVideo"] = _snapshot_version_media_url(cur_raw_src, label=f"{stamp}_cur_raw")
+        remaining.insert(0, replaced_entry)
 
     fragment.video = target_video[:1024]
     fragment.cover = str(target.get("cover") or "")[:1024]
@@ -524,6 +532,12 @@ def activate_fragment_video_version(
 
     params = dict(fragment.params or {})
     params["video_versions"] = remaining[:FRAGMENT_VIDEO_VERSION_LIMIT]
+    # Bản được khôi phục từng lồng tiếng: khôi phục params.dub kèm video gốc để lồng lại không chồng giọng
+    raw_video = str(target.get("rawVideo") or "").strip()
+    if raw_video:
+        params["dub"] = {"status": "done", "url": target_video, "sourceVideo": raw_video}
+    else:
+        params.pop("dub", None)
     fragment.params = params
     ratio = str(target.get("aspect_ratio") or params.get("aspect_ratio") or "9:16")
     resolution = str(target.get("resolution") or params.get("resolution") or "480p")
@@ -1809,6 +1823,7 @@ async def apply_fragment_video_assets(
     task_result: "TaskResult | None" = None,
     provider_task_id: str | None = None,
     channel_id: str | None = None,
+    voice_mode: str = "native",
 ) -> DramaEpisodeFragment:
     from app.services import storage as storage_svc
     from app.services.ffmpeg_compose import extract_video_last_frame, extract_video_poster_frame
@@ -1861,6 +1876,8 @@ async def apply_fragment_video_assets(
     )
     params = dict(fragment.params or {})
     params.pop("generation_attempts", None)
+    params.pop("dub", None)  # video mới: kết quả lồng tiếng cũ không còn khớp
+    params["voice_mode"] = voice_mode
     gen = dict(params.get("generation") or {}) if isinstance(params.get("generation"), dict) else {}
     gen.update({
         "status": "done",

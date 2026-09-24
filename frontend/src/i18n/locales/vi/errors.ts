@@ -124,6 +124,8 @@ export const viErrors = {
     'drama.compose_no_videos': 'Tập này chưa có video phân cảnh nào để ghép',
     'drama.compose_clip_download_failed': 'Không tải được video phân cảnh, vui lòng thử lại sau',
     'drama.compose_failed': 'Không dựng được tập phim, vui lòng thử lại sau',
+    'drama.dub_no_video': 'Phân cảnh này chưa có video nên chưa thể lồng tiếng',
+    'drama.dub_failed': 'Lồng tiếng thất bại, vui lòng thử lại sau',
     'drama.skill_not_found': 'Không tìm thấy Skill',
     'drama.skill_md_only': 'Vui lòng tải lên file .md',
     'drama.skill_file_too_large': 'File không được vượt quá {max_kb} KB',

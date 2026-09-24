@@ -124,6 +124,8 @@ export const enErrors = {
     'drama.compose_no_videos': 'This episode has no shot videos to join yet',
     'drama.compose_clip_download_failed': 'Couldn’t download a shot video. Please try again later',
     'drama.compose_failed': 'Couldn’t build the episode video. Please try again later',
+    'drama.dub_no_video': 'This shot has no video yet, so it can’t be dubbed',
+    'drama.dub_failed': 'Dubbing failed. Please try again later',
     'drama.skill_not_found': 'Skill not found',
     'drama.skill_md_only': 'Please upload a .md file',
     'drama.skill_file_too_large': 'The file must be {max_kb}KB or smaller',
