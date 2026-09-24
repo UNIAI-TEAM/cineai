@@ -127,7 +127,7 @@ export const zhErrors = {
     'drama.dub_no_video': '该分镜还没有可用视频，无法配音',
     'drama.dub_not_enabled': '该分镜视频不是配音模式生成的，请在项目设置开启 TTS 配音后重新生成视频',
     'drama.dub_failed': '配音失败，请稍后重试',
-    'drama.dub_fragment_generating': '分镜正在生成，请完成后再配音',
+    'drama.dub_fragment_generating': '分镜正在生成视频或配音，请完成后再试',
     'drama.skill_not_found': 'Skill 不存在',
     'drama.skill_md_only': '请上传 .md 文件',
     'drama.skill_file_too_large': '文件不能超过 {max_kb}KB',

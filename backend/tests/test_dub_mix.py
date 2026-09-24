@@ -72,3 +72,12 @@ def test_run_dub_mix_real_ffmpeg(tmp_path: Path, with_audio: bool):
     assert dest.exists() and dest.stat().st_size > 1000
     from app.services.ffmpeg_compose import probe_duration
     assert probe_duration(dest) >= 4.0 / plan.tempo  # lời 4 giây không bị cắt dù video chỉ 3 giây
+
+
+def test_empty_clips_rejected_before_ffmpeg(tmp_path):
+    """Không có câu thoại nào: dựng lệnh/chạy trộn đều báo ValueError, không gọi FFmpeg với filter hỏng."""
+    plan = DubPlan(starts=[], tempo=1.0, out_duration=8.0, freeze_sec=0.0)
+    with pytest.raises(ValueError):
+        build_dub_mix_cmd("ffmpeg", tmp_path / "v.mp4", [], plan, tmp_path / "o.mp4", has_video_audio=True)
+    with pytest.raises(ValueError):
+        dub_mix.run_dub_mix(tmp_path / "v.mp4", [], tmp_path / "o.mp4")

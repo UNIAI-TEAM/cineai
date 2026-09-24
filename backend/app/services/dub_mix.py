@@ -55,6 +55,8 @@ def build_dub_mix_cmd(
     ffmpeg: str, video: Path, clips: list[Path], plan: DubPlan, dest: Path, *, has_video_audio: bool
 ) -> list[str]:
     """Lệnh FFmpeg: đặt từng câu bằng adelay, trộn, hạ tiếng môi trường bằng sidechain, giữ khung cuối nếu cần."""
+    if not clips:
+        raise ValueError("không có câu thoại nào để lồng tiếng")
     cmd = [ffmpeg, "-nostdin", "-y", "-i", str(video)]
     for clip in clips:
         cmd += ["-i", str(clip)]
@@ -93,6 +95,8 @@ def build_dub_mix_cmd(
 
 def run_dub_mix(video: Path, clips: list[tuple[Path, float | None]], dest: Path) -> DubPlan:
     """Đo độ dài video/câu, xếp mốc rồi chạy FFmpeg ghi dest; trả DubPlan đã dùng."""
+    if not clips:
+        raise ValueError("không có câu thoại nào để lồng tiếng")
     video_dur = probe_duration(video) or 0.0
     if video_dur <= 0:
         raise RuntimeError("không đọc được độ dài video để lồng tiếng")

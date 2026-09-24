@@ -127,7 +127,7 @@ export const viErrors = {
     'drama.dub_no_video': 'Phân cảnh này chưa có video nên chưa thể lồng tiếng',
     'drama.dub_not_enabled': 'Video phân cảnh này không được tạo ở chế độ lồng tiếng. Hãy bật "Lồng tiếng TTS" trong cài đặt dự án rồi tạo lại video',
     'drama.dub_failed': 'Lồng tiếng thất bại, vui lòng thử lại sau',
-    'drama.dub_fragment_generating': 'Phân cảnh đang được tạo, vui lòng đợi xong rồi hãy lồng tiếng',
+    'drama.dub_fragment_generating': 'Phân cảnh đang tạo video hoặc đang lồng tiếng, vui lòng đợi xong rồi thử lại',
     'drama.skill_not_found': 'Không tìm thấy Skill',
     'drama.skill_md_only': 'Vui lòng tải lên file .md',
     'drama.skill_file_too_large': 'File không được vượt quá {max_kb} KB',

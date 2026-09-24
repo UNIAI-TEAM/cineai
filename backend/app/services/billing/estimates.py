@@ -193,7 +193,11 @@ async def estimate_task_fen(db: AsyncSession, task: TaskRun, settings: Settings 
                 fen += max(1, _image_fen("drama.asset_image", s, snap) // 2)
             return fen
         if task_type == "fragment_dub":
-            # Phí TTS của fragment_dub tách khỏi fragment_video: ước theo số câu thoại (line_count).
+            # Phí TTS của fragment_dub tách khỏi fragment_video: quyết toán theo số ký tự thoại (record_line
+            # tokens=len(text)) nên ước theo char_count cùng hàm giá + buffer; task cũ chưa có char_count → line_count.
+            char_count = int(payload.get("char_count") or 0)
+            if char_count > 0:
+                return _buffered_fen(tts_fen("drama.tts", char_count, settings=s, snapshot=snap), s)
             line_count = max(1, int(payload.get("line_count") or 1))
             return _tts_fen("drama.tts", s, snap, units=line_count)
         if task_type == "voice_synthesis":

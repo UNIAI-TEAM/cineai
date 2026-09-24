@@ -75,22 +75,27 @@ charge_fen = cost_fen
 `dub` 语音模式（vi/en 项目默认，见 `docs/SEEDANCE_2_5.md` §4.3）下，分镜口播由后期 Seed Speech TTS 合成，
 与镜头视频彻底拆开计费，走独立的 `TaskRun("drama", "fragment_dub")`（`services/drama/fragment_dub.py`）：
 
-- **预扣**：按分镜台词行数 `payload.line_count`（`enqueue_fragment_dub()` 用 `extract_dub_lines()` 数出来，
-  至少 1）估算，`estimates.py::estimate_task_fen` 对 `task_type == "fragment_dub"` 走
-  `_tts_fen("drama.tts", units=line_count)`——即 `BILLING_EST_TTS_TOKENS × line_count` 个估算 token，按
-  `drama.tts` 槽位当前最贵模型的价目折算再乘缓冲（`BILLING_ESTIMATE_BUFFER`）。
+- **预扣**：按分镜台词总字符数 `payload.char_count`（`enqueue_fragment_dub()` 用 `extract_dub_lines()` 抽出台词后
+  累加 `len(text)`），`estimates.py::estimate_task_fen` 对 `task_type == "fragment_dub"` 走
+  `_buffered_fen(tts_fen("drama.tts", char_count))`——与结算同一单位（字符）、同一价目函数，按 `drama.tts`
+  槽位当前最贵模型折算再乘缓冲（`BILLING_ESTIMATE_BUFFER`）。旧任务 payload 没有 `char_count` 时回退到按行数
+  `_tts_fen("drama.tts", units=line_count)`（`BILLING_EST_TTS_TOKENS × line_count`，偏高但安全）。
 - **`fragment_video` 不再包含任何 TTS 预扣**：`estimates.py` 里 `asset_video`/`fragment_video` 只按视频时长
   计价，`fragment_video` 额外只加一笔与配音无关的小额缓冲；配音的钱完全由 `fragment_dub` 任务自己冻结、自己
   结算，两个任务的计费/失败回滚互不影响。
 - **触发方式都只是入队，不内联执行**：视频生成完成后台自动补配音走
   `enqueue_fragment_dub_after_video()`；用户点「Lồng tiếng lại」调用
-  `POST /api/drama/fragments/{id}/dub`（`dub_fragment_video`）手动重配，两者都只创建/复用一个
-  `fragment_dub` TaskRun（`dedupe_key=drama:fragment_dub:fragment:{id}`）并立刻返回 `task_id`；真正调用
+  `POST /api/drama/fragments/{id}/dub`（`dub_fragment_video`）手动重配，两者都只新建一个
+  `fragment_dub` TaskRun（`dedupe_key=drama:fragment_dub:fragment:{id}` 仅用于标识，`create_task` 不按它去重）
+  并立刻返回 `task_id`；防重复靠 `enqueue_fragment_dub()` 先 `SELECT … FOR UPDATE` 锁住分镜行，再查该分镜是否
+  已有未结束的 `fragment_dub` 任务（有则 409 `drama.dub_fragment_generating`，自动补配音则静默跳过）；真正调用
   Seed Speech 与混音在任务执行器里异步跑（`run_fragment_dub_job` → `dub_fragment`）。
 - **结算按实际字符数，不是估算时的固定 token**：`dub_fragment()` 在合成成功后调用
   `record_line(billing_key="tts", tokens=sum(len(每句台词文本)), domain="drama", task_run_id=...)`——
   `tokens` 是这次实际读出的**字符总数**，跟随台词长度浮动；结算仍按上文「结算顺序」走 provider_rates /
-  token 兜底价，只是这里的“token”单位是字符（配合下面 `per_m_chars` 价目）。
+  token 兜底价，只是这里的“token”单位是字符（配合下面 `per_m_chars` 价目）。若配音期间分镜视频已被替换
+  （重新生成/切换版本；正常情况下这两个入口在有配音任务时会 409 拒绝），结果作废：`params.dub` 记
+  `status=skipped, reason=stale`，不写用量行，冻结金额在结算时全额退回。
 - **价目行仍缺失**：默认 `provider_rates` 没有 `seed-tts-2.0`（BytePlus Seed Speech）这一行（上一段
   `unpriced_models` 已提到）。要按真实字符单价结算，需要管理员在
   `PUT /api/admin/settings/billing/model-rates` 手动加一行 `{"pattern": "seed-tts-2.0*", "unit":

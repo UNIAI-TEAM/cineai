@@ -131,11 +131,41 @@ class _FakeDb:
         self.commits += 1
 
 
+def _no_lock_no_active(monkeypatch, *, active=False):
+    """Session giả không có DB: "khoá dòng" trả chính object, has_active_fragment_dub_task theo tham số."""
+
+    async def fake_reload(db, fragment):
+        return fragment
+
+    async def fake_active(db, fragment_id):
+        return active
+
+    monkeypatch.setattr(fragment_dub, "_reload_locked", fake_reload)
+    monkeypatch.setattr(fragment_dub, "has_active_fragment_dub_task", fake_active)
+
+
+async def test_enqueue_fragment_dub_rechecks_active_task_under_lock(monkeypatch):
+    """M6: sau khi khoá dòng mà đã có task đang chạy (bấm đúp) → từ chối, không tạo task thứ hai."""
+    _no_lock_no_active(monkeypatch, active=True)
+
+    async def should_not_create(*a, **kw):
+        raise AssertionError("không được tạo task trùng")
+
+    monkeypatch.setattr(fragment_dub, "create_task", should_not_create)
+    frag = _frag(content="【对白】Lan：Câu một.", params={"voice_mode": "dub"})
+    with pytest.raises(AppError) as exc_info:
+        await fragment_dub.enqueue_fragment_dub(_FakeDb(), SimpleNamespace(id=1), frag, drama_project_id=1,
+                                                episode_id=1)
+    assert exc_info.value.code == "drama.dub_fragment_generating"
+    assert "dub" not in frag.params
+
+
 async def test_enqueue_fragment_dub_writes_running_drops_stale_error_and_creates_task(monkeypatch):
     async def fake_names(db, fragment):
         return {}
 
     monkeypatch.setattr(fragment_dub, "_fragment_asset_names", fake_names)
+    _no_lock_no_active(monkeypatch)
 
     created: dict = {}
 
@@ -165,7 +195,8 @@ async def test_enqueue_fragment_dub_writes_running_drops_stale_error_and_creates
     body = created["body"]
     assert body.domain == "drama" and body.task_type == "fragment_dub"
     assert body.dedupe_key == "drama:fragment_dub:fragment:9"
-    assert body.payload == {"fragment_id": 9, "line_count": 2}
+    assert body.payload == {"fragment_id": 9, "line_count": 2,
+                            "char_count": len("Câu một.") + len("Câu hai.")}
     assert body.drama_project_id == 1 and body.episode_id == 2 and body.fragment_id == 9
     assert created["commit"] is False
     assert db.commits == 1
@@ -176,6 +207,7 @@ async def test_enqueue_fragment_dub_line_count_at_least_one_when_no_dialogue(mon
         return {}
 
     monkeypatch.setattr(fragment_dub, "_fragment_asset_names", fake_names)
+    _no_lock_no_active(monkeypatch)
 
     created: dict = {}
 
@@ -559,6 +591,22 @@ async def test_fragment_dub_estimate_grows_with_line_count(priced_routing):
     assert fen_many > fen_one
 
 
+async def test_fragment_dub_estimate_uses_char_count(priced_routing):
+    """M5: có char_count → ước theo số ký tự (cùng đơn vị quyết toán), thấp hơn hẳn ước theo câu × hằng số token."""
+    from app.config import get_settings
+    from app.services.billing.rate_quotes import tts_fen
+
+    by_chars = SimpleNamespace(domain="drama", task_type="fragment_dub", payload={"line_count": 2, "char_count": 40},
+                               fragment_id=None, project_id=None)
+    by_lines = SimpleNamespace(domain="drama", task_type="fragment_dub", payload={"line_count": 2},
+                               fragment_id=None, project_id=None)
+    fen_chars = await estimates.estimate_task_fen(None, by_chars)
+    fen_lines = await estimates.estimate_task_fen(None, by_lines)
+    s = get_settings()
+    assert fen_chars == estimates._buffered_fen(tts_fen("drama.tts", 40, settings=s), s)
+    assert 0 < fen_chars <= fen_lines
+
+
 async def test_fragment_dub_estimate_defaults_to_one_line(priced_routing):
     task_default = SimpleNamespace(domain="drama", task_type="fragment_dub", payload={},
                                     fragment_id=None, project_id=None)
@@ -567,3 +615,19 @@ async def test_fragment_dub_estimate_defaults_to_one_line(priced_routing):
     fen_default = await estimates.estimate_task_fen(None, task_default)
     fen_one = await estimates.estimate_task_fen(None, task_one)
     assert fen_default == fen_one
+
+
+async def test_enqueue_fragment_dub_after_video_race_lost_does_not_mark_failed(monkeypatch):
+    """M6: enqueue phát hiện (dưới khoá) đã có task khác → im lặng rollback, không ghi đè "running" thành failed."""
+    frag = SimpleNamespace(id=9, episode_id=2, video="/v.mp4", params={"voice_mode": "dub", "dub": {"status": "running"}})
+    session = _FakeAfterVideoSession(frag, SimpleNamespace(id=4))
+    monkeypatch.setattr(fragment_dub, "AsyncSessionLocal", lambda: session)
+    monkeypatch.setattr(fragment_dub, "has_active_fragment_dub_task", _always_inactive)
+
+    async def lost_race(*a, **k):
+        raise AppError("drama.dub_fragment_generating")
+
+    monkeypatch.setattr(fragment_dub, "enqueue_fragment_dub", lost_race)
+    await fragment_dub.enqueue_fragment_dub_after_video(9, 4, drama_project_id=1, episode_id=1)
+    assert frag.params["dub"] == {"status": "running"}
+    assert session.rollbacks == 1 and session.commits == 0

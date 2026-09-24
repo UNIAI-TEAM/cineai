@@ -71,6 +71,13 @@ def wired(monkeypatch, tmp_path):
     monkeypatch.setattr(fragment_dub.storage, "project_dir", lambda pid: tmp_path)
     monkeypatch.setattr(fragment_dub.storage, "rel_static_url", lambda p: f"/static/generated/p1/{p.name}")
     monkeypatch.setattr(fragment_dub.storage, "republish_url", lambda url, sync=True: url)
+    monkeypatch.setattr(fragment_dub.storage, "STATIC_ROOT", tmp_path)
+
+    async def fake_reload(db, fragment):
+        # Session giả không có DB: "đọc lại có khoá" trả chính object (test tự đổi nó để giả lập ghi đồng thời)
+        return fragment
+
+    monkeypatch.setattr(fragment_dub, "_reload_locked", fake_reload)
     return calls
 
 
@@ -224,3 +231,132 @@ def test_activate_without_raw_video_clears_dub(monkeypatch):
     generation.activate_fragment_video_version(frag, "v_plain")
     assert frag.video == "/v/plain.mp4"
     assert "dub" not in frag.params
+
+
+async def test_dub_discards_result_when_video_regenerated_during_dub(wired, monkeypatch, tmp_path):
+    """C1: trong lúc TTS người dùng tạo lại video (video mới + generation running) → không ghi đè video/generation,
+    params mới giữ nguyên, dub đánh dấu skipped/stale, không tính tiền, dọn file tạm."""
+    frag = _frag("【对白】Lan：Xin chào.", params={"voice_mode": "dub", "dub": {"status": "running"}})
+    wired_tts = fragment_dub.get_ark().tts
+
+    async def tts_then_regenerate(text, voice, **kw):
+        url = await wired_tts(text, voice, **kw)
+        frag.video = "/static/generated/p1/shot_9_v2.mp4"
+        frag.params = {**frag.params, "generation": {"status": "running"}, "video_versions": [{"id": "v1"}]}
+        return url
+
+    monkeypatch.setattr(fragment_dub, "get_ark", lambda: SimpleNamespace(tts=tts_then_regenerate))
+    dub = await fragment_dub.dub_fragment(_Db(), USER, PROJECT, frag)
+    assert dub["status"] == "skipped" and dub["reason"] == "stale"
+    assert frag.video == "/static/generated/p1/shot_9_v2.mp4"
+    assert frag.params["generation"] == {"status": "running"}
+    assert frag.params["video_versions"] == [{"id": "v1"}]
+    assert frag.params["dub"]["status"] == "skipped"
+    assert wired["usage"] == []
+    assert not list(tmp_path.glob("*.mp3")) and not list(tmp_path.glob("*_dub.mp4"))
+
+
+async def test_dub_failure_after_regeneration_does_not_reset_video(wired, monkeypatch):
+    """C1: lỗi xảy ra sau khi video đã được thay bằng bản mới → nhánh failed không trả video về nguồn cũ."""
+    frag = _frag("【对白】Lan：Xin chào.")
+
+    async def regenerate_then_fail(text, voice, **kw):
+        frag.video = "/static/generated/p1/shot_9_v2.mp4"
+        raise RuntimeError("tts down")
+
+    monkeypatch.setattr(fragment_dub, "get_ark", lambda: SimpleNamespace(tts=regenerate_then_fail))
+    with pytest.raises(RuntimeError):
+        await fragment_dub.dub_fragment(_Db(), USER, PROJECT, frag)
+    assert frag.video == "/static/generated/p1/shot_9_v2.mp4"
+    assert frag.params["dub"]["status"] == "skipped"
+
+
+async def test_dub_success_merges_only_dub_key_and_cleans_clips(wired, tmp_path):
+    """Thành công: chỉ trộn khoá dub vào params mới nhất (giữ khoá khác), xoá mp3 từng câu sau khi trộn."""
+    frag = _frag("【对白】Lan：Xin chào.", params={"voice_mode": "dub", "video_versions": [{"id": "v0"}]})
+    dub = await fragment_dub.dub_fragment(_Db(), USER, PROJECT, frag)
+    assert dub["status"] == "done"
+    assert frag.params["video_versions"] == [{"id": "v0"}] and frag.params["voice_mode"] == "dub"
+    assert not list(tmp_path.glob("*.mp3"))
+    assert list(tmp_path.glob("*_dub.mp4"))
+
+
+async def test_ensure_local_video_rejects_path_outside_static(monkeypatch, tmp_path):
+    """I4: URL /static/../../etc/passwd không được đọc/tải ra ngoài STATIC_ROOT."""
+    from app.errors import AppError
+
+    static_root = tmp_path / "static"
+    static_root.mkdir()
+    monkeypatch.setattr(fragment_dub.storage, "STATIC_ROOT", static_root)
+    monkeypatch.setattr(fragment_dub.storage, "local_path_from_url",
+                        lambda url: static_root / url.removeprefix("/static/"))
+
+    async def no_download(url, local):
+        raise AssertionError("không được tải file ra ngoài STATIC_ROOT")
+
+    monkeypatch.setattr(fragment_dub.storage, "ensure_local_media", no_download)
+    with pytest.raises(AppError) as exc_info:
+        await fragment_dub._ensure_local_video("/static/../../etc/passwd")
+    assert exc_info.value.code == "drama.dub_no_video"
+    assert fragment_dub._confined_local_path("/static/../../etc/passwd") is None
+    inside = static_root / "generated" / "a.mp4"
+    inside.parent.mkdir()
+    inside.write_bytes(b"x")
+    assert await fragment_dub._ensure_local_video("/static/generated/a.mp4") == inside
+
+
+async def test_dub_rejects_tts_clip_outside_static(wired, monkeypatch, tmp_path):
+    """I4: file TTS trả về ngoài STATIC_ROOT → lỗi dub_failed, không trộn."""
+    inner = tmp_path / "static"
+    inner.mkdir()
+    monkeypatch.setattr(fragment_dub.storage, "STATIC_ROOT", inner)
+    frag = _frag("【对白】Lan：Xin chào.")
+    with pytest.raises(Exception):
+        await fragment_dub.dub_fragment(_Db(), USER, PROJECT, frag)
+    assert frag.params["dub"]["error_code"] == "drama.dub_failed"
+    assert frag.video == "/static/generated/p1/shot_9.mp4"
+
+
+def test_versions_record_and_restore_voice_mode(monkeypatch):
+    """I3: mỗi phiên bản lưu voiceMode; kích hoạt bản native trả params.voice_mode về native (không lồng đè giọng gốc)."""
+    monkeypatch.setattr(generation, "_snapshot_version_media_url", lambda url, label: f"{url}#{label}" if url else "")
+    frag = _frag("", video="/v/native.mp4", params={"voice_mode": "native"})
+    native_entry = generation.archive_fragment_video_version(frag)
+    assert native_entry["voiceMode"] == "native"
+    # Tạo lại ở chế độ dub
+    frag.video = "/v/dub_raw.mp4"
+    frag.params["voice_mode"] = "dub"
+    out = generation.activate_fragment_video_version(frag, native_entry["id"])
+    assert frag.params["voice_mode"] == "native"
+    replaced = [v for v in out["video_versions"] if str(v.get("id") or "").endswith("_replaced")]
+    assert replaced[0]["voiceMode"] == "dub"
+    generation.activate_fragment_video_version(frag, replaced[0]["id"])
+    assert frag.params["voice_mode"] == "dub"
+
+
+def test_activate_legacy_version_without_voice_mode(monkeypatch):
+    """I3: bản cũ chưa có voiceMode → native; nếu có rawVideo (từng lồng tiếng) → dub."""
+    monkeypatch.setattr(generation, "_snapshot_version_media_url", lambda url, label: f"{url}#{label}" if url else "")
+    frag = _frag("", video="/v/cur.mp4", params={
+        "voice_mode": "dub",
+        "video_versions": [
+            {"id": "plain", "video": "/v/plain.mp4", "cover": ""},
+            {"id": "dubbed", "video": "/v/d.mp4", "cover": "", "rawVideo": "/v/raw.mp4"},
+        ],
+    })
+    generation.activate_fragment_video_version(frag, "plain")
+    assert frag.params["voice_mode"] == "native"
+    generation.activate_fragment_video_version(frag, "dubbed")
+    assert frag.params["voice_mode"] == "dub"
+
+
+def test_keep_server_owned_params_ignores_stale_client_values():
+    """I2: lưu phân cảnh giữ dub/voice_mode/generation/video_versions theo DB, khoá khác theo client."""
+    db_params = {"dub": {"status": "done"}, "voice_mode": "dub", "generation": {"status": "done"}, "video_versions": [1]}
+    client = {"dub": {"status": "running"}, "voice_mode": "native", "generation": {"status": "queued"},
+              "video_versions": [], "user_edited": True}
+    merged = fragment_dub.keep_server_owned_params(db_params, client)
+    assert merged == {**db_params, "user_edited": True}
+    # DB không có khoá → bỏ luôn giá trị client
+    assert fragment_dub.keep_server_owned_params({}, {"dub": {"status": "running"}, "x": 1}) == {"x": 1}
+    assert fragment_dub.keep_server_owned_params(None, None) == {}

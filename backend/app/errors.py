@@ -156,7 +156,7 @@ ERRORS: dict[str, tuple[int, str]] = {
     "drama.dub_no_video": (400, "该分镜还没有可用视频，无法配音"),
     "drama.dub_not_enabled": (400, "该分镜视频不是配音模式生成的，请在项目设置开启 TTS 配音后重新生成视频"),
     "drama.dub_failed": (500, "配音失败，请稍后重试"),
-    "drama.dub_fragment_generating": (409, "分镜正在生成，请完成后再配音"),
+    "drama.dub_fragment_generating": (409, "分镜正在生成视频或配音，请完成后再试"),
     # 漫剧：导演 Skill
     "drama.skill_not_found": (404, "Skill 不存在"),
     "drama.skill_md_only": (400, "请上传 .md 文件"),

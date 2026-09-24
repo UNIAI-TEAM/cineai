@@ -41,6 +41,7 @@ from app.services.drama.fragment_dub import (
     assert_fragment_dubbable,
     enqueue_fragment_dub,
     has_active_fragment_dub_task,
+    keep_server_owned_params,
 )
 from app.services.drama.voice_mode import resolve_project_voice_mode
 from app.services.drama.access import (
@@ -542,7 +543,9 @@ async def save_fragments(
         frag.cover = (item.cover or "")[:1024]
         frag.video = (item.video or "")[:1024]
         frag.duration_sec = item.duration_sec
-        frag.params = item.params
+        # Phân cảnh đã có: giữ các khoá params do backend quản lý (dub/voice_mode/generation/video_versions),
+        # tránh bản lưu cũ từ client hồi sinh trạng thái "đang lồng tiếng" hay ghi đè phiên bản video
+        frag.params = keep_server_owned_params(frag.params, item.params) if item_id in existing else item.params
         keep_ids.add(int(frag.id))
 
         asset_ids = await filter_valid_project_asset_ids(
@@ -593,13 +596,17 @@ async def activate_video_version(
     status = str(fragment_generation_status(fragment).get("status") or "")
     if status in {"queued", "running", "generating"}:
         raise AppError("drama.fragment_generating")
+    # Đang lồng tiếng: đổi video giữa chừng sẽ làm kết quả lồng tiếng ghi lên nhầm phiên bản
+    if await has_active_fragment_dub_task(db, fragment.id):
+        raise AppError("drama.dub_fragment_generating")
     try:
         payload = activate_fragment_video_version(fragment, body.version_id.strip())
     except ValueError as exc:
         raise http_exception_for_value_error(exc) from exc
     await db.commit()
     await db.refresh(fragment)
-    return {"ok": True, **payload}
+    # Kèm params mới nhất (voice_mode/dub đổi theo bản được khôi phục) để client cập nhật đúng
+    return {"ok": True, **payload, "params": fragment.params or {}}
 
 
 @router.post("/fragments/{fragment_id}/dub")
@@ -655,6 +662,10 @@ async def generate_episode(
     idle_frags.sort(key=lambda f: int(f.sort_order or 0))
     if not idle_frags:
         raise AppError("drama.fragments_all_generating")
+    # Phân cảnh đang lồng tiếng: không cho tạo lại video (tránh bản lồng tiếng cũ đè lên video mới)
+    for f in idle_frags:
+        if await has_active_fragment_dub_task(db, f.id):
+            raise AppError("drama.dub_fragment_generating")
 
     # 尾帧衔接：上一镜在生成/排队时可先入队本镜，由任务队列按镜序等待；未开上一镜则仍拒绝
     if project_link_last_frame_enabled(project):

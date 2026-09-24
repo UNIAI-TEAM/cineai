@@ -127,7 +127,7 @@ export const enErrors = {
     'drama.dub_no_video': 'This shot has no video yet, so it can’t be dubbed',
     'drama.dub_not_enabled': 'This shot was not generated in dubbing mode. Turn on "TTS dubbing" in project settings and regenerate the video',
     'drama.dub_failed': 'Dubbing failed. Please try again later',
-    'drama.dub_fragment_generating': 'This shot is still generating; dub it once it finishes',
+    'drama.dub_fragment_generating': 'This shot is still generating or being dubbed. Try again once it finishes',
     'drama.skill_not_found': 'Skill not found',
     'drama.skill_md_only': 'Please upload a .md file',
     'drama.skill_file_too_large': 'The file must be {max_kb}KB or smaller',

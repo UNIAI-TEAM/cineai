@@ -451,6 +451,8 @@ def archive_fragment_video_version(fragment: DramaEpisodeFragment) -> dict[str, 
         "lastFrameUrl": archived_last or last_frame or None,
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "source": "generate",
+        # Chế độ tiếng của bản này: khôi phục lại khi kích hoạt (bản native không được lồng tiếng đè)
+        "voiceMode": str(params.get("voice_mode") or "native"),
     }
     # Bản đang dùng là bản đã lồng tiếng: lưu kèm video gốc để lồng lại không bị chồng giọng
     dub = params.get("dub") if isinstance(params.get("dub"), dict) else {}
@@ -516,6 +518,7 @@ def activate_fragment_video_version(
             ),
             "createdAt": datetime.now(timezone.utc).isoformat(),
             "source": "replaced",
+            "voiceMode": str(params.get("voice_mode") or "native"),
         }
         # Bản đang thay thế là bản đã lồng tiếng: lưu kèm video gốc để lồng lại không bị chồng giọng
         cur_dub = params.get("dub") if isinstance(params.get("dub"), dict) else {}
@@ -538,6 +541,11 @@ def activate_fragment_video_version(
         params["dub"] = {"status": "done", "url": target_video, "sourceVideo": raw_video}
     else:
         params.pop("dub", None)
+    # Chế độ tiếng đi theo bản được khôi phục; bản cũ chưa ghi voiceMode: có rawVideo (từng lồng) → dub, còn lại native
+    target_mode = str(target.get("voiceMode") or "").strip()
+    if target_mode not in ("dub", "native"):
+        target_mode = "dub" if raw_video else "native"
+    params["voice_mode"] = target_mode
     fragment.params = params
     ratio = str(target.get("aspect_ratio") or params.get("aspect_ratio") or "9:16")
     resolution = str(target.get("resolution") or params.get("resolution") or "480p")

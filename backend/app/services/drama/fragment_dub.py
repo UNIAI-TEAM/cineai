@@ -61,6 +61,22 @@ def _write_dub(fragment: Any, dub: dict[str, Any]) -> dict[str, Any]:
     return params["dub"]
 
 
+# Khoá params do backend quản lý (task/poller ghi), client lưu phân cảnh không được ghi đè bằng bản cũ trong tay
+SERVER_OWNED_FRAGMENT_PARAMS = ("dub", "voice_mode", "generation", "video_versions")
+
+
+def keep_server_owned_params(db_params: Any, client_params: Any) -> dict[str, Any]:
+    """params client gửi lên, nhưng các khoá SERVER_OWNED_FRAGMENT_PARAMS lấy theo dòng DB (DB không có → bỏ)."""
+    merged = dict(client_params) if isinstance(client_params, dict) else {}
+    current = db_params if isinstance(db_params, dict) else {}
+    for key in SERVER_OWNED_FRAGMENT_PARAMS:
+        if key in current:
+            merged[key] = current[key]
+        else:
+            merged.pop(key, None)
+    return merged
+
+
 async def _fragment_asset_names(db: AsyncSession, fragment: Any) -> dict[int, str]:
     """{asset_id: tên hiển thị} của tư liệu gắn với phân cảnh (để thay @asset:N trong lời thoại)."""
     rows = (
@@ -105,15 +121,62 @@ async def load_dub_voices(db: AsyncSession, project: Any, lang: str) -> tuple[li
     return characters, narrator
 
 
+def _confined_local_path(url: str) -> Path | None:
+    """Đường dẫn cục bộ của URL media, chỉ nhận khi nằm trong STATIC_ROOT (chặn kiểu /static/../../etc/passwd)."""
+    local = storage.local_path_from_url(url or "")
+    if local is None:
+        return None
+    if not local.resolve().is_relative_to(storage.STATIC_ROOT.resolve()):
+        logger.warning("lồng tiếng: bỏ qua đường dẫn ngoài thư mục static url=%s", url)
+        return None
+    return local
+
+
 async def _ensure_local_video(url: str) -> Path:
-    """Đường dẫn cục bộ của video (tải về nếu mới có bản trên OSS)."""
-    local = storage.local_path_from_url(url)
+    """Đường dẫn cục bộ của video (tải về nếu mới có bản trên OSS); ngoài STATIC_ROOT thì coi như không có video."""
+    local = _confined_local_path(url)
     if local is not None:
         if not local.exists():
             await storage.ensure_local_media(url, local)
         if local.exists():
             return local
     raise AppError("drama.dub_no_video")
+
+
+async def _reload_locked(db: AsyncSession, fragment: Any) -> DramaEpisodeFragment | None:
+    """Đọc lại dòng phân cảnh kèm khoá FOR UPDATE, ghi đè snapshot cũ trong session (None nếu đã bị xoá)."""
+    result = await db.execute(
+        select(DramaEpisodeFragment)
+        .where(DramaEpisodeFragment.id == fragment.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
+def _still_same_source(fresh: Any, source: str) -> bool:
+    """Phân cảnh (vừa đọc lại) vẫn đúng video gốc lúc bắt đầu lồng và không có lượt tạo video nào đang chạy."""
+    status = str(fragment_generation_status(fresh).get("status") or "")
+    return dub_source_video(fresh) == source and status not in {"queued", "running", "generating"}
+
+
+def _without_errors(dub: dict[str, Any]) -> dict[str, Any]:
+    """Bản sao params.dub đã bỏ dấu vết lỗi của lần chạy trước."""
+    return {k: v for k, v in dub.items() if k not in ("error", "error_code", "error_params")}
+
+
+def _write_stale(fresh: Any) -> dict[str, Any]:
+    """Video đã đổi trong lúc lồng: chỉ đánh dấu skipped/stale, giữ nguyên url/sourceVideo và video hiện tại."""
+    return _write_dub(fresh, {**_without_errors(_dub_params(fresh)), "status": "skipped", "reason": "stale"})
+
+
+def _unlink_quietly(paths: list[Path]) -> None:
+    """Xoá file tạm (mp3 từng câu / bản trộn bị bỏ), lỗi thì bỏ qua."""
+    for path in paths:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            logger.debug("lồng tiếng: không xoá được file tạm %s", path)
 
 
 async def dub_fragment(
@@ -124,21 +187,32 @@ async def dub_fragment(
     *,
     task_run_id: int | None = None,
 ) -> dict[str, Any]:
-    """Lồng tiếng phân cảnh; thành công/skip trả params.dub, lỗi thì ghi failed (giữ video gốc) rồi raise lại."""
+    """Lồng tiếng phân cảnh; thành công/skip trả params.dub, lỗi thì ghi failed (giữ video gốc) rồi raise lại.
+
+    Mọi lần ghi đều đọc lại dòng phân cảnh có khoá và chỉ trộn khoá "dub" vào params mới nhất; nếu trong
+    lúc TTS/FFmpeg người dùng đã tạo lại video hoặc đổi phiên bản thì bỏ kết quả (skipped/stale), không đụng video.
+    """
     source = dub_source_video(fragment)
     if not source:
         raise AppError("drama.dub_no_video")
     lang = project_content_lang(project)
     lines = extract_dub_lines(fragment.content or "", await _fragment_asset_names(db, fragment))
+    fresh = await _reload_locked(db, fragment)
+    if fresh is None:
+        return {"status": "skipped", "reason": "stale"}
+    if not _still_same_source(fresh, source):
+        dub = _write_stale(fresh)
+        await db.commit()
+        return dub
     if not lines:
-        fragment.video = source
-        dub = _write_dub(fragment, {"status": "skipped", "url": None, "sourceVideo": source, "lines": []})
+        fresh.video = source
+        dub = _write_dub(fresh, {"status": "skipped", "url": None, "sourceVideo": source, "lines": []})
         await db.commit()
         return dub
     # Ghi "running" nhưng bỏ dấu vết lỗi của lần chạy trước (nếu có), tránh mang error_code cũ sang lần này
-    prev = {k: v for k, v in _dub_params(fragment).items() if k not in ("error", "error_code", "error_params")}
-    _write_dub(fragment, {**prev, "status": "running"})
+    _write_dub(fresh, {**_without_errors(_dub_params(fresh)), "status": "running"})
     await db.commit()
+    clip_paths: list[Path] = []
     try:
         characters, narrator = await load_dub_voices(db, project, lang)
         stamp = int(time.time())
@@ -155,9 +229,10 @@ async def dub_fragment(
                 lang=lang,
                 out_name=f"dub_f{fragment.id}_{stamp}_{idx:02d}.mp3",
             )
-            path = storage.local_path_from_url(url or "")
+            path = _confined_local_path(url or "")
             if path is None or not path.exists():
                 raise AppError("drama.dub_failed")
+            clip_paths.append(path)
             clips.append((path, line.start_sec))
             meta.append({"kind": line.kind, "name": line.speaker, "speaker": speaker, "text": line.text})
         video_local = await _ensure_local_video(source)
@@ -165,9 +240,15 @@ async def dub_fragment(
         plan = await asyncio.to_thread(run_dub_mix, video_local, clips, dest)
         rel = storage.rel_static_url(dest)
         dubbed = storage.republish_url(rel, sync=True) or rel
+        fresh = await _reload_locked(db, fragment)
+        if fresh is None or not _still_same_source(fresh, source):
+            dub = _write_stale(fresh) if fresh is not None else {"status": "skipped", "reason": "stale"}
+            await db.commit()
+            _unlink_quietly([*clip_paths, dest])
+            return dub
         # Ghi thành công + tính tiền cùng trong vùng bảo vệ: record_line lỗi cũng phải rơi về "failed", giữ video gốc
-        fragment.video = dubbed
-        dub = _write_dub(fragment, {
+        fresh.video = dubbed
+        dub = _write_dub(fresh, {
             "status": "done", "url": dubbed, "sourceVideo": source, "lines": meta,
             "tempo": plan.tempo, "freezeSec": plan.freeze_sec,
         })
@@ -182,22 +263,28 @@ async def dub_fragment(
             task_run_id=task_run_id,
         )
         await db.commit()
+        _unlink_quietly(clip_paths)
         return dub
     except Exception as exc:  # noqa: BLE001
         code, params = gen_error_fields(exc)
         logger.warning("lồng tiếng lỗi fragment_id=%s err=%s", fragment.id, exc)
         # DB có thể đã ở trạng thái aborted (vd. load_dub_voices/record_line lỗi giữa transaction):
-        # rollback + refresh trước khi ghi lại, tránh commit tiếp raise đè lên lỗi gốc hoặc âm thầm no-op
+        # rollback rồi đọc lại có khoá trước khi ghi, tránh commit tiếp raise đè lên lỗi gốc hoặc ghi đè params mới
         await db.rollback()
-        await db.refresh(fragment)
-        fragment.video = source
-        _write_dub(fragment, with_error_code(
-            {"status": "failed", "url": None, "sourceVideo": source, "error": str(exc)[:300]},
-            code or "drama.dub_failed",
-            params,
-        ))
         try:
-            await db.commit()
+            fresh = await _reload_locked(db, fragment)
+            if fresh is not None:
+                if _still_same_source(fresh, source):
+                    fresh.video = source
+                    _write_dub(fresh, with_error_code(
+                        {"status": "failed", "url": None, "sourceVideo": source, "error": str(exc)[:300]},
+                        code or "drama.dub_failed",
+                        params,
+                    ))
+                else:
+                    # Video đã đổi trong lúc lồng: lỗi của lượt này không còn liên quan, không đụng video
+                    _write_stale(fresh)
+                await db.commit()
         except Exception:  # noqa: BLE001
             logger.exception("lồng tiếng: ghi trạng thái failed cũng lỗi fragment_id=%s", fragment.id)
         raise
@@ -287,10 +374,17 @@ async def enqueue_fragment_dub(
     độc lập phiên/billing với task video: tránh mất trạng thái do dub_fragment tự rollback nội bộ,
     và tách hẳn phí TTS khỏi vòng đời task video (không còn đua với reconcile/settle của task video).
     """
+    # Khoá dòng phân cảnh rồi kiểm tra lại task đang chạy: hai lần bấm đồng thời không tạo được hai task
+    fresh = await _reload_locked(db, fragment)
+    if fresh is None:
+        raise AppError("drama.fragment_not_found")
+    fragment = fresh
+    if await has_active_fragment_dub_task(db, fragment.id):
+        raise AppError("drama.dub_fragment_generating")
     lines = extract_dub_lines(fragment.content or "", await _fragment_asset_names(db, fragment))
     line_count = max(len(lines), 1)
-    prev = {k: v for k, v in _dub_params(fragment).items() if k not in ("error", "error_code", "error_params")}
-    _write_dub(fragment, {**prev, "status": "running"})
+    char_count = sum(len(line.text) for line in lines)
+    _write_dub(fragment, {**_without_errors(_dub_params(fragment)), "status": "running"})
     task = await create_task(
         db,
         user,
@@ -298,7 +392,7 @@ async def enqueue_fragment_dub(
             domain="drama",
             task_type="fragment_dub",
             dedupe_key=f"drama:fragment_dub:fragment:{fragment.id}",
-            payload={"fragment_id": fragment.id, "line_count": line_count},
+            payload={"fragment_id": fragment.id, "line_count": line_count, "char_count": char_count},
             drama_project_id=drama_project_id,
             episode_id=episode_id,
             fragment_id=fragment.id,
@@ -334,32 +428,43 @@ async def enqueue_fragment_dub_after_video(
             await enqueue_fragment_dub(
                 db, user, fragment, drama_project_id=drama_project_id, episode_id=episode_id,
             )
+        except AppError as exc:
+            if exc.code != "drama.dub_fragment_generating":
+                await _mark_auto_enqueue_failed(db, fragment_id, exc)
+            else:
+                # Vừa có task lồng tiếng khác vào hàng đợi (kiểm tra lại dưới khoá): để task đó lo, không ghi failed
+                await db.rollback()
         except Exception as exc:  # noqa: BLE001
-            logger.warning("tự động lồng tiếng: vào hàng đợi lỗi fragment_id=%s err=%s", fragment_id, exc)
-            code = exc.code if isinstance(exc, AppError) else None
-            params = getattr(exc, "params", None)
-            if not (code and code.startswith("billing.")):
-                code, params = "drama.dub_failed", None
-            # create_task/enqueue có thể raise trước khi kịp commit; rollback rồi ghi failed riêng, best-effort.
-            await db.rollback()
-            frag = await db.get(DramaEpisodeFragment, fragment_id)
-            if not frag:
-                return
-            # Khác với mark_fragment_dub_ended: ở đây dùng frag.video làm sourceVideo LÀ ĐÚNG, vì hàm này
-            # chỉ gọi ngay sau apply_fragment_video_assets — apply đã pop hẳn params.dub cũ, nên frag.video
-            # lúc này chắc chắn là video thô (native) vừa áp, không phải bản đã lồng tiếng trước đó; và vì
-            # params.dub cũ đã bị pop nên không có url/sourceVideo nào để giữ lại cả (khởi tạo mới hoàn toàn).
-            _write_dub(frag, with_error_code(
-                {"status": "failed", "sourceVideo": frag.video},
-                code,
-                params,
-            ))
-            try:
-                await db.commit()
-            except Exception:  # noqa: BLE001
-                logger.exception(
-                    "tự động lồng tiếng: ghi trạng thái failed cũng lỗi fragment_id=%s", fragment_id
-                )
+            await _mark_auto_enqueue_failed(db, fragment_id, exc)
+
+
+async def _mark_auto_enqueue_failed(db: AsyncSession, fragment_id: int, exc: Exception) -> None:
+    """Tự động lồng tiếng vào hàng đợi lỗi: rollback rồi ghi best-effort params.dub.status=failed (không raise)."""
+    logger.warning("tự động lồng tiếng: vào hàng đợi lỗi fragment_id=%s err=%s", fragment_id, exc)
+    code = exc.code if isinstance(exc, AppError) else None
+    params = getattr(exc, "params", None)
+    if not (code and code.startswith("billing.")):
+        code, params = "drama.dub_failed", None
+    # create_task/enqueue có thể raise trước khi kịp commit; rollback rồi ghi failed riêng, best-effort.
+    await db.rollback()
+    frag = await db.get(DramaEpisodeFragment, fragment_id)
+    if not frag:
+        return
+    # Khác với mark_fragment_dub_ended: ở đây dùng frag.video làm sourceVideo LÀ ĐÚNG, vì hàm này
+    # chỉ gọi ngay sau apply_fragment_video_assets — apply đã pop hẳn params.dub cũ, nên frag.video
+    # lúc này chắc chắn là video thô (native) vừa áp, không phải bản đã lồng tiếng trước đó; và vì
+    # params.dub cũ đã bị pop nên không có url/sourceVideo nào để giữ lại cả (khởi tạo mới hoàn toàn).
+    _write_dub(frag, with_error_code(
+        {"status": "failed", "sourceVideo": frag.video},
+        code,
+        params,
+    ))
+    try:
+        await db.commit()
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "tự động lồng tiếng: ghi trạng thái failed cũng lỗi fragment_id=%s", fragment_id
+        )
 
 
 async def run_fragment_dub_job(task_run_id: int, fragment_id: int, user_id: int) -> dict[str, Any]:
