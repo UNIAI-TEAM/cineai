@@ -173,11 +173,9 @@ async def update_asset(
         if val is None:
             continue
         if field == "params" and isinstance(val, dict):
-            asset.params = _merge_asset_params(
-                asset.params if isinstance(asset.params, dict) else {},
-                val,
-            )
-            if should_recompose_prompt(asset.type, val):
+            prev_params = asset.params if isinstance(asset.params, dict) else {}
+            asset.params = _merge_asset_params(prev_params, val)
+            if should_recompose_prompt(asset.type, val, prev_params):
                 project = await db.get(DramaProject, asset.project_id)
                 asset.params = apply_appearance_to_params(asset.params, project_content_lang(project))
         else:
@@ -222,6 +220,8 @@ async def extract_asset_appearance(
     except ValueError as exc:
         raise http_exception_for_value_error(exc) from exc
 
+    # Đọc lại params mới nhất trước khi ghép appearance, tránh đè các thay đổi đồng thời trong lúc gọi AI
+    await db.refresh(asset)
     asset.params = {**(asset.params or {}), "appearance": appearance}
     await db.commit()
     logger.info("外形字段已拆分 project_id=%s asset_id=%s task_id=%s", project.id, asset.id, task.id)

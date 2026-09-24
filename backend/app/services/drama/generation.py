@@ -1143,6 +1143,7 @@ async def ensure_fragment_reference_audios(
         character: DramaAsset | None,
         voice_prompt: str,
         speaker: str | None,
+        speaker_locked: bool = False,
     ) -> DramaAsset:
         sample = build_voice_sample_text(
             voice_prompt,
@@ -1160,6 +1161,7 @@ async def ensure_fragment_reference_audios(
             speaker=speaker,
             character_name=character.name if character else None,
             character_asset=character,
+            speaker_locked=speaker_locked,
         )
 
     for asset in list(ref_assets):
@@ -1230,6 +1232,8 @@ async def ensure_fragment_reference_audios(
                 character=asset,
                 voice_prompt=prompt,
                 speaker=speaker,
+                # Giọng người dùng đã khóa: tổng hợp lại vẫn giữ khóa, không chuyển sang thiết kế giọng
+                speaker_locked=voice_params.get("speakerLocked") is True,
             )
             new_url = (updated_voice.url or "").strip()
             if new_url:

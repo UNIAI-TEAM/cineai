@@ -106,12 +106,50 @@ def test_build_character_params_unchanged_without_appearance():
         assert "promptManual" not in params
 
 
-def test_should_recompose_only_for_character_with_appearance_keys():
-    assert should_recompose_prompt("character", {"appearance": {"hair": "x"}})
-    assert should_recompose_prompt("Character", {"promptManual": False})
-    assert not should_recompose_prompt("scene", {"appearance": {"hair": "x"}})
-    assert not should_recompose_prompt("character", {"visualPrompt": "x"})
-    assert not should_recompose_prompt("character", None)
+def test_should_recompose_only_for_character_with_real_intent():
+    prev = {"appearance": {"hair": "short"}}
+    assert should_recompose_prompt("character", {"appearance": {"hair": "x"}}, prev)
+    assert should_recompose_prompt("Character", {"promptManual": False}, prev)
+    assert not should_recompose_prompt("scene", {"appearance": {"hair": "x"}}, prev)
+    assert not should_recompose_prompt("character", {"visualPrompt": "x"}, prev)
+    assert not should_recompose_prompt("character", None, prev)
+    # Echo nguyên appearance cũ (PATCH đầy đủ params từ luồng khác) → không ghép lại
+    assert not should_recompose_prompt("character", {"appearance": {"hair": " short "}}, prev)
+    assert not should_recompose_prompt("character", {"promptManual": True}, prev)
+
+
+def _patch_params(prev: dict, patch: dict) -> dict:
+    """Mô phỏng update_asset: merge params rồi ghép lại prompt khi PATCH thực sự muốn."""
+    from app.api.drama.assets import _merge_asset_params
+
+    merged = _merge_asset_params(prev, patch)
+    if should_recompose_prompt("character", patch, prev):
+        merged = apply_appearance_to_params(merged, "vi")
+    return merged
+
+
+def test_full_params_echo_keeps_custom_prompt():
+    prev = {"appearance": {"hair": "short"}, "visualPrompt": "Hair: short"}
+    out = _patch_params(prev, {**prev, "voiceAssetId": 9, "visualPrompt": "imported custom prompt"})
+    assert out["visualPrompt"] == "imported custom prompt"
+
+
+def test_echo_of_stored_auto_flag_does_not_recompose():
+    prev = {"appearance": {"hair": "short"}, "promptManual": False, "visualPrompt": "Hair: short"}
+    out = _patch_params(prev, {**prev, "voiceAssetId": 9, "visualPrompt": "library prompt"})
+    assert out["visualPrompt"] == "library prompt"
+
+
+def test_changed_appearance_recomposes_when_not_manual():
+    prev = {"appearance": {"hair": "short"}, "visualPrompt": "Hair: short"}
+    out = _patch_params(prev, {"appearance": {"hair": "long"}})
+    assert out["visualPrompt"] == "Hair: long"
+
+
+def test_prompt_manual_false_recomposes():
+    prev = {"appearance": {"hair": "short"}, "promptManual": True, "visualPrompt": "mine"}
+    out = _patch_params(prev, {"promptManual": False})
+    assert out["visualPrompt"] == "Hair: short"
 
 
 def test_manual_prompt_survives_later_appearance_edit():
@@ -162,3 +200,59 @@ async def test_extract_without_source_text_raises(monkeypatch):
     with pytest.raises(AppError) as err:
         await appearance_extract.extract_appearance_fields(_Empty(), "vi")
     assert err.value.code == "drama.appearance_extract_failed"
+
+
+# --- Các luồng LLM viết prompt không được đè prompt ghép từ trường ---
+def _char(params: dict, name: str = "Lan"):
+    """Tư liệu nhân vật giả cho test (không cần DB)."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(id=hash(name) % 1000, type="character", name=name, params=params)
+
+
+def _project(lang: str = "vi"):
+    """Dự án phim truyện giả tối thiểu cho resolve_visual_prompt_for_asset."""
+    from types import SimpleNamespace
+
+    script = SimpleNamespace(summary={}, episode_content=None, source="")
+    return SimpleNamespace(id=1, user_id=1, title="P", params={"content_lang": lang}, script=script)
+
+
+async def test_seed_refresh_skips_auto_composed_characters(monkeypatch):
+    from app.services.drama import seed, visual_prompt
+
+    called: list[str] = []
+
+    async def fake_resolve(asset, project, incoming=None, **kwargs):
+        called.append(asset.name)
+        return "LLM rewritten prompt"
+
+    class _Db:
+        async def flush(self):
+            return None
+
+    monkeypatch.setattr(visual_prompt, "resolve_visual_prompt_for_asset", fake_resolve)
+    auto = _char({"appearance": {"hair": "long"}, "visualPrompt": "Hair: long"}, "Auto")
+    manual = _char(
+        {"appearance": {"hair": "long"}, "promptManual": True, "visualPrompt": "mine"}, "Manual"
+    )
+    legacy = _char({"visualPrompt": "old"}, "Legacy")
+    updated, errors = await seed.refresh_asset_prompts_from_script(_Db(), _project(), [auto, manual, legacy])
+    assert errors == []
+    assert sorted(called) == ["Legacy", "Manual"]
+    assert updated == 2
+    assert auto.params["visualPrompt"] == "Hair: long"
+    assert legacy.params["visualPrompt"] == "LLM rewritten prompt"
+
+
+async def test_resolve_keeps_field_composed_or_manual_prompt(monkeypatch):
+    from app.services.drama import visual_prompt
+
+    async def boom(*a, **k):
+        raise AssertionError("không được gọi LLM cho prompt ghép từ trường / chỉnh tay")
+
+    monkeypatch.setattr(visual_prompt, "drama_chat_text", boom)
+    auto = _char({"appearance": {"hair": "long"}, "visualPrompt": "Hair: long"})
+    assert await visual_prompt.resolve_visual_prompt_for_asset(auto, _project()) == "Hair: long"
+    manual = _char({"promptManual": True, "visualPrompt": "short"})
+    assert await visual_prompt.resolve_visual_prompt_for_asset(manual, _project()) == "short"

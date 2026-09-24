@@ -58,6 +58,16 @@ def appearance_is_empty(appearance: dict[str, str]) -> bool:
     return not any((appearance.get(k) or "").strip() for k in APPEARANCE_KEYS)
 
 
+def has_field_composed_prompt(asset_type: str | None, params: Any) -> bool:
+    """Nhân vật có ngoại hình theo trường và đang tự ghép: prompt hiện tại chính là bản ghép từ trường,
+    các luồng LLM viết lại prompt (làm mới từ kịch bản, bù prompt yếu) phải bỏ qua."""
+    if (asset_type or "").lower() != "character" or not isinstance(params, dict):
+        return False
+    if params.get("promptManual") is True:
+        return False
+    return not appearance_is_empty(normalize_appearance(params.get("appearance")))
+
+
 def compose_appearance_prompt(appearance: dict[str, str], lang: str | None) -> str:
     """Ghép các trường không rỗng: dự án zh dùng nhãn Trung, còn lại nhãn Anh; toàn rỗng → ""."""
     zh = use_zh_prompt_labels(lang, " ".join(appearance.values()))
@@ -88,8 +98,21 @@ def apply_appearance_to_params(params: dict[str, Any], lang: str | None) -> dict
     return out
 
 
-def should_recompose_prompt(asset_type: str | None, patch: dict[str, Any] | None) -> bool:
-    """PATCH tư liệu có cần ghép lại prompt: chỉ nhân vật, và body có appearance hoặc promptManual."""
+def should_recompose_prompt(
+    asset_type: str | None,
+    patch: dict[str, Any] | None,
+    prev_params: dict[str, Any] | None,
+) -> bool:
+    """PATCH tư liệu có cần ghép lại prompt: chỉ nhân vật, và chỉ khi có ý định thật —
+    bật lại chế độ tự ghép (promptManual=False) hoặc appearance thực sự đổi so với trước.
+    PATCH gửi lại nguyên params cũ (gắn giọng, nhập từ thư viện…) không được ghi đè prompt."""
     if (asset_type or "").lower() != "character" or not isinstance(patch, dict):
         return False
-    return "appearance" in patch or "promptManual" in patch
+    prev = prev_params if isinstance(prev_params, dict) else {}
+    # Chỉ tính là "bật lại tự ghép" khi trước đó chưa ở chế độ tự ghép (tránh echo cờ đã lưu)
+    if patch.get("promptManual") is False and prev.get("promptManual") is not False:
+        return True
+    if "appearance" not in patch:
+        return False
+    prev_appearance = prev.get("appearance")
+    return normalize_appearance(patch["appearance"]) != normalize_appearance(prev_appearance)

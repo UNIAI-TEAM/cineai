@@ -32,6 +32,7 @@ from app.services.drama.build_fragments import (
     split_episode_content_into_scenes,
 )
 from app.services.drama.access import detach_task_fragment_refs
+from app.services.drama.appearance_prompt import has_field_composed_prompt
 from app.services.drama.agents import MIN_EPISODE_CONTENT_CHARS
 from app.services.content_lang import is_zh, project_content_lang
 from app.services.drama.naming import default_episode_title
@@ -404,6 +405,8 @@ async def refresh_asset_prompts_from_script(
         a
         for a in assets
         if (a.type or "").lower() not in {"voice", "video", "audio", "text"}
+        # Nhân vật tự ghép từ trường ngoại hình: prompt vừa ghép lại khi seed chính là bản làm mới
+        and not has_field_composed_prompt(a.type, a.params)
     ]
     if not targets:
         return 0, []
