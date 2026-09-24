@@ -502,6 +502,17 @@ export const dramaApi = {
       body: JSON.stringify({ version_id: versionId }),
     }),
 
+  /** Lồng tiếng lại phân cảnh bằng TTS (không tạo lại video); chỉ vào hàng đợi, kết quả xem qua task_id */
+  dubFragment: (fragmentId: number) =>
+    request<{
+      ok: boolean
+      fragment_id: number
+      task_id: number
+      video: string
+      cover: string
+      params: Record<string, unknown>
+    }>(`/api/drama/fragments/${fragmentId}/dub`, { method: 'POST' }),
+
   cancelAllVideoJobs: () =>
     request<{ ok: boolean; purged: number; revoked: number; fragments: number }>(
       '/api/drama/cancel_video_jobs',
