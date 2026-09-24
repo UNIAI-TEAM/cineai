@@ -30,7 +30,7 @@ export function CharacterAppearanceForm({ value, onChange, onExtract, extracting
       {empty ? <p className="drama-muted">{t('dramaAssets.appearance.emptyHint')}</p> : null}
       <div className="drama-appearance-grid">
         {APPEARANCE_KEYS.map((key) => (
-          <label key={key} className={`drama-field${MULTILINE.has(key) ? ' drama-appearance-wide' : ''}`}>
+          <label key={key} className="drama-field">
             <span>{t(`dramaAssets.appearance.fields.${key}`)}</span>
             {MULTILINE.has(key) ? (
               <textarea

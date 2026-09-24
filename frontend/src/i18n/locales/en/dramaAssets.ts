@@ -221,7 +221,7 @@ export const enDramaAssets = {
     },
     voiceBind: {
       title: 'Assign voice',
-      intro: 'Pick a voice for “{name}”. It’s sent as reference_audio when Seedance generates each shot.',
+      intro: 'Pick a voice for “{name}”. It’s used to dub this character’s lines.',
       characterFallback: 'character',
       defaultName: '{name} voice',
       createAndSynth: 'Create new',
@@ -242,7 +242,7 @@ export const enDramaAssets = {
       synthFailed: 'Couldn’t generate voice',
       resynthFailed: 'Couldn’t regenerate voice',
       selectRequired: 'Pick a voice that has a preview',
-      catalogTab: 'Pick a voice',
+      catalogTab: 'Voice catalog',
       catalogLoading: 'Loading voices…',
       catalogEmpty: 'No voices for this project language yet.',
       catalogLoadFailed: 'Could not load voices',

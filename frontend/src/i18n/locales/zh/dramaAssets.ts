@@ -221,7 +221,7 @@ export const zhDramaAssets = {
     },
     voiceBind: {
       title: '绑定音色',
-      intro: '为「{name}」选择漫剧音色资产。音色将随分镜 Seedance 生成作为 reference_audio 提交。',
+      intro: '为「{name}」选择音色，用于该角色台词配音。',
       characterFallback: '角色',
       defaultName: '{name}音色',
       createAndSynth: '新建并合成',
@@ -242,7 +242,7 @@ export const zhDramaAssets = {
       synthFailed: '合成失败',
       resynthFailed: '重新合成失败',
       selectRequired: '请选择已合成试听的音色资产',
-      catalogTab: '选择音色',
+      catalogTab: '音色库',
       catalogLoading: '音色加载中…',
       catalogEmpty: '当前项目语言暂无可选音色。',
       catalogLoadFailed: '音色列表加载失败',

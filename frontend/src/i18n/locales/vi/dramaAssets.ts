@@ -221,7 +221,7 @@ export const viDramaAssets = {
     },
     voiceBind: {
       title: 'Gán giọng',
-      intro: 'Chọn giọng cho “{name}”. Giọng này sẽ được gửi kèm làm reference_audio khi Seedance tạo video từng phân cảnh.',
+      intro: 'Chọn giọng cho “{name}”. Giọng này dùng để lồng tiếng lời thoại của nhân vật.',
       characterFallback: 'nhân vật',
       defaultName: 'Giọng {name}',
       createAndSynth: 'Tạo giọng mới',
@@ -242,7 +242,7 @@ export const viDramaAssets = {
       synthFailed: 'Không tạo được giọng',
       resynthFailed: 'Không tạo lại được giọng',
       selectRequired: 'Hãy chọn một giọng đã tạo để nghe thử',
-      catalogTab: 'Chọn giọng',
+      catalogTab: 'Kho giọng',
       catalogLoading: 'Đang tải danh sách giọng…',
       catalogEmpty: 'Chưa có giọng nào cho ngôn ngữ của dự án này.',
       catalogLoadFailed: 'Không tải được danh sách giọng',
