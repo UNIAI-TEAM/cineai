@@ -4,16 +4,16 @@
  * task fragment_dub được backend tự vào hàng đợi sau khi video hoàn tất; vì vậy cần vòng lặp
  * riêng, nhẹ và chỉ chạy khi thật sự có phân cảnh đang lồng tiếng (tự dừng khi hết).
  */
-import { useEffect } from 'react'
+import { useEffect, type Dispatch, type SetStateAction } from 'react'
 import { dramaApi, type DramaFragment } from '../api/drama'
-import { readFragmentDub } from '../lib/dramaFragmentDub'
+import { mergeServerDubFields, readFragmentDub } from '../lib/dramaFragmentDub'
 
 const DUB_AUTO_POLL_MS = 5000
 
 export function useFragmentDubPolling(
   episodeId: number,
   fragments: DramaFragment[],
-  onFragments: (fragments: DramaFragment[]) => void,
+  setFragments: Dispatch<SetStateAction<DramaFragment[]>>,
 ) {
   const anyDubRunning = fragments.some((f) => readFragmentDub(f.params)?.status === 'running')
 
@@ -23,7 +23,8 @@ export function useFragmentDubPolling(
     const timer = setInterval(async () => {
       try {
         const ep = await dramaApi.getEpisode(episodeId)
-        if (!stopped) onFragments(ep.fragments || [])
+        // Chỉ trộn kết quả lồng tiếng theo id, không thay cả danh sách (giữ nội dung/chèn/xoá chưa lưu)
+        if (!stopped) setFragments((prev) => mergeServerDubFields(prev, ep.fragments || []))
       } catch {
         /* 轮询失败下次重试 */
       }
@@ -32,5 +33,5 @@ export function useFragmentDubPolling(
       stopped = true
       clearInterval(timer)
     }
-  }, [episodeId, anyDubRunning, onFragments])
+  }, [episodeId, anyDubRunning, setFragments])
 }

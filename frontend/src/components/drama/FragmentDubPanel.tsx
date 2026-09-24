@@ -14,6 +14,7 @@ export function FragmentDubPanel({ params, hasVideo, disabled, onRedub }: Props)
   const { t } = useI18n()
   if (!hasVideo || !fragmentUsesDub(params)) return null
   const dub = readFragmentDub(params)
+  // Lỗi: chỉ hiện thông báo đã dịch theo mã lỗi (không có mã thì dùng nhãn chung "lồng tiếng lỗi")
   const label = !dub
     ? t('dramaEpisode.page.dubNone')
     : dub.status === 'running'
@@ -21,23 +22,16 @@ export function FragmentDubPanel({ params, hasVideo, disabled, onRedub }: Props)
       : dub.status === 'done'
         ? t('dramaEpisode.page.dubDone', { n: dub.lines.length })
         : dub.status === 'skipped'
-          ? t('dramaEpisode.page.dubSkipped')
-          : t('dramaEpisode.page.dubFailed')
+          ? dub.reason === 'stale'
+            ? t('dramaEpisode.page.dubStale')
+            : t('dramaEpisode.page.dubSkipped')
+          : localizeStoredError(t('dramaEpisode.page.dubFailed'), dub.errorCode, dub.errorParams ?? undefined)
   return (
     <div className="drama-ep-versions">
       <span className="drama-ep-versions-label">{t('dramaEpisode.page.dubTitle')}</span>
       <span className="drama-muted">{label}</span>
-      {dub?.status === 'failed' && dub.errorCode ? (
-        <span className="drama-muted">
-          {localizeStoredError(t('dramaEpisode.page.dubFailed'), dub.errorCode, dub.errorParams ?? undefined)}
-        </span>
-      ) : null}
-      <button
-        type="button"
-        className="drama-outline-chip-btn"
-        disabled={disabled || dub?.status === 'running'}
-        onClick={onRedub}
-      >
+      {/* Không khoá nút chỉ vì params.dub đang "running" (cờ có thể treo): backend tự trả 409 nếu thật sự đang chạy */}
+      <button type="button" className="drama-outline-chip-btn" disabled={disabled} onClick={onRedub}>
         {t('dramaEpisode.page.dubRedo')}
       </button>
     </div>

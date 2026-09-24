@@ -497,6 +497,7 @@ export const dramaApi = {
       cover: string
       lastFrameUrl?: string | null
       video_versions: Array<Record<string, unknown>>
+      params?: Record<string, unknown>
     }>(`/api/drama/fragments/${fragmentId}/activate_video_version`, {
       method: 'POST',
       body: JSON.stringify({ version_id: versionId }),

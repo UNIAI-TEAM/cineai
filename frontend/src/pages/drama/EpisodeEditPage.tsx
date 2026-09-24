@@ -52,6 +52,7 @@ import { DramaFragmentClipSpec } from '../../components/drama/DramaFragmentClipS
 import { FragmentPlanSkillModal } from '../../components/drama/FragmentPlanSkillModal'
 import { DramaGenTaskDetail } from '../../components/drama/DramaGenTaskDetail'
 import { FragmentDubPanel } from '../../components/drama/FragmentDubPanel'
+import { mergeServerDubFields } from '../../lib/dramaFragmentDub'
 import { CircleAlert } from 'lucide-react'
 import { useDramaImageGenQueue } from '../../hooks/useDramaImageGenQueue'
 import { useMediaModelsCatalog } from '../../hooks/useMediaModelsCatalog'
@@ -776,7 +777,7 @@ function EpisodeEditInner() {
   // 视频生成完成后后端会自动入队配音；这里轮询直到没有分镜还在配音
   useFragmentDubPolling(eid, fragments, setFragments)
 
-  // 轮询「重新配音」任务直到终态，再整体刷新分集（配音结果写回 fragment.params）
+  // 轮询「重新配音」任务直到终态，再按 id 合并配音结果（只取 video/cover/params.dub/voice_mode，保留未保存编辑）
   function pollDubTask(taskId: number) {
     const timer: ReturnType<typeof setInterval> = setInterval(async () => {
       try {
@@ -784,7 +785,10 @@ function EpisodeEditInner() {
         if (!['succeeded', 'failed', 'cancelled'].includes(task.status)) return
         clearInterval(timer)
         dubPollTimersRef.current.delete(timer)
-        await reloadRef.current()
+        const ep = await dramaApi.getEpisode(eid)
+        setFragments((prev) => mergeServerDubFields(prev, ep.fragments || []))
+        // 终态后清掉「正在配音…」提示
+        setStatus((cur) => (cur === t('dramaEpisode.page.dubRunning') ? '' : cur))
         if (task.status === 'failed') {
           setError(
             localizeStoredError(task.error_message, task.error_code, task.error_params) ||
@@ -1092,6 +1096,9 @@ function EpisodeEditInner() {
                 cover: result.cover || '',
                 params: {
                   ...(f.params || {}),
+                  // voice_mode/dub đổi theo bản được khôi phục (backend trả params mới nhất)
+                  voice_mode: result.params?.voice_mode,
+                  dub: result.params?.dub,
                   video_versions: result.video_versions,
                   lastFrameUrl: result.lastFrameUrl || undefined,
                   generation: {

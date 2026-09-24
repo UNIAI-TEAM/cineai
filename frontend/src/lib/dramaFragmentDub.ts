@@ -9,6 +9,8 @@ export type FragmentDub = {
   lines: FragmentDubLine[]
   errorCode?: string | null
   errorParams?: Record<string, unknown> | null
+  /** 'stale': video đổi trong lúc lồng tiếng nên kết quả bị bỏ */
+  reason?: string | null
 }
 
 const STATUSES: FragmentDubStatus[] = ['running', 'done', 'failed', 'skipped']
@@ -50,9 +52,45 @@ export function readFragmentDub(params: Record<string, unknown> | null | undefin
     url: typeof obj.url === 'string' ? obj.url : null,
     lines,
     errorCode: typeof obj.error_code === 'string' ? obj.error_code : null,
+    reason: typeof obj.reason === 'string' ? obj.reason : null,
     errorParams:
       obj.error_params && typeof obj.error_params === 'object'
         ? (obj.error_params as Record<string, unknown>)
         : null,
   }
+}
+
+/** Phân cảnh tối thiểu để trộn kết quả lồng tiếng từ server */
+type DubMergeable = {
+  id: number
+  video: string
+  cover: string
+  params?: Record<string, unknown> | null
+}
+
+/** Khoá params do backend ghi khi lồng tiếng; phần còn lại của phân cảnh giữ theo bản đang sửa trên máy */
+const SERVER_DUB_PARAM_KEYS = ['dub', 'voice_mode'] as const
+
+/**
+ * Trộn kết quả lồng tiếng từ server vào danh sách phân cảnh đang sửa (theo id):
+ * chỉ lấy video, cover, params.dub, params.voice_mode; nội dung, chèn/xoá chưa lưu được giữ nguyên.
+ * Phân cảnh không đổi giữ nguyên object để tránh render lại vô ích.
+ */
+export function mergeServerDubFields<T extends DubMergeable>(local: T[], server: DubMergeable[]): T[] {
+  const byId = new Map(server.filter((f) => f.id > 0).map((f) => [f.id, f]))
+  return local.map((f) => {
+    const remote = f.id > 0 ? byId.get(f.id) : undefined
+    if (!remote) return f
+    const localParams = f.params && typeof f.params === 'object' ? f.params : {}
+    const remoteParams = remote.params && typeof remote.params === 'object' ? remote.params : {}
+    const params: Record<string, unknown> = { ...localParams }
+    let changed = f.video !== remote.video || f.cover !== remote.cover
+    for (const key of SERVER_DUB_PARAM_KEYS) {
+      if (key in remoteParams) params[key] = remoteParams[key]
+      else delete params[key]
+      if (JSON.stringify(localParams[key]) !== JSON.stringify(params[key])) changed = true
+    }
+    if (!changed) return f
+    return { ...f, video: remote.video, cover: remote.cover, params }
+  })
 }

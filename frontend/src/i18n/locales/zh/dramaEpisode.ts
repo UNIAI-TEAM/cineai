@@ -139,6 +139,7 @@ export const zhDramaEpisode = {
       dubRunning: '配音中…',
       dubDone: '已配音 {n} 句',
       dubSkipped: '本镜无台词',
+      dubStale: '配音期间视频已变更，本次配音已作废',
       dubFailed: '配音失败',
       dubNone: '尚未配音',
       dubRedo: '重新配音',

@@ -143,6 +143,7 @@ export const viDramaEpisode = {
       dubRunning: 'Đang lồng tiếng…',
       dubDone: 'Đã lồng tiếng {n} câu',
       dubSkipped: 'Cảnh này không có lời thoại',
+      dubStale: 'Video đã thay đổi trong lúc lồng tiếng nên bản lồng tiếng này bị bỏ',
       dubFailed: 'Lồng tiếng lỗi',
       dubNone: 'Chưa lồng tiếng',
       dubRedo: 'Lồng tiếng lại',
