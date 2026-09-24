@@ -10,6 +10,9 @@ import { displayDramaAssetName } from './dramaLibraryAssets'
 /** 音色难控：暂不绑定、不提交 Seedance reference_audio，口播由模型自发挥。恢复时改 true。 */
 export const DRAMA_VOICE_BINDING_ENABLED = false
 
+/** 选择角色用于 TTS 配音的音色（资产详情框的「绑定音色」按钮 + 绑定音色弹窗）。独立于 DRAMA_VOICE_BINDING_ENABLED：后端不再向 Seedance 提交 reference_audio（SEEDANCE_ATTACH_REFERENCE_AUDIO=False），所绑定的音色只用于 TTS 配音。 */
+export const DRAMA_CHARACTER_VOICE_PICK_ENABLED = true
+
 export type VoiceBinding = {
   sourceAssetId: number
   url: string

@@ -30,7 +30,7 @@ import { alertDramaGenError, formatDramaGenError, isUpstreamAccountError } from 
 import { pageCountOf } from '../../lib/pagination'
 import { readVisualPrompt } from '../../lib/dramaVisualPrompt'
 import { displayDramaAssetName, filterDramaLibraryAssets } from '../../lib/dramaLibraryAssets'
-import { DRAMA_VOICE_BINDING_ENABLED } from '../../lib/dramaVoiceBinding'
+import { DRAMA_CHARACTER_VOICE_PICK_ENABLED, DRAMA_VOICE_BINDING_ENABLED } from '../../lib/dramaVoiceBinding'
 import { useI18n } from '../../i18n/context'
 import { translate } from '../../i18n/translate'
 import { seedLlmErrorLines } from '../../lib/dramaJobError'
@@ -1030,7 +1030,7 @@ export function AssetsStep({ projectId, onError }: AssetsStepProps) {
             setDetailAsset(updated)
           }}
           onGenerate={(a) => enqueueOne(a)}
-          onBindVoice={DRAMA_VOICE_BINDING_ENABLED ? (a) => setVoiceAsset(a) : undefined}
+          onBindVoice={DRAMA_CHARACTER_VOICE_PICK_ENABLED ? (a) => setVoiceAsset(a) : undefined}
           onDelete={(a) => {
             setDetailAsset(null)
             void handleDeleteCharacter(a)
@@ -1047,7 +1047,7 @@ export function AssetsStep({ projectId, onError }: AssetsStepProps) {
         />
       ) : null}
 
-      {DRAMA_VOICE_BINDING_ENABLED && voiceAsset ? (
+      {DRAMA_CHARACTER_VOICE_PICK_ENABLED && voiceAsset ? (
         <CharacterVoiceBindModal
           asset={voiceAsset}
           projectId={projectId}

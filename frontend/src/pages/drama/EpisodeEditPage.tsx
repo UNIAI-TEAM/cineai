@@ -40,7 +40,7 @@ import {
   collectDramaGenerateGateIssues,
   formatDramaGateMessage,
 } from '../../lib/dramaEpisodeScriptValidate'
-import { DRAMA_VOICE_BINDING_ENABLED } from '../../lib/dramaVoiceBinding'
+import { DRAMA_CHARACTER_VOICE_PICK_ENABLED, DRAMA_VOICE_BINDING_ENABLED } from '../../lib/dramaVoiceBinding'
 import BillingErrorNotice from '../../components/billing/BillingErrorNotice'
 import { dialog } from '../../lib/dialog'
 import {
@@ -1988,12 +1988,12 @@ function EpisodeEditInner() {
           onClose={() => setDetailAsset(null)}
           onUpdated={handleCharacterUpdated}
           onGenerate={(a) => enqueueAssetImage(a)}
-          onBindVoice={DRAMA_VOICE_BINDING_ENABLED ? (a) => setVoiceBindAsset(a) : undefined}
+          onBindVoice={DRAMA_CHARACTER_VOICE_PICK_ENABLED ? (a) => setVoiceBindAsset(a) : undefined}
           onError={(message) => setError(message)}
         />
       ) : null}
 
-      {DRAMA_VOICE_BINDING_ENABLED && voiceBindAsset ? (
+      {DRAMA_CHARACTER_VOICE_PICK_ENABLED && voiceBindAsset ? (
         <CharacterVoiceBindModal
           asset={voiceBindAsset}
           projectId={pid}
