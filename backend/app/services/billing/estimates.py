@@ -191,8 +191,10 @@ async def estimate_task_fen(db: AsyncSession, task: TaskRun, settings: Settings 
                                           settings=s, snapshot=snap), s)
             if task_type == "fragment_video":
                 fen += max(1, _image_fen("drama.asset_image", s, snap) // 2)
+                if payload.get("voice_mode") == "dub":
+                    fen += _tts_fen("drama.tts", s, snap)
             return fen
-        if task_type == "voice_synthesis":
+        if task_type in {"voice_synthesis", "fragment_dub"}:
             return _tts_fen("drama.tts", s, snap)
 
     if domain in {"api", "studio"}:

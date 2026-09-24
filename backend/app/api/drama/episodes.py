@@ -34,9 +34,11 @@ from app.schemas_drama import (
 )
 from app.schemas_tasks import TaskCreateRequest, TaskTargetBind
 from app.services.agent.compose import parse_skill_ids
-from app.services.billing import run_billed_ephemeral
+from app.services.billing import get_current_task_run_id, run_billed_ephemeral
 from app.services.billing.http import http_exception_for_value_error
 from app.services.drama.job_errors import clear_job_error, gen_progress
+from app.services.drama.fragment_dub import dub_fragment
+from app.services.drama.voice_mode import resolve_project_voice_mode
 from app.services.drama.access import (
     count_user_inflight_fragment_video_tasks,
     detach_task_fragment_refs,
@@ -596,6 +598,45 @@ async def activate_video_version(
     return {"ok": True, **payload}
 
 
+@router.post("/fragments/{fragment_id}/dub")
+async def dub_fragment_video(
+    fragment_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Lồng tiếng lại phân cảnh bằng TTS từ video gốc của bản đang dùng (không tạo lại video)."""
+    fragment = await db.get(DramaEpisodeFragment, fragment_id)
+    if not fragment:
+        raise AppError("drama.fragment_not_found")
+    ep = await get_owned_episode(db, fragment.episode_id, user)
+    project = await get_owned_drama_project(db, ep.project_id, user)
+    status = str(fragment_generation_status(fragment).get("status") or "")
+    if status in {"queued", "running", "generating"}:
+        raise AppError("drama.dub_fragment_generating")
+    if (fragment.params or {}).get("voice_mode") != "dub":
+        raise AppError("drama.dub_not_enabled")
+    if not (fragment.video or "").strip():
+        raise AppError("drama.dub_no_video")
+
+    async def _run() -> dict:
+        return await dub_fragment(db, user, project, fragment, task_run_id=get_current_task_run_id())
+
+    await run_billed_ephemeral(
+        db,
+        user,
+        domain="drama",
+        task_type="fragment_dub",
+        executor=_run,
+        payload={"fragment_id": fragment.id},
+        drama_project_id=project.id,
+        fragment_id=fragment.id,
+        episode_id=ep.id,
+    )
+    await db.refresh(fragment)
+    return {"ok": True, "fragment_id": fragment.id, "video": fragment.video,
+            "cover": fragment.cover or "", "params": fragment.params or {}}
+
+
 @router.post("/episodes/{episode_id}/generate")
 async def generate_episode(
     episode_id: int,
@@ -708,6 +749,7 @@ async def generate_episode(
                         "replace_existing_video": has_video,
                         "duration_sec": duration_sec,
                         "model_id": (body.model_id or "").strip() or None,
+                        "voice_mode": resolve_project_voice_mode(project),
                     },
                     drama_project_id=ep.project_id,
                     episode_id=episode_id,
