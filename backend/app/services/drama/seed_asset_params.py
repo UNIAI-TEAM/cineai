@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.services.content_lang import is_zh
@@ -39,6 +40,8 @@ def build_named_image_params(prompt: str, aspect_ratio: str, *, kind: str = "pro
 
 # 生图提示词字段标签：中文项目用中文；越南语 / 英文项目用英文（生图模型对英文理解更好）
 _ZH_LABELS = {"title": "身份：", "roleType": "定位：", "coreTags": "标签：", "personality": "性格："}
+# 标签值含带声调拉丁字母（越南语）或中日文即视为非英文；短值（「Nam chính」）按内容猜语言不可靠
+_NON_ENGLISH_LABEL_RE = re.compile(r"[\u00c0-\u024f\u1e00-\u1eff\u3040-\u30ff\u3400-\u9fff]")
 _EN_LABELS = {"title": "Identity: ", "roleType": "Role: ", "coreTags": "Tags: ", "personality": "Personality: "}
 
 
@@ -59,9 +62,9 @@ def manju_join_character_prompt(character: dict[str, Any], lang: str | None = No
     zh = use_zh_prompt_labels(lang, " ".join([visual, title, role_type, core_tags, personality]))
     labels = _ZH_LABELS if zh else _EN_LABELS
     if not zh:
-        # 越南语 / 英文项目：丢掉 stub 里的中文占位值（如「出场人物」「配角」）
+        # 越南语 / 英文项目：生图提示词只留英文，丢掉中文占位值（「出场人物」「配角」）与越南语字段值
         title, role_type, core_tags, personality = (
-            "" if is_cjk_text(v) else v for v in (title, role_type, core_tags, personality)
+            "" if _NON_ENGLISH_LABEL_RE.search(v) else v for v in (title, role_type, core_tags, personality)
         )
     parts = [
         visual,
@@ -99,7 +102,8 @@ def compose_character_visual_text(character: dict[str, Any], lang: str | None = 
 
 # 组装角色资产 params（形象名 + 生图提示词，对齐 manju buildCharacterParams）
 def build_character_params(character: dict[str, Any], lang: str | None = None) -> dict[str, Any]:
-    # 有 appearance（按字段的外形）时由字段拼 visualImage 正文；否则沿用旧逻辑
+    # 有 appearance（按字段的外形）时存字段；正文优先用剧本给的详细 visualImage（8 个短字段会丢细节），
+    # 没有 visualImage 才由字段拼正文
     from app.services.drama.appearance_prompt import (
         appearance_is_empty,
         compose_appearance_prompt,
@@ -108,7 +112,7 @@ def build_character_params(character: dict[str, Any], lang: str | None = None) -
 
     appearance = normalize_appearance(character.get("appearance"))
     has_appearance = not appearance_is_empty(appearance)
-    if has_appearance:
+    if has_appearance and not str(character.get("visualImage") or "").strip():
         character = {**character, "visualImage": compose_appearance_prompt(appearance, lang)}
     prompt = manju_join_character_prompt(character, lang)
     visual = prompt if has_appearance else (str(character.get("visualImage") or "").strip() or prompt)

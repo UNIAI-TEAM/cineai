@@ -286,6 +286,7 @@ TASK_HANDLERS: dict[tuple[str, str], TaskHandler] = {
     ("drama", "skill_optimize"): TaskHandler("drama", "skill_optimize", _noop_ephemeral),
     ("drama", "voice_prompt"): TaskHandler("drama", "voice_prompt", _noop_ephemeral),
     ("drama", "appearance_extract"): TaskHandler("drama", "appearance_extract", _noop_ephemeral),
+    ("drama", "appearance_prompt"): TaskHandler("drama", "appearance_prompt", _noop_ephemeral),
     ("drama", "voice_synthesis"): TaskHandler("drama", "voice_synthesis", _noop_ephemeral),
     ("drama", "fragment_dub"): TaskHandler("drama", "fragment_dub", _run_drama_fragment_dub),
     ("kepu", "content_expand"): TaskHandler("kepu", "content_expand", _noop_ephemeral),

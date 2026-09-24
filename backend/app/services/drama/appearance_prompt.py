@@ -78,15 +78,18 @@ def compose_appearance_prompt(appearance: dict[str, str], lang: str | None) -> s
     return join_sep.join(parts)
 
 
-def apply_appearance_to_params(params: dict[str, Any], lang: str | None) -> dict[str, Any]:
-    """Trả params mới: nếu có ngoại hình và không ở chế độ chỉnh tay thì ghi prompt ghép vào
-    visualPrompt / visualImage / canvas.generation.prompt (kèm nhãn title/roleType/coreTags/personality)."""
+def apply_appearance_to_params(
+    params: dict[str, Any], lang: str | None, *, body: str | None = None
+) -> dict[str, Any]:
+    """Trả params mới: nếu có ngoại hình và không ở chế độ chỉnh tay thì ghi prompt vào
+    visualPrompt / visualImage / canvas.generation.prompt (kèm nhãn title/roleType/coreTags/personality).
+    body: đoạn mô tả AI viết từ các trường; không có thì ghép thẳng 8 trường."""
     out = dict(params or {})
     appearance = normalize_appearance(out.get("appearance"))
     out["appearance"] = appearance
     if out.get("promptManual") is True or appearance_is_empty(appearance):
         return out
-    body = compose_appearance_prompt(appearance, lang)
+    body = (body or "").strip() or compose_appearance_prompt(appearance, lang)
     prompt = manju_join_character_prompt({**out, "visualImage": body}, lang)
     out["visualPrompt"] = prompt
     out["visualImage"] = prompt

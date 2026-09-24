@@ -183,6 +183,7 @@ async def estimate_task_fen(db: AsyncSession, task: TaskRun, settings: Settings 
             "skill_optimize",
             "voice_prompt",
             "appearance_extract",
+            "appearance_prompt",
         }:
             return _llm_fen("drama.script", s, snap)
         if task_type == "episode_script":

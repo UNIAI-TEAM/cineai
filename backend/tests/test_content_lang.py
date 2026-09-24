@@ -232,8 +232,11 @@ def test_character_params_english_labels_for_vi():
 
     ch = {"visualImage": "Young fisherman", "title": "Ngư dân", "roleType": "配角", "personality": "hiền lành"}
     params = build_character_params(ch, "vi")
-    assert "Identity: Ngư dân" in params["visualPrompt"]
+    # Prompt ảnh dự án vi chỉ giữ tiếng Anh: nhãn có giá trị tiếng Việt bị bỏ
+    assert params["visualPrompt"] == "Young fisherman"
     assert "身份" not in params["visualPrompt"]
+    en = build_character_params({"visualImage": "Young fisherman", "title": "Fisherman"}, "vi")
+    assert en["visualPrompt"] == "Young fisherman. Identity: Fisherman"
     # stub 中文占位值不进英文提示词
     assert "配角" not in params["visualPrompt"]
     assert build_scene_params("Bến sông", lang="vi")["visualPrompt"].startswith("Scene: Bến sông")

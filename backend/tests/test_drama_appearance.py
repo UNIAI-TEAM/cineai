@@ -80,20 +80,43 @@ def test_summary_prompt_asks_for_appearance_fields():
         assert f'"{key}"' in SCRIPT_SUMMARY_SYSTEM_PROMPT
 
 
-def test_build_character_params_uses_appearance_when_present():
+def test_build_character_params_keeps_rich_visual_image_when_present():
+    """Kịch bản có cả đoạn visualImage chi tiết lẫn 8 trường: prompt giữ đoạn chi tiết (8 trường ngắn làm mất chi tiết)."""
     ch = {
         "name": "Lan",
         "roleType": "lead",
-        "visualImage": "long paragraph that should be replaced",
+        "visualImage": "A slender young woman with a high black ponytail in a white silk ao dai",
         "appearance": {"gender": "female", "age": "25", "hair": "ponytail"},
     }
     params = build_character_params(ch, "vi")
-    expected = "Gender: female. Age: 25. Hair: ponytail. Role: lead"
+    expected = "A slender young woman with a high black ponytail in a white silk ao dai. Role: lead"
     assert params["visualPrompt"] == expected
     assert params["visualImage"] == expected
     assert params["canvas"]["generation"]["prompt"] == expected
     assert params["appearance"]["hair"] == "ponytail"
     assert params["promptManual"] is False
+
+
+def test_build_character_params_composes_fields_without_visual_image():
+    ch = {"name": "Lan", "roleType": "lead", "appearance": {"gender": "female", "age": "25", "hair": "ponytail"}}
+    params = build_character_params(ch, "vi")
+    expected = "Gender: female. Age: 25. Hair: ponytail. Role: lead"
+    assert params["visualPrompt"] == expected
+    assert params["visualImage"] == expected
+
+
+def test_non_zh_prompt_drops_vietnamese_role_labels():
+    """Dự án vi: nhãn danh tính/tính cách viết tiếng Việt không được lọt vào prompt ảnh."""
+    ch = {
+        "name": "Lâm Phong",
+        "title": "Tổng giám đốc tập đoàn",
+        "roleType": "Nam chính",
+        "coreTags": "lạnh lùng, quyền lực",
+        "personality": "Aloof and decisive",
+        "visualImage": "A tall man in a charcoal three-piece suit",
+    }
+    params = build_character_params(ch, "vi")
+    assert params["visualPrompt"] == "A tall man in a charcoal three-piece suit. Personality: Aloof and decisive"
 
 
 def test_build_character_params_unchanged_without_appearance():
@@ -256,3 +279,184 @@ async def test_resolve_keeps_field_composed_or_manual_prompt(monkeypatch):
     assert await visual_prompt.resolve_visual_prompt_for_asset(auto, _project()) == "Hair: long"
     manual = _char({"promptManual": True, "visualPrompt": "short"})
     assert await visual_prompt.resolve_visual_prompt_for_asset(manual, _project()) == "short"
+
+
+# --- Prompt ảnh dự án vi/en phải là tiếng Anh ---
+async def test_resolve_translates_vietnamese_prompt_to_english(monkeypatch):
+    from app.services.drama import visual_prompt
+
+    seen: list[str] = []
+
+    async def fake_chat(system, user, **kwargs):
+        seen.append(user)
+        return "Female, 25, long black hair, white silk ao dai"
+
+    monkeypatch.setattr(visual_prompt, "drama_chat_text", fake_chat)
+    auto = _char({"appearance": {"hair": "tóc đen dài"}, "visualPrompt": "Hair: tóc đen dài. Outfit: áo dài lụa trắng"})
+    out = await visual_prompt.resolve_visual_prompt_for_asset(auto, _project("vi"))
+    assert out == "Female, 25, long black hair, white silk ao dai"
+    assert seen and "tóc đen dài" in seen[0]
+
+
+async def test_resolve_keeps_english_and_zh_prompts_without_llm(monkeypatch):
+    from app.services.drama import visual_prompt
+
+    async def boom(*a, **k):
+        raise AssertionError("prompt đã đúng ngôn ngữ thì không gọi LLM dịch")
+
+    monkeypatch.setattr(visual_prompt, "drama_chat_text", boom)
+    manual = _char({"promptManual": True, "visualPrompt": "short english prompt"})
+    assert await visual_prompt.resolve_visual_prompt_for_asset(manual, _project("vi")) == "short english prompt"
+    zh = _char({"promptManual": True, "visualPrompt": "tóc đen dài"})
+    assert await visual_prompt.resolve_visual_prompt_for_asset(zh, _project("zh")) == "tóc đen dài"
+
+
+async def test_resolve_translation_failure_falls_back_to_original(monkeypatch):
+    from app.services.drama import visual_prompt
+
+    async def fail(*a, **k):
+        raise RuntimeError("upstream down")
+
+    monkeypatch.setattr(visual_prompt, "drama_chat_text", fail)
+    manual = _char({"promptManual": True, "visualPrompt": "cô gái tóc đen dài"})
+    assert await visual_prompt.resolve_visual_prompt_for_asset(manual, _project("vi")) == "cô gái tóc đen dài"
+
+
+# --- Sửa trường ngoại hình: AI viết lại đoạn mô tả đầy đủ thay cho bản ghép 8 trường ngắn ---
+async def test_rewrite_uses_fields_and_previous_prompt(monkeypatch):
+    from app.services.drama import appearance_rewrite
+
+    seen: dict = {}
+
+    async def fake_chat(system, user, **kwargs):
+        seen.update(system=system, user=user, **kwargs)
+        return "A slender woman in her mid twenties with a short silver bob, wearing a white silk ao dai embroidered with lotus"
+
+    monkeypatch.setattr(appearance_rewrite, "drama_chat_text", fake_chat)
+    ap = normalize_appearance({"gender": "female", "hair": "tóc bạc ngắn", "outfit": "white silk ao dai"})
+    out = await appearance_rewrite.rewrite_appearance_description(
+        ap, "vi", name="Lan", previous="A woman with a long black ponytail and a lotus-embroidered white silk ao dai"
+    )
+    assert out.startswith("A slender woman")
+    assert "tóc bạc ngắn" in seen["user"] and "long black ponytail" in seen["user"]
+    assert seen["lang"] == "vi" and seen["lang_kind"] == "visual"
+
+
+async def test_rewrite_too_short_returns_empty(monkeypatch):
+    from app.services.drama import appearance_rewrite
+
+    async def fake_chat(*a, **k):
+        return "A woman"
+
+    monkeypatch.setattr(appearance_rewrite, "drama_chat_text", fake_chat)
+    ap = normalize_appearance({"gender": "female"})
+    assert await appearance_rewrite.rewrite_appearance_description(ap, "en", name="Lan", previous="") == ""
+
+
+def test_apply_uses_given_body_instead_of_field_compose():
+    params = {"appearance": {"gender": "female", "hair": "ponytail"}, "roleType": "lead"}
+    out = apply_appearance_to_params(params, "en", body="A young woman with a high ponytail")
+    expected = "A young woman with a high ponytail. Role: lead"
+    assert out["visualPrompt"] == expected
+    assert out["canvas"]["generation"]["prompt"] == expected
+
+
+async def test_recompose_falls_back_to_field_compose_when_ai_fails(monkeypatch):
+    from app.services.drama import appearance_rewrite
+
+    async def fail(*a, **k):
+        raise RuntimeError("upstream down")
+
+    monkeypatch.setattr(appearance_rewrite, "rewrite_appearance_description", fail)
+    params = {"appearance": {"gender": "female", "hair": "ponytail"}}
+    out = await appearance_rewrite.recompose_character_params(
+        params, "en", name="Lan", previous="", run=lambda job: job()
+    )
+    assert out["visualPrompt"] == "Gender: female. Hair: ponytail"
+
+
+async def test_recompose_uses_ai_body(monkeypatch):
+    from app.services.drama import appearance_rewrite
+
+    async def fake_rewrite(appearance, lang, *, name, previous):
+        return "A young woman with a high ponytail"
+
+    monkeypatch.setattr(appearance_rewrite, "rewrite_appearance_description", fake_rewrite)
+    params = {"appearance": {"gender": "female", "hair": "ponytail"}}
+    out = await appearance_rewrite.recompose_character_params(
+        params, "en", name="Lan", previous="old", run=lambda job: job()
+    )
+    assert out["visualPrompt"] == "A young woman with a high ponytail"
+
+
+async def test_recompose_skips_ai_for_manual_prompt(monkeypatch):
+    from app.services.drama import appearance_rewrite
+
+    async def boom(*a, **k):
+        raise AssertionError("chế độ chỉnh tay không gọi AI")
+
+    monkeypatch.setattr(appearance_rewrite, "rewrite_appearance_description", boom)
+    params = {"appearance": {"hair": "ponytail"}, "promptManual": True, "visualPrompt": "mine"}
+    out = await appearance_rewrite.recompose_character_params(
+        params, "en", name="Lan", previous="mine", run=lambda job: job()
+    )
+    assert out["visualPrompt"] == "mine"
+
+
+# --- Tích hợp PATCH /assets/{id} (cần PostgreSQL) ---
+async def _seed_character(db_session, *, balance_fen: int = 100_000):
+    from app.models_drama import DramaAsset, DramaProject
+    from tests.conftest import make_user
+
+    user = await make_user(db_session, balance_fen=balance_fen)
+    project = DramaProject(user_id=user.id, title="P", params={"content_lang": "vi"})
+    db_session.add(project)
+    await db_session.flush()
+    asset = DramaAsset(
+        project_id=project.id,
+        type="character",
+        name="Lan",
+        params={
+            "appearance": {"gender": "female", "hair": "long black ponytail"},
+            "promptManual": False,
+            "visualPrompt": "A slender woman with a long black ponytail in a lotus-embroidered white silk ao dai",
+        },
+    )
+    db_session.add(asset)
+    await db_session.flush()
+    return user, asset
+
+
+async def test_patch_appearance_writes_ai_description(db_session, priced_routing, monkeypatch):
+    from app.api.drama.assets import update_asset
+    from app.schemas_drama import DramaAssetUpdate
+    from app.services.drama import appearance_rewrite
+
+    seen: dict = {}
+
+    async def fake_rewrite(appearance, lang, *, name, previous):
+        seen.update(hair=appearance["hair"], previous=previous)
+        return "A slender woman with a short silver bob in a lotus-embroidered white silk ao dai"
+
+    monkeypatch.setattr(appearance_rewrite, "rewrite_appearance_description", fake_rewrite)
+    user, asset = await _seed_character(db_session)
+    body = DramaAssetUpdate(params={"appearance": {"gender": "female", "hair": "short silver bob"}})
+    out = await update_asset(asset.id, body, db=db_session, user=user)
+    assert out.params["visualPrompt"] == "A slender woman with a short silver bob in a lotus-embroidered white silk ao dai"
+    assert seen["hair"] == "short silver bob"
+    assert "long black ponytail" in seen["previous"]
+
+
+async def test_patch_appearance_without_balance_falls_back_to_fields(db_session, priced_routing, monkeypatch):
+    from app.api.drama.assets import update_asset
+    from app.schemas_drama import DramaAssetUpdate
+    from app.services.drama import appearance_rewrite
+
+    async def boom(*a, **k):
+        raise AssertionError("hết số dư thì không được gọi AI")
+
+    monkeypatch.setattr(appearance_rewrite, "rewrite_appearance_description", boom)
+    user, asset = await _seed_character(db_session, balance_fen=0)
+    body = DramaAssetUpdate(params={"appearance": {"gender": "female", "hair": "short silver bob"}})
+    out = await update_asset(asset.id, body, db=db_session, user=user)
+    assert out.params["visualPrompt"] == "Gender: female. Hair: short silver bob"

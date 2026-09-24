@@ -28,7 +28,8 @@ from app.schemas_drama import (
 from app.services.content_lang import project_content_lang
 from app.services.drama.access import get_owned_drama_project
 from app.services.drama.appearance_extract import extract_appearance_fields
-from app.services.drama.appearance_prompt import apply_appearance_to_params, should_recompose_prompt
+from app.services.drama.appearance_prompt import should_recompose_prompt
+from app.services.drama.appearance_rewrite import recompose_character_params
 from app.services.billing import record_llm_chat_line, run_billed_ephemeral
 from app.services.billing.http import http_exception_for_value_error
 from app.services.drama.billing_util import record_seed_assets_llm_usage
@@ -178,12 +179,46 @@ async def update_asset(
             asset.params = _merge_asset_params(prev_params, val)
             if should_recompose_prompt(asset.type, val, prev_params):
                 project = await db.get(DramaProject, asset.project_id)
-                asset.params = apply_appearance_to_params(asset.params, project_content_lang(project))
+                asset.params = await _recompose_character_prompt(db, user, project, asset, prev_params)
         else:
             setattr(asset, field, val)
     await db.commit()
     await db.refresh(asset)
     return DramaAssetOut.model_validate(asset)
+
+
+async def _recompose_character_prompt(
+    db: AsyncSession, user: User, project: DramaProject, asset: DramaAsset, prev_params: dict
+) -> dict:
+    """Sửa trường ngoại hình: AI viết lại đoạn mô tả đầy đủ (tính phí như một lượt LLM), lỗi thì ghép 8 trường."""
+    params = dict(asset.params or {})
+
+    async def _billed(job):
+        async def _do() -> str:
+            body = await job()
+            await record_llm_chat_line(db, user_id=user.id, domain="drama", drama_project_id=project.id)
+            return body
+
+        _, body = await run_billed_ephemeral(
+            db,
+            user,
+            domain="drama",
+            task_type="appearance_prompt",
+            executor=_do,
+            payload={"asset_id": asset.id},
+            drama_project_id=project.id,
+            asset_id=asset.id,
+            commit=True,
+        )
+        return body
+
+    return await recompose_character_params(
+        params,
+        project_content_lang(project),
+        name=asset.name or "",
+        previous=str(prev_params.get("visualPrompt") or prev_params.get("visualImage") or ""),
+        run=_billed,
+    )
 
 
 @router.post("/assets/{asset_id}/appearance/extract")

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models_drama import DramaAsset, DramaProject
 from app.services.billing import record_llm_chat_line
-from app.services.content_lang import is_zh, project_content_lang
+from app.services.content_lang import guess_text_lang, is_zh, project_content_lang
 from app.services.drama.appearance_prompt import has_field_composed_prompt
 from app.services.drama.llm import drama_chat_text
 from app.errors import AppError
@@ -82,6 +82,13 @@ PROP_VISUAL_SYSTEM = """你是短剧道具美术，为 Seedream 写「道具本�
 2. 须写清：物件类型、整体外形与比例、材质分层、颜色、关键结构（开口/机关/铭文/纹样）、磨损做旧、戏剧符号
 3. 描述须适配白底道具设定板（正/左侧/背三视图 + 关键局部特写 + 材质结构特写），勿写构图指令本身
 4. 以物件为主体，不写人物手持或肖像；禁止空泛套话"""
+
+# 越南语等非英文画面描述 → 英文生图提示词（逐项直译，不扩写）
+VISUAL_TRANSLATE_SYSTEM = """你是生图提示词翻译。把用户给的画面描述翻译成英文（English）生图提示词。
+要求：
+1. 逐项保留全部细节与原有「字段: 值」结构，不增、不删、不改写、不扩写
+2. 人名等专有名词保留原样
+3. 只输出译文本身，不要引号、标题或解释"""
 
 MATERIAL_VISUAL_SYSTEM = """你是短剧气氛美术，为 Seedream 写空镜/气氛静帧描述。
 输出 100–220 字简体中文：景别、构图、光影、色调、氛围情绪、运动暗示（烟/水/光），适合 16:9 横屏。不要人物正脸。不要 JSON。"""
@@ -282,6 +289,34 @@ async def _llm_visual_prompt(
     return prompt if len(prompt) >= min_len else ""
 
 
+async def ensure_english_visual_prompt(
+    prompt: str,
+    lang: str | None,
+    *,
+    db: AsyncSession | None = None,
+    user_id: int | None = None,
+    drama_project_id: int | None = None,
+) -> str:
+    """vi/en 项目的生图提示词须为英文：含越南语时 LLM 直译成英文；zh 项目或已是英文原样返回；
+    翻译失败回退原文（仍可出图，只是质量差些）。"""
+    text = (prompt or "").strip()
+    if not text or is_zh(lang) or guess_text_lang(text) != "vi":
+        return prompt
+    try:
+        raw = await drama_chat_text(
+            VISUAL_TRANSLATE_SYSTEM, text, temperature=0.2, max_tokens=1024, lang=lang, lang_kind="visual"
+        )
+    except LlmUnavailableError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("生图提示词译英失败，沿用原文 project_id=%s err=%s", drama_project_id, exc)
+        return prompt
+    if db is not None and user_id is not None:
+        await record_llm_chat_line(db, user_id=user_id, domain="drama", drama_project_id=drama_project_id)
+    translated = normalize_visual_prompt_text(raw)
+    return translated or prompt
+
+
 async def resolve_visual_prompt_for_asset(
     asset: DramaAsset,
     project: DramaProject,
@@ -291,7 +326,25 @@ async def resolve_visual_prompt_for_asset(
     strict_llm: bool = False,
     db: AsyncSession | None = None,
 ) -> str:
-    """解析资产生图用的用户描述（过短/模板化则规则 + LLM 补全）。"""
+    """解析资产生图用的用户描述（过短/模板化则规则 + LLM 补全）；vi/en 项目最终保证是英文。"""
+    prompt = await _resolve_visual_prompt_body(
+        asset, project, incoming_prompt, force_refresh=force_refresh, strict_llm=strict_llm, db=db
+    )
+    return await ensure_english_visual_prompt(
+        prompt, project_content_lang(project), db=db, user_id=project.user_id, drama_project_id=project.id
+    )
+
+
+async def _resolve_visual_prompt_body(
+    asset: DramaAsset,
+    project: DramaProject,
+    incoming_prompt: str | None,
+    *,
+    force_refresh: bool,
+    strict_llm: bool,
+    db: AsyncSession | None,
+) -> str:
+    """按资产类型解析生图描述正文（不做语言保证）。"""
     kind = (asset.type or "character").lower()
     name = asset.name or ""
     params = asset.params if isinstance(asset.params, dict) else {}
