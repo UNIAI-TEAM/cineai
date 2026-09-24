@@ -90,7 +90,11 @@ async def load_dub_voices(db: AsyncSession, project: Any, lang: str) -> tuple[li
         if kind == "narration":
             narrator = narrator or speaker
             continue
-        names = tuple(n for n in {resolve_character_prompt_name({"name": asset.name, "params": params}), asset.name} if n)
+        names = tuple(
+            dict.fromkeys(
+                n for n in (resolve_character_prompt_name({"name": asset.name, "params": params}), asset.name) if n
+            )
+        )
         characters.append(CharacterVoice(asset_id=asset.id, names=names, speaker=speaker))
     narrator = narrator or default_voice_for_lang(lang) or get_settings().volc_tts_speaker
     return characters, narrator
@@ -126,7 +130,9 @@ async def dub_fragment(
         dub = _write_dub(fragment, {"status": "skipped", "url": None, "sourceVideo": source, "lines": []})
         await db.commit()
         return dub
-    _write_dub(fragment, {**_dub_params(fragment), "status": "running"})
+    # Ghi "running" nhưng bỏ dấu vết lỗi của lần chạy trước (nếu có), tránh mang error_code cũ sang lần này
+    prev = {k: v for k, v in _dub_params(fragment).items() if k not in ("error", "error_code", "error_params")}
+    _write_dub(fragment, {**prev, "status": "running"})
     await db.commit()
     try:
         characters, narrator = await load_dub_voices(db, project, lang)
@@ -154,31 +160,39 @@ async def dub_fragment(
         plan = await asyncio.to_thread(run_dub_mix, video_local, clips, dest)
         rel = storage.rel_static_url(dest)
         dubbed = storage.republish_url(rel, sync=True) or rel
+        # Ghi thành công + tính tiền cùng trong vùng bảo vệ: record_line lỗi cũng phải rơi về "failed", giữ video gốc
+        fragment.video = dubbed
+        dub = _write_dub(fragment, {
+            "status": "done", "url": dubbed, "sourceVideo": source, "lines": meta,
+            "tempo": plan.tempo, "freezeSec": plan.freeze_sec,
+        })
+        await record_line(
+            db,
+            user_id=user.id,
+            drama_project_id=project.id,
+            billing_key="tts",
+            model=_drama_tts_model() or get_settings().model_audio,
+            tokens=sum(len(m["text"]) for m in meta),
+            domain="drama",
+            task_run_id=task_run_id,
+        )
+        await db.commit()
+        return dub
     except Exception as exc:  # noqa: BLE001
         code, params = gen_error_fields(exc)
         logger.warning("lồng tiếng lỗi fragment_id=%s err=%s", fragment.id, exc)
+        # DB có thể đã ở trạng thái aborted (vd. load_dub_voices/record_line lỗi giữa transaction):
+        # rollback + refresh trước khi ghi lại, tránh commit tiếp raise đè lên lỗi gốc hoặc âm thầm no-op
+        await db.rollback()
+        await db.refresh(fragment)
         fragment.video = source
         _write_dub(fragment, with_error_code(
             {"status": "failed", "url": None, "sourceVideo": source, "error": str(exc)[:300]},
             code or "drama.dub_failed",
             params,
         ))
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception:  # noqa: BLE001
+            logger.exception("lồng tiếng: ghi trạng thái failed cũng lỗi fragment_id=%s", fragment.id)
         raise
-    fragment.video = dubbed
-    dub = _write_dub(fragment, {
-        "status": "done", "url": dubbed, "sourceVideo": source, "lines": meta,
-        "tempo": plan.tempo, "freezeSec": plan.freeze_sec,
-    })
-    await record_line(
-        db,
-        user_id=user.id,
-        drama_project_id=project.id,
-        billing_key="tts",
-        model=_drama_tts_model() or get_settings().model_audio,
-        tokens=sum(len(m["text"]) for m in meta),
-        domain="drama",
-        task_run_id=task_run_id,
-    )
-    await db.commit()
-    return dub

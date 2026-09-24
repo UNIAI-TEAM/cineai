@@ -96,12 +96,28 @@ async def test_dub_skipped_when_no_dialogue(wired):
     assert frag.video == "/static/generated/p1/shot_9.mp4"
 
 
-async def test_redub_uses_raw_source_not_dubbed_video(wired):
+async def test_redub_uses_raw_source_not_dubbed_video(wired, monkeypatch):
+    # dub trước từng lỗi (error_code còn sót lại) — ghi "running" của lần chạy này không được mang lỗi cũ theo
     frag = _frag("【对白】Lan：Lần hai.", video="/static/generated/p1/shot_9_old_dub.mp4",
                  params={"voice_mode": "dub", "dub": {"status": "done", "url": "/static/generated/p1/shot_9_old_dub.mp4",
-                                                      "sourceVideo": "/static/generated/p1/shot_9_raw.mp4"}})
+                                                      "sourceVideo": "/static/generated/p1/shot_9_raw.mp4",
+                                                      "error": "boom cũ", "error_code": "drama.dub_failed",
+                                                      "error_params": {"x": 1}}})
+    write_calls: list[dict] = []
+    orig_write_dub = fragment_dub._write_dub
+
+    def spy_write_dub(fragment, dub):
+        write_calls.append(dict(dub))
+        return orig_write_dub(fragment, dub)
+
+    monkeypatch.setattr(fragment_dub, "_write_dub", spy_write_dub)
     dub = await fragment_dub.dub_fragment(_Db(), USER, PROJECT, frag)
     assert dub["sourceVideo"] == "/static/generated/p1/shot_9_raw.mp4"
+    running_writes = [w for w in write_calls if w.get("status") == "running"]
+    assert len(running_writes) == 1
+    assert "error" not in running_writes[0]
+    assert "error_code" not in running_writes[0]
+    assert "error_params" not in running_writes[0]
 
 
 async def test_dub_failure_keeps_source_and_records_nothing(wired, monkeypatch):
@@ -115,6 +131,43 @@ async def test_dub_failure_keeps_source_and_records_nothing(wired, monkeypatch):
     assert frag.params["dub"]["status"] == "failed"
     assert frag.params["dub"]["error_code"] == "drama.dub_failed"
     assert frag.video == "/static/generated/p1/shot_9.mp4" and wired["usage"] == []
+
+
+async def test_dub_mid_flow_error_rolls_back_and_marks_failed(wired, monkeypatch):
+    """Lỗi giữa chừng (vd. transaction DB aborted khi load_dub_voices) phải rollback trước khi ghi lại failed,
+    không được để commit tiếp raise che mất lỗi gốc hoặc âm thầm bỏ qua."""
+
+    class _Boom(RuntimeError):
+        pass
+
+    async def boom_voices(db, project, lang):
+        raise _Boom("db aborted")
+
+    monkeypatch.setattr(fragment_dub, "load_dub_voices", boom_voices)
+    frag = _frag("【对白】Lan：Xin chào.")
+    db = _Db()
+    with pytest.raises(_Boom):
+        await fragment_dub.dub_fragment(db, USER, PROJECT, frag)
+    assert db.rollbacks == 1
+    assert frag.params["dub"]["status"] == "failed"
+    assert frag.params["dub"]["error_code"] == "drama.dub_failed"
+    assert frag.video == "/static/generated/p1/shot_9.mp4"
+
+
+async def test_dub_billing_failure_keeps_source_and_marks_failed(wired, monkeypatch):
+    """record_line lỗi (sau khi TTS/mix đã xong) vẫn phải rơi về failed + giữ video gốc, không chốt "done" nửa vời."""
+
+    async def boom_record(db, **kw):
+        raise RuntimeError("billing down")
+
+    monkeypatch.setattr(fragment_dub, "record_line", boom_record)
+    frag = _frag("【对白】Lan：Xin chào.")
+    db = _Db()
+    with pytest.raises(RuntimeError):
+        await fragment_dub.dub_fragment(db, USER, PROJECT, frag)
+    assert db.rollbacks == 1
+    assert frag.params["dub"]["status"] == "failed"
+    assert frag.video == "/static/generated/p1/shot_9.mp4"
 
 
 def test_dub_source_video_rules():
@@ -137,3 +190,37 @@ def test_versions_carry_raw_video(monkeypatch):
     assert frag.video == entry["video"]
     assert frag.params["dub"]["url"] == entry["video"]
     assert frag.params["dub"]["sourceVideo"] == entry["rawVideo"]
+
+
+def test_activate_replaced_entry_carries_raw_video(monkeypatch):
+    """Đang xem bản đã lồng tiếng, chuyển sang bản cũ khác: bản bị thay (đẩy vào video_versions) phải giữ rawVideo."""
+    monkeypatch.setattr(generation, "_snapshot_version_media_url", lambda url, label: f"{url}#{label}" if url else "")
+    frag = _frag(
+        "",
+        video="/v/dubbed_now.mp4",
+        params={
+            "dub": {"status": "done", "url": "/v/dubbed_now.mp4", "sourceVideo": "/v/raw_now.mp4"},
+            "video_versions": [{"id": "v_old", "video": "/v/old.mp4", "cover": "", "lastFrameUrl": None}],
+        },
+    )
+    out = generation.activate_fragment_video_version(frag, "v_old")
+    assert frag.video == "/v/old.mp4"
+    replaced = [v for v in out["video_versions"] if str(v.get("id") or "").endswith("_replaced")]
+    assert len(replaced) == 1
+    assert replaced[0]["rawVideo"].startswith("/v/raw_now.mp4#")
+
+
+def test_activate_without_raw_video_clears_dub(monkeypatch):
+    """Bản được khôi phục chưa từng lồng tiếng (không có rawVideo) → params.dub phải bị xoá, không kế thừa bản cũ."""
+    monkeypatch.setattr(generation, "_snapshot_version_media_url", lambda url, label: f"{url}#{label}" if url else "")
+    frag = _frag(
+        "",
+        video="/v/current.mp4",
+        params={
+            "dub": {"status": "done", "url": "/v/current.mp4", "sourceVideo": "/v/current_raw.mp4"},
+            "video_versions": [{"id": "v_plain", "video": "/v/plain.mp4", "cover": "", "lastFrameUrl": None}],
+        },
+    )
+    generation.activate_fragment_video_version(frag, "v_plain")
+    assert frag.video == "/v/plain.mp4"
+    assert "dub" not in frag.params
