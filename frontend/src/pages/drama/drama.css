@@ -7055,3 +7055,12 @@
 .drama-appearance-wide { grid-column: 1 / -1; }
 @media (max-width: 640px) { .drama-appearance-grid { grid-template-columns: 1fr; } }
 .drama-prompt-manual { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+
+/* Danh sách chọn giọng (VoiceCatalogPicker) */
+.drama-voice-catalog { display: flex; flex-direction: column; gap: 8px; }
+.drama-voice-catalog-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.drama-voice-catalog-list { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.drama-voice-catalog-item { display: flex; justify-content: space-between; gap: 12px; padding: 8px; border: 1px solid var(--pf-line); border-radius: 8px; }
+.drama-voice-catalog-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.drama-voice-catalog-actions { display: flex; gap: 6px; align-items: flex-start; flex-shrink: 0; }
+@media (max-width: 640px) { .drama-voice-catalog-item { flex-direction: column; } }

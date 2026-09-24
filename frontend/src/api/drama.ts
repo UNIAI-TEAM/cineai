@@ -254,6 +254,17 @@ export type DramaVoiceGenerateResult = {
   asset: DramaAsset
 }
 
+/** Giọng TTS chọn tay cho nhân vật (GET /api/drama/voices/catalog) */
+export type CatalogVoice = {
+  id: string
+  speaker: string
+  name: string
+  gender: string
+  scenario: string
+  description: string
+  sample_url: string
+}
+
 export const dramaApi = {
   listProjects: () => request<DramaProjectListItem[]>('/api/drama/projects'),
   createProject: (body: {
@@ -567,6 +578,7 @@ export const dramaApi = {
     voice_prompt: string
     sample_text?: string
     speaker?: string
+    speaker_locked?: boolean
     character_asset_id?: number
   }) =>
     request<DramaVoiceGenerateResult>('/api/drama/generation/voice', {
@@ -579,6 +591,12 @@ export const dramaApi = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  /** Danh mục giọng BytePlus TTS chọn tay theo ngôn ngữ dự án */
+  voiceCatalog: (projectId: number) =>
+    request<{ lang: string; voices: CatalogVoice[] }>(
+      `/api/drama/voices/catalog?project_id=${projectId}`,
+    ),
 
   /** AI tách mô tả nhân vật hiện có thành 8 trường ngoại hình */
   extractAppearance: (assetId: number) =>

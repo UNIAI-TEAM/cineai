@@ -1,11 +1,13 @@
 /** 角色音色绑定：从漫剧 voice 资产选择，写入 params 供 Seedance reference_audio 使用 */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { dramaApi, resolveDramaMediaUrl, type DramaAsset } from '../../api/drama'
+import { dramaApi, resolveDramaMediaUrl, type CatalogVoice, type DramaAsset } from '../../api/drama'
 import Modal from '../../components/ui/Modal'
 import { useI18n } from '../../i18n/context'
 import { translate } from '../../i18n/translate'
 import { displayDramaAssetName } from '../../lib/dramaLibraryAssets'
 import { speakerForPrompt } from '../../lib/voiceLang'
+import { useVoiceCatalog } from './useVoiceCatalog'
+import { VoiceCatalogPicker } from './VoiceCatalogPicker'
 
 export type VoiceBinding = {
   sourceAssetId: number
@@ -130,7 +132,7 @@ export function CharacterVoiceBindModal({
   const [suggestedSpeaker, setSuggestedSpeaker] = useState('')
   // suggestedPrompt 推荐 speaker 时对应的描述；描述被改动后推荐作废（见 speakerForPrompt）
   const [suggestedPrompt, setSuggestedPrompt] = useState('')
-  const [mode, setMode] = useState<'pick' | 'create'>('pick')
+  const [mode, setMode] = useState<'catalog' | 'pick' | 'create'>('catalog')
   const promptRequestedRef = useRef(false)
   const { t } = useI18n()
 
@@ -139,6 +141,17 @@ export function CharacterVoiceBindModal({
   const previewUrl = selectedVoice?.url ? resolveDramaMediaUrl(selectedVoice.url) : ''
   // 当前描述仍是 AI 推荐原文时才沿用推荐 speaker
   const activeSpeaker = speakerForPrompt(newPrompt, suggestedPrompt, suggestedSpeaker)
+
+  // Tab "Chọn giọng": tải danh mục theo dự án + xử lý chọn nhanh một giọng, gắn ngay cho nhân vật
+  const { catalog, catalogLang, catalogError, pickingSpeaker, handlePickCatalog } = useVoiceCatalog({
+    open,
+    projectId,
+    asset,
+    onBound,
+    onClose,
+    onError,
+    addVoiceAsset: (voice) => setVoiceAssets((prev) => [...prev, voice]),
+  })
 
   // 根据角色设定 AI 生成音色描述
   const fetchVoicePrompt = useCallback(
@@ -177,7 +190,7 @@ export function CharacterVoiceBindModal({
         name: asset.name || translate('dramaAssets.voiceBind.characterFallback'),
       }),
     )
-    setMode('pick')
+    setMode('catalog')
     promptRequestedRef.current = false
 
     dramaApi
@@ -187,9 +200,6 @@ export function CharacterVoiceBindModal({
         setVoiceAssets(voices)
         if (!bound?.sourceAssetId && voices[0]) {
           setSelectedId(voices[0].id)
-        }
-        if (voices.length === 0) {
-          setMode('create')
         }
       })
       .catch((err) => onError(err instanceof Error ? err.message : translate('dramaAssets.common.loadVoicesFailed')))
@@ -301,7 +311,7 @@ export function CharacterVoiceBindModal({
       onClose={onClose}
       title={t('dramaAssets.voiceBind.title')}
       size="lg"
-      dismissible={!busy}
+      dismissible={!busy && !pickingSpeaker}
       className="drama-voice-bind-modal"
       footer={
         <>
@@ -313,14 +323,16 @@ export function CharacterVoiceBindModal({
               {t('dramaAssets.common.unbind')}
             </button>
           ) : null}
-          <button
-            type="button"
-            className="pf-btn pf-btn-lime"
-            onClick={() => void handleConfirm()}
-            disabled={!selectedVoice?.url || busy}
-          >
-            {busy ? t('dramaAssets.common.binding') : t('dramaAssets.common.confirmBind')}
-          </button>
+          {mode === 'pick' ? (
+            <button
+              type="button"
+              className="pf-btn pf-btn-lime"
+              onClick={() => void handleConfirm()}
+              disabled={!selectedVoice?.url || busy}
+            >
+              {busy ? t('dramaAssets.common.binding') : t('dramaAssets.common.confirmBind')}
+            </button>
+          ) : null}
         </>
       }
     >
@@ -331,6 +343,13 @@ export function CharacterVoiceBindModal({
       </p>
 
       <div className="drama-voice-mode-tabs">
+        <button
+          type="button"
+          className={mode === 'catalog' ? 'active' : ''}
+          onClick={() => setMode('catalog')}
+        >
+          {t('dramaAssets.voiceBind.catalogTab')}
+        </button>
         <button
           type="button"
           className={mode === 'pick' ? 'active' : ''}
@@ -352,7 +371,22 @@ export function CharacterVoiceBindModal({
         </button>
       </div>
 
-      {mode === 'pick' ? (
+      {mode === 'catalog' ? (
+        catalogError ? (
+          <p className="drama-muted">{catalogError}</p>
+        ) : catalog === null ? (
+          <p className="drama-muted">{t('dramaAssets.voiceBind.catalogLoading')}</p>
+        ) : catalog.length === 0 ? (
+          <p className="drama-muted">{t('dramaAssets.voiceBind.catalogEmpty')}</p>
+        ) : (
+          <VoiceCatalogPicker
+            voices={catalog}
+            lang={catalogLang}
+            busySpeaker={pickingSpeaker}
+            onPick={(v: CatalogVoice) => void handlePickCatalog(v)}
+          />
+        )
+      ) : mode === 'pick' ? (
         <div className="drama-voice-list">
           {voiceAssets.length === 0 ? (
             <p className="drama-muted">{t('dramaAssets.voiceBind.emptyPick')}</p>
