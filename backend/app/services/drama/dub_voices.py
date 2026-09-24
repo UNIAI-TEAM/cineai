@@ -35,7 +35,9 @@ def voice_source_asset_id(params: dict[str, Any] | None) -> int | None:
 
 
 def resolve_line_speaker(line: DubLine, characters: list[CharacterVoice], *, lang: str, narrator: str) -> str:
-    """Lời dẫn → giọng dẫn; thoại → nhân vật khớp id/tên; không khớp → giọng cùng ngôn ngữ chọn ổn định theo tên."""
+    """Lời dẫn → giọng dẫn; thoại → nhân vật khớp id, rồi khớp tên đúng tuyệt đối (ưu tiên trước mọi khớp tiền tố),
+    rồi khớp tiền tố theo ranh giới từ (chọn tên khớp dài nhất, tránh "Lan" nuốt "Lana"/"Lan Anh"); không khớp →
+    giọng cùng ngôn ngữ chọn ổn định theo tên."""
     if line.kind == "narration":
         return narrator
     if line.speaker_asset_id:
@@ -45,7 +47,18 @@ def resolve_line_speaker(line: DubLine, characters: list[CharacterVoice], *, lan
     name = (line.speaker or "").strip()
     if name:
         for ch in characters:
-            if any(n and (name == n or name.startswith(n)) for n in ch.names):
+            if any(n and name == n for n in ch.names):
                 return ch.speaker
+        best: tuple[int, str] | None = None  # (độ dài tên khớp, speaker) — giữ tên khớp tiền tố dài nhất
+        for ch in characters:
+            for n in ch.names:
+                if not n or not name.startswith(n):
+                    continue
+                if len(name) != len(n) and not name[len(n)].isspace():
+                    continue
+                if best is None or len(n) > best[0]:
+                    best = (len(n), ch.speaker)
+        if best is not None:
+            return best[1]
     pool = lang_voice_pool(lang)
     return stable_pick(pool, name or "narrator") or default_voice_for_lang(lang) or narrator

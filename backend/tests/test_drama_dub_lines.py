@@ -62,3 +62,32 @@ def test_voice_source_asset_id_reads_binding_or_canvas():
     assert voice_source_asset_id({"voiceAudio": {"sourceAssetId": 5, "url": "u"}}) == 5
     assert voice_source_asset_id({"canvas": {"voiceAudio": {"sourceAssetId": "6"}}}) == 6
     assert voice_source_asset_id({}) is None and voice_source_asset_id(None) is None
+
+
+def test_resolve_speaker_exact_name_match_wins_over_prefix_regardless_of_order():
+    # "Lan" đứng trước "Lana" trong danh sách: khớp đúng tuyệt đối phải thắng, không được để "Lan" nuốt "Lana"
+    chars = [
+        CharacterVoice(asset_id=1, names=("Lan",), speaker="VOICE_LAN"),
+        CharacterVoice(asset_id=2, names=("Lana",), speaker="VOICE_LANA"),
+    ]
+    assert resolve_line_speaker(_line(speaker="Lana"), chars, lang="vi", narrator="n") == "VOICE_LANA"
+    # Đảo thứ tự danh sách: kết quả phải như nhau
+    reversed_chars = [chars[1], chars[0]]
+    assert resolve_line_speaker(_line(speaker="Lana"), reversed_chars, lang="vi", narrator="n") == "VOICE_LANA"
+
+
+def test_resolve_speaker_exact_match_picks_longer_name_over_shorter_prefix():
+    chars = [
+        CharacterVoice(asset_id=1, names=("Lan",), speaker="VOICE_LAN"),
+        CharacterVoice(asset_id=2, names=("Lan Anh",), speaker="VOICE_LAN_ANH"),
+    ]
+    assert resolve_line_speaker(_line(speaker="Lan Anh"), chars, lang="vi", narrator="n") == "VOICE_LAN_ANH"
+
+
+def test_resolve_speaker_prefix_match_requires_word_boundary():
+    chars = [CharacterVoice(asset_id=1, names=("Lan",), speaker="VOICE_LAN")]
+    # "Lan Anh" bắt đầu bằng "Lan" và ký tự tiếp theo là khoảng trắng → khớp tiền tố hợp lệ
+    assert resolve_line_speaker(_line(speaker="Lan Anh"), chars, lang="vi", narrator="n") == "VOICE_LAN"
+    # "Lanh" bắt đầu bằng "Lan" nhưng ký tự tiếp theo "h" không phải ranh giới từ → KHÔNG được khớp "Lan"
+    result = resolve_line_speaker(_line(speaker="Lanh"), chars, lang="vi", narrator="n")
+    assert result != "VOICE_LAN" and result.startswith("vi_")
