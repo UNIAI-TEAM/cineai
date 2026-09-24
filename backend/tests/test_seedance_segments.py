@@ -243,6 +243,8 @@ def test_build_seedance_prompt_ambient_only_rewrites_narration():
     assert "一键接入即可开始监控" not in prompt
     assert "00:00-00:05" in prompt
     assert NARRATION_PREFIX not in prompt
+    assert "持续键盘" not in prompt
+    assert "与画面同步的环境音与动作音效" in prompt
 
 
 def test_normalize_kepu_subtitle_cue_rewrites_legacy_burn():

@@ -544,7 +544,7 @@ def build_seedance_production_section(
 ) -> str:
     """组装 Seedance 音频/字幕/BGM 强制约束（科普旁白 / 漫剧画面+对白混排）。
 
-    ambient_only：科普后期 TTS 模式——模型只出操作环境音，禁止口播与 BGM。
+    ambient_only：科普后期 TTS 模式——模型只出与画面同步的环境音/动作音效，禁止口播与 BGM。
     burn_subtitles=False：成片后再烧 SRT——保留口播，禁止画面内字幕。
     character_intro=False：禁止人物介绍叠字/字卡（与字幕开关独立）。
     spoken_lang：项目内容语言 zh|vi|en；vi / en 追加「口播语言」条目，字幕语言也按它（缺省按文字推断）。
@@ -904,8 +904,8 @@ def parse_beats_from_llm_shot(item: dict[str, Any], narration_fallback: str = ""
 
 
 def seedance_timeline_without_voice(segment_script: str) -> str:
-    """时间轴保留画面；旁白/字幕/BGM 行改成无口播的操作环境音，避免模型念稿。"""
-    last_visual = "工位操作，手部点击界面，保持主体稳定"
+    """时间轴保留画面；旁白/字幕/BGM 行改成无口播的环境音，避免模型念稿。"""
+    last_visual = "保持上一画面主体稳定"
     out: list[str] = []
     for raw in (segment_script or "").replace("\r\n", "\n").split("\n"):
         stripped = raw.strip()
@@ -914,7 +914,7 @@ def seedance_timeline_without_voice(segment_script: str) -> str:
         if _is_narration_script_line(stripped):
             out.append(
                 f"【画面·无配音仅环境音】{last_visual}；"
-                "持续键盘、点击、界面操作音效，禁止人声禁止配乐禁止字幕"
+                "与画面同步的环境音与动作音效，禁止人声禁止配乐禁止字幕"
             )
             continue
         if stripped and not stripped.startswith("@"):
