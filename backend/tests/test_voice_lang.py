@@ -247,6 +247,7 @@ def test_voice_for_lang_matches_shared_vectors():
 
     目录（VOICE_PRESETS）变动后需重新生成 fixture：catalog 取 id/speaker/gender/languages，
     vectors 为每个音色 × 其不支持的 zh/vi/en → voice_for_lang 结果。
+    catalog chỉ gồm preset auto_pool (giọng chỉ-chọn-tay không ảnh hưởng thay thế tự động).
     """
     import json
 
@@ -258,6 +259,7 @@ def test_voice_for_lang_matches_shared_vectors():
     catalog = [
         {"id": p["id"], "speaker": p["speaker"], "gender": p["gender"], "languages": p["languages"]}
         for p in VOICE_PRESETS
+        if p.get("auto_pool", True)
     ]
     assert data["catalog"] == catalog, "VOICE_PRESETS 已变动，请重新生成 voice_lang_vectors.json"
     for src, lang, expected in data["vectors"]:

@@ -3,10 +3,59 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
+from pathlib import Path
 from typing import Any
 
 from app.services.text_lang import is_cjk_text
+
+# 13 giọng vi/en cũ: giữ nhãn i18n đã dịch; giọng mới dùng tên giọng cho mọi ngôn ngữ
+_LEGACY_LABELS: dict[str, tuple[str, str, str]] = {
+    "vi_female_ruan_uranus_bigtts": ("Ruan · 越南语沉稳女声", "Ruan · Steady, poised female", "Ruan · giọng nữ điềm đạm, rõ ràng"),
+    "vi_male_wumg_uranus_bigtts": ("Wumg · 越南语稳重男声", "Wumg · Patient, measured male", "Wumg · giọng nam trẻ, từ tốn"),
+    "vi_female_ling_uranus_bigtts": ("Ling · 越南语温柔女声", "Ling · Gentle, kind female", "Ling · giọng nữ dịu dàng"),
+    "vi_female_linh_uranus_bigtts": ("Linh · 越南语爽利女声", "Linh · Crisp, energetic female", "Linh · giọng nữ trẻ, dứt khoát"),
+    "vi_female_wu_uranus_bigtts": ("Wu · 越南语开朗女声", "Wu · Outgoing, level-headed female", "Wu · giọng nữ cởi mở, mạch lạc"),
+    "vi_female_hong_uranus_bigtts": ("Hong · 越南语直爽女声", "Hong · Down-to-earth, frank female", "Hong · giọng nữ mộc mạc, thẳng thắn"),
+    "vi_female_partner_uranus_bigtts": ("Partner · 越南语饱满情绪女声", "Partner · Youthful, emotive female", "Partner · giọng nữ trẻ, giàu cảm xúc"),
+    "en_female_hayley_uranus_bigtts": ("Hayley · 英语女声 · 故事", "Hayley · Lively female storyteller", "Hayley · giọng nữ kể chuyện sinh động"),
+    "en_male_tim_uranus_bigtts": ("Tim · 英语清晰男声", "Tim · Clear, friendly male", "Tim · giọng nam rõ ràng, thân thiện"),
+    "en_female_skye_uranus_bigtts": ("Skye · 英语真诚女声", "Skye · Clear, sincere female", "Skye · giọng nữ trong trẻo, chân thành"),
+    "en_female_jenny_uranus_bigtts": ("Jenny · 英语温暖女声", "Jenny · Warm, cheerful female", "Jenny · giọng nữ ấm áp, vui tươi"),
+    "en_male_kevin_uranus_bigtts": ("Kevin · 英语年轻男声", "Kevin · Young, articulate male", "Kevin · giọng nam trẻ, mạch lạc"),
+    "en_male_marcus_uranus_bigtts": ("Marcus · 英语醇厚男声 · 故事", "Marcus · Deep, mellow storyteller", "Marcus · giọng nam trầm ấm, kể chuyện"),
+}
+_BYTEPLUS_VOICES_FILE = Path(__file__).resolve().parent / "data" / "byteplus_tts_voices.json"
+
+
+def _byteplus_presets() -> list[dict[str, Any]]:
+    """Giọng BytePlus TTS 2.0 vi/en từ file dữ liệu (sinh bởi scripts/gen_byteplus_voices.py).
+
+    Thứ tự: 13 giọng cũ trước (auto_pool=true, giữ giọng mặc định / pool tự động như trước), giọng mới sau (auto_pool=false).
+    """
+    rows = json.loads(_BYTEPLUS_VOICES_FILE.read_text(encoding="utf-8"))
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        speaker = row["speaker"]
+        zh, en, vi = _LEGACY_LABELS.get(speaker, (row["name"], row["name"], row["name"]))
+        out.append(
+            {
+                "id": speaker,
+                "label": zh,
+                "label_i18n": {"zh": zh, "en": en, "vi": vi},
+                "languages": list(row["languages"]),
+                "gender": row["gender"],
+                "speaker": speaker,
+                "name": row["name"],
+                "scenario": row["scenario"],
+                "description": row["description"],
+                "sample_url": row["sample_url"],
+                "auto_pool": bool(row["auto_pool"]),
+            }
+        )
+    return out
+
 
 # id used in API / project.voice_id; speaker is openspeech speaker id
 # label 为中文主值；label_i18n 提供 zh / en / vi 界面展示名，前端按语言取值，缺失回落 label
@@ -93,45 +142,9 @@ VOICE_PRESETS: list[dict[str, Any]] = [
         "speaker": "zh_male_baqiqingshu_uranus_bigtts",
     },
     # --- 越南语 / 英语：BytePlus Seed Speech TTS 2.0 官方音色（*_uranus_bigtts，见 docs/PROVIDERS.md 来源）---
-    # 每种语言排在最前的音色即该语言默认音色（voice_lang.default_voice_for_lang 与前端同一规则）
-    *[
-        {
-            "id": speaker,
-            "label": zh,
-            "label_i18n": {"zh": zh, "en": en, "vi": vi},
-            "languages": [lang],
-            "gender": gender,
-            "speaker": speaker,
-        }
-        for speaker, lang, gender, zh, en, vi in (
-            ("vi_female_ruan_uranus_bigtts", "vi", "female",
-             "Ruan · 越南语沉稳女声", "Ruan · Steady, poised female", "Ruan · giọng nữ điềm đạm, rõ ràng"),
-            ("vi_male_wumg_uranus_bigtts", "vi", "male",
-             "Wumg · 越南语稳重男声", "Wumg · Patient, measured male", "Wumg · giọng nam trẻ, từ tốn"),
-            ("vi_female_ling_uranus_bigtts", "vi", "female",
-             "Ling · 越南语温柔女声", "Ling · Gentle, kind female", "Ling · giọng nữ dịu dàng"),
-            ("vi_female_linh_uranus_bigtts", "vi", "female",
-             "Linh · 越南语爽利女声", "Linh · Crisp, energetic female", "Linh · giọng nữ trẻ, dứt khoát"),
-            ("vi_female_wu_uranus_bigtts", "vi", "female",
-             "Wu · 越南语开朗女声", "Wu · Outgoing, level-headed female", "Wu · giọng nữ cởi mở, mạch lạc"),
-            ("vi_female_hong_uranus_bigtts", "vi", "female",
-             "Hong · 越南语直爽女声", "Hong · Down-to-earth, frank female", "Hong · giọng nữ mộc mạc, thẳng thắn"),
-            ("vi_female_partner_uranus_bigtts", "vi", "female",
-             "Partner · 越南语饱满情绪女声", "Partner · Youthful, emotive female", "Partner · giọng nữ trẻ, giàu cảm xúc"),
-            ("en_female_hayley_uranus_bigtts", "en", "female",
-             "Hayley · 英语女声 · 故事", "Hayley · Lively female storyteller", "Hayley · giọng nữ kể chuyện sinh động"),
-            ("en_male_tim_uranus_bigtts", "en", "male",
-             "Tim · 英语清晰男声", "Tim · Clear, friendly male", "Tim · giọng nam rõ ràng, thân thiện"),
-            ("en_female_skye_uranus_bigtts", "en", "female",
-             "Skye · 英语真诚女声", "Skye · Clear, sincere female", "Skye · giọng nữ trong trẻo, chân thành"),
-            ("en_female_jenny_uranus_bigtts", "en", "female",
-             "Jenny · 英语温暖女声", "Jenny · Warm, cheerful female", "Jenny · giọng nữ ấm áp, vui tươi"),
-            ("en_male_kevin_uranus_bigtts", "en", "male",
-             "Kevin · 英语年轻男声", "Kevin · Young, articulate male", "Kevin · giọng nam trẻ, mạch lạc"),
-            ("en_male_marcus_uranus_bigtts", "en", "male",
-             "Marcus · 英语醇厚男声 · 故事", "Marcus · Deep, mellow storyteller", "Marcus · giọng nam trầm ấm, kể chuyện"),
-        )
-    ],
+    # 每种语言排在最前的音色即该语言默认音色（voice_lang.default_voice_for_lang 与前端同一规则）；
+    # 数据来自 app/services/data/byteplus_tts_voices.json（由 scripts/gen_byteplus_voices.py 从 Phụ lục A 生成）
+    *_byteplus_presets(),
 ]
 
 # 漫剧角色音色：按关键词为不同角色匹配不同 speaker（避免全员同一声线）
@@ -237,7 +250,27 @@ VOICE_ALIASES: dict[str, str] = {
 
 
 def list_voices() -> list[dict[str, Any]]:
-    return list(VOICE_PRESETS)
+    """Danh mục cho /api/voices (科普 studio): bỏ giọng chỉ-chọn-tay (auto_pool=false) để không đổi hành vi cũ."""
+    return [p for p in VOICE_PRESETS if p.get("auto_pool", True)]
+
+
+def catalog_voices(lang: str | None) -> list[dict[str, Any]]:
+    """Giọng chọn tay cho nhân vật phim truyện: mọi preset đọc được `lang`, theo thứ tự danh mục."""
+    if not lang:
+        return []
+    return [
+        {
+            "id": p["id"],
+            "speaker": p["speaker"],
+            "name": p.get("name") or p["id"],
+            "gender": p.get("gender") or "",
+            "scenario": p.get("scenario") or "",
+            "description": p.get("description") or "",
+            "sample_url": p.get("sample_url") or "",
+        }
+        for p in VOICE_PRESETS
+        if lang in (p.get("languages") or [])
+    ]
 
 
 # 形如 vi_female_ruan_uranus_bigtts / en_male_tim_uranus_bigtts 的语种音色 id

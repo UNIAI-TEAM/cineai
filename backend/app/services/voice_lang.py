@@ -6,6 +6,8 @@
 - 每种语言在目录中排在最前的音色为默认音色（用户未选音色时用）；需要保持性别时取该语言同性别的第一个
 - 音色不支持内容语言时，在该语言同性别音色（目录顺序）里按原音色 speaker 的 FNV-1a 32 位哈希取模挑一个
   （同一原音色 → 同一替换；不同原音色 → 分散，避免所有角色同一个声音）并记日志，避免读错口音或合成失败
+- Preset auto_pool=false（giọng chỉ chọn tay trong phim truyện）không tham gia giọng mặc định / pool tự động,
+  nhưng vẫn được nhận diện ngôn ngữ / giới tính.
 """
 
 from __future__ import annotations
@@ -66,7 +68,7 @@ def voice_supports_lang(speaker: str | None, lang: str | None) -> bool:
 
 def default_voice_for_lang(lang: str | None, gender: str | None = None) -> str | None:
     """该语言默认音色 speaker：同性别的第一个，没有同性别则取该语言第一个；目录无该语言返回 None。"""
-    candidates = [p for p in VOICE_PRESETS if lang in (p.get("languages") or [])]
+    candidates = [p for p in VOICE_PRESETS if lang in (p.get("languages") or []) and p.get("auto_pool", True)]
     if not candidates:
         return None
     if gender in ("female", "male"):
@@ -78,7 +80,7 @@ def default_voice_for_lang(lang: str | None, gender: str | None = None) -> str |
 
 def lang_voice_pool(lang: str | None, gender: str | None = None) -> list[str]:
     """该语言的目录音色 speaker（目录顺序）；指定性别时只取同性别，没有同性别则返回该语言全部。"""
-    candidates = [p for p in VOICE_PRESETS if lang in (p.get("languages") or [])]
+    candidates = [p for p in VOICE_PRESETS if lang in (p.get("languages") or []) and p.get("auto_pool", True)]
     if gender in ("female", "male"):
         same = [p for p in candidates if p.get("gender") == gender]
         if same:
