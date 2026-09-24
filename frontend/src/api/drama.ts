@@ -30,8 +30,9 @@ export function resolveDramaMediaUrl(
     resolved = url.startsWith('/') ? `${API_BASE}${url}` : url
   }
   if (cacheBust == null || cacheBust === '') return resolved
-  const sep = resolved.includes('?') ? '&' : '?'
-  return `${resolved}${sep}v=${encodeURIComponent(String(cacheBust))}`
+  // 已带查询串的外链多为签名 URL（上游 CDN），追加参数会破坏签名导致 403
+  if (resolved.includes('?') || resolved.startsWith('data:')) return resolved
+  return `${resolved}?v=${encodeURIComponent(String(cacheBust))}`
 }
 
 /** 资产生图/上传后的预览 URL（用 updated_at 或 generation 时间戳破缓存） */
