@@ -13,9 +13,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.database import AsyncSessionLocal
 from app.errors import AppError
 from app.models import User
-from app.models_drama import DramaAsset, DramaEpisodeFragment, DramaFragmentAssetRef, DramaProject
+from app.models_drama import DramaAsset, DramaEpisode, DramaEpisodeFragment, DramaFragmentAssetRef, DramaProject
+from app.models_tasks import TaskRun
+from app.schemas_tasks import TaskCreateRequest
 from app.services import storage
 from app.services.ark import get_ark
 from app.services.billing import record_line
@@ -23,9 +26,11 @@ from app.services.content_lang import project_content_lang
 from app.services.drama.build_seedance_generate_body import resolve_character_prompt_name
 from app.services.drama.dub_lines import extract_dub_lines
 from app.services.drama.dub_voices import CharacterVoice, resolve_line_speaker, voice_source_asset_id
+from app.services.drama.generation import fragment_generation_status
 from app.services.drama.job_errors import gen_error_fields, with_error_code
 from app.services.drama.voice_synthesis import _drama_tts_model, infer_character_speaker, usable_speaker
 from app.services.dub_mix import run_dub_mix
+from app.services.tasks.service import create_task
 from app.services.voice_lang import default_voice_for_lang
 
 logger = logging.getLogger(__name__)
@@ -196,3 +201,121 @@ async def dub_fragment(
         except Exception:  # noqa: BLE001
             logger.exception("lồng tiếng: ghi trạng thái failed cũng lỗi fragment_id=%s", fragment.id)
         raise
+
+
+def assert_fragment_dubbable(fragment: Any) -> None:
+    """4 điều kiện lồng tiếng lại: video không đang generate, đúng chế độ dub, đã có video, chưa có lượt dub đang chạy."""
+    status = str(fragment_generation_status(fragment).get("status") or "")
+    if status in {"queued", "running", "generating"}:
+        raise AppError("drama.dub_fragment_generating")
+    if (fragment.params or {}).get("voice_mode") != "dub":
+        raise AppError("drama.dub_not_enabled")
+    if not (fragment.video or "").strip():
+        raise AppError("drama.dub_no_video")
+    if str(_dub_params(fragment).get("status") or "") == "running":
+        raise AppError("drama.dub_fragment_generating")
+
+
+async def enqueue_fragment_dub(
+    db: AsyncSession,
+    user: User,
+    fragment: DramaEpisodeFragment,
+    *,
+    drama_project_id: int,
+    episode_id: int,
+) -> TaskRun:
+    """Ghi params.dub=running (bỏ lỗi cũ) rồi vào hàng đợi TaskRun("drama","fragment_dub") qua task platform.
+
+    Việc lồng tiếng thật chạy trong _run_drama_fragment_dub (handlers.py) → run_fragment_dub_job,
+    độc lập phiên/billing với task video: tránh mất trạng thái do dub_fragment tự rollback nội bộ,
+    và tách hẳn phí TTS khỏi vòng đời task video (không còn đua với reconcile/settle của task video).
+    """
+    lines = extract_dub_lines(fragment.content or "", await _fragment_asset_names(db, fragment))
+    line_count = max(len(lines), 1)
+    prev = {k: v for k, v in _dub_params(fragment).items() if k not in ("error", "error_code", "error_params")}
+    _write_dub(fragment, {**prev, "status": "running"})
+    task = await create_task(
+        db,
+        user,
+        TaskCreateRequest(
+            domain="drama",
+            task_type="fragment_dub",
+            dedupe_key=f"drama:fragment_dub:fragment:{fragment.id}",
+            payload={"fragment_id": fragment.id, "line_count": line_count},
+            drama_project_id=drama_project_id,
+            episode_id=episode_id,
+            fragment_id=fragment.id,
+        ),
+        commit=False,
+    )
+    await db.commit()
+    return task
+
+
+async def enqueue_fragment_dub_after_video(
+    fragment_id: int,
+    user_id: int,
+    *,
+    drama_project_id: int,
+    episode_id: int,
+) -> None:
+    """Sau khi video xong: mở phiên RIÊNG (không đụng db/task của finalize) để tự vào hàng đợi lồng tiếng.
+
+    Lỗi (kể cả không đủ số dư) chỉ ghi log + params.dub.status=failed; không bao giờ raise ra ngoài,
+    để một lượt tự động lồng tiếng hỏng không kéo theo việc hoàn tất task video bị ảnh hưởng.
+    """
+    async with AsyncSessionLocal() as db:
+        try:
+            fragment = await db.get(DramaEpisodeFragment, fragment_id)
+            user = await db.get(User, user_id)
+            if not fragment or not user:
+                return
+            await enqueue_fragment_dub(
+                db, user, fragment, drama_project_id=drama_project_id, episode_id=episode_id,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("tự động lồng tiếng: vào hàng đợi lỗi fragment_id=%s err=%s", fragment_id, exc)
+            code = exc.code if isinstance(exc, AppError) else None
+            if not (code and code.startswith("billing.")):
+                return
+            # Không đủ số dư: create_task raise trước khi có TaskRun nào được tạo; rollback rồi ghi failed riêng.
+            await db.rollback()
+            frag = await db.get(DramaEpisodeFragment, fragment_id)
+            if not frag:
+                return
+            _write_dub(frag, with_error_code(
+                {"status": "failed", "sourceVideo": dub_source_video(frag)},
+                code,
+                getattr(exc, "params", None),
+            ))
+            try:
+                await db.commit()
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "tự động lồng tiếng: ghi trạng thái failed cũng lỗi fragment_id=%s", fragment_id
+                )
+
+
+async def run_fragment_dub_job(task_run_id: int, fragment_id: int, user_id: int) -> dict[str, Any]:
+    """Executor thật của TaskRun("drama","fragment_dub"): mở phiên RIÊNG của job (tách khỏi phiên executor).
+
+    Nạp tường minh fragment → episode → project (tránh lazy-load async) rồi user, gọi dub_fragment.
+    Không bắt exception ở đây: để nó lan ra ngoài, executor.py sẽ tự mở phiên mới để fail task + settle
+    hoàn phí — dub_fragment.rollback() nội bộ chỉ tác động phiên của chính job này, không đụng tới
+    phiên/đối tượng TaskRun mà executor đang giữ.
+    """
+    async with AsyncSessionLocal() as db:
+        fragment = await db.get(DramaEpisodeFragment, fragment_id)
+        if fragment is None:
+            raise RuntimeError(f"phân cảnh không tồn tại: {fragment_id}")
+        episode = await db.get(DramaEpisode, fragment.episode_id)
+        if episode is None:
+            raise RuntimeError(f"tập phim không tồn tại cho fragment_id={fragment_id}")
+        project = await db.get(DramaProject, episode.project_id)
+        if project is None:
+            raise RuntimeError(f"dự án không tồn tại cho fragment_id={fragment_id}")
+        user = await db.get(User, user_id)
+        if user is None:
+            raise RuntimeError(f"user không tồn tại: {user_id}")
+        dub = await dub_fragment(db, user, project, fragment, task_run_id=task_run_id)
+        return {"ok": True, "status": dub.get("status")}

@@ -80,6 +80,19 @@ async def _run_drama_fragment_video(task: TaskRun) -> dict[str, Any] | None:
     return await submit_fragment_video_task(task)
 
 
+# 执行漫剧分镜配音任务（真实 handler，非 ephemeral：走 scheduler 正常冻结/结算/孤儿回收）。
+async def _run_drama_fragment_dub(task: TaskRun) -> dict[str, Any] | None:
+    from app.services.drama.fragment_dub import run_fragment_dub_job
+
+    payload = task.payload or {}
+    fragment_id = task.fragment_id or payload.get("fragment_id")
+    return await run_fragment_dub_job(
+        int(task.id),
+        _require_int(fragment_id, "fragment_id"),
+        int(task.requested_by),
+    )
+
+
 # 执行漫剧资产生图任务。
 async def _run_drama_asset_image(task: TaskRun) -> dict[str, Any] | None:
     from app.services.drama.jobs import run_asset_image_job
@@ -273,7 +286,7 @@ TASK_HANDLERS: dict[tuple[str, str], TaskHandler] = {
     ("drama", "skill_optimize"): TaskHandler("drama", "skill_optimize", _noop_ephemeral),
     ("drama", "voice_prompt"): TaskHandler("drama", "voice_prompt", _noop_ephemeral),
     ("drama", "voice_synthesis"): TaskHandler("drama", "voice_synthesis", _noop_ephemeral),
-    ("drama", "fragment_dub"): TaskHandler("drama", "fragment_dub", _noop_ephemeral),
+    ("drama", "fragment_dub"): TaskHandler("drama", "fragment_dub", _run_drama_fragment_dub),
     ("kepu", "content_expand"): TaskHandler("kepu", "content_expand", _noop_ephemeral),
     ("api", "v1_image"): TaskHandler("api", "v1_image", _noop_ephemeral),
     ("api", "v1_video"): TaskHandler("api", "v1_video", _noop_ephemeral),

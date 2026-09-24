@@ -1544,13 +1544,20 @@ async def poll_fragment_video_task(task_id: int) -> None:
                     voice_mode=str(payload.get("voice_mode") or "native"),
                 )
                 if str(payload.get("voice_mode") or "native") == "dub":
-                    from app.services.drama.fragment_dub import dub_fragment
+                    from app.services.drama.fragment_dub import enqueue_fragment_dub_after_video
 
                     try:
-                        await dub_fragment(db, user, ep.project, frag, task_run_id=int(task.id))
+                        # Phiên RIÊNG, không đụng db/task của finalize: rollback nội bộ khi vào hàng đợi
+                        # lỗi (hoặc trong task fragment_dub sau này) không được phép làm hỏng task video.
+                        await enqueue_fragment_dub_after_video(
+                            fragment_id,
+                            int(user.id),
+                            drama_project_id=int(ep.project.id),
+                            episode_id=int(episode_id),
+                        )
                     except Exception as exc:  # noqa: BLE001
                         # Lồng tiếng lỗi không làm hỏng task video: video gốc đã lưu, người dùng bấm "Lồng tiếng lại"
-                        logger.warning("tự động lồng tiếng lỗi fragment_id=%s err=%s", fragment_id, exc)
+                        logger.warning("tự động lồng tiếng: vào hàng đợi lỗi fragment_id=%s err=%s", fragment_id, exc)
                 # apply 已 commit：行锁复查。下载期间用户可能已取消（status=cancel_requested），
                 # 此时不能走常规 complete，也不能放任 frozen 全额退款，按实际用量结算为 cancelled。
                 async with AsyncSessionLocal() as recheck_db:
