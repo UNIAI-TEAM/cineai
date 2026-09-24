@@ -308,3 +308,26 @@ async def test_mock_video_task_result_carries_bound_model(monkeypatch, snapshot)
     task2 = await g.gen_video_seedance_body({"content": [], "duration": 5}, function_id="drama.video")
     r2 = await g.poll_task(task2)
     assert r2.model == "dreamina-seedance-2-5-260628"
+
+
+async def test_resolve_image_ref_seedance_uses_https_site_url_without_oss(monkeypatch, tmp_path):
+    """Tắt OSS nhưng PUBLIC_BASE_URL là https công khai: Seedance nhận link site /static thay vì báo lỗi."""
+    img = tmp_path / "a.png"
+    img.write_bytes(b"\x89PNG")
+    g = _gateway(monkeypatch, {})
+    monkeypatch.setattr(mg.storage, "local_path_from_url", lambda url: img)
+    monkeypatch.setattr(mg.storage, "republish_url", lambda url, sync=True: url)
+    monkeypatch.setattr(mg.storage, "to_public_url", lambda url: "https://cineai.vn" + url)
+    assert await g._resolve_image_ref("/static/generated/p7/a.png", prefer_https=True) == "https://cineai.vn/static/generated/p7/a.png"
+
+
+async def test_resolve_image_ref_seedance_still_fails_on_local_site_without_oss(monkeypatch, tmp_path):
+    """Tắt OSS và PUBLIC_BASE_URL là localhost: vẫn báo lỗi rõ ràng, không gửi link Ark không tải được."""
+    img = tmp_path / "a.png"
+    img.write_bytes(b"\x89PNG")
+    g = _gateway(monkeypatch, {})
+    monkeypatch.setattr(mg.storage, "local_path_from_url", lambda url: img)
+    monkeypatch.setattr(mg.storage, "republish_url", lambda url, sync=True: url)
+    monkeypatch.setattr(mg.storage, "to_public_url", lambda url: "http://127.0.0.1:8000" + url)
+    with pytest.raises(mg.UpstreamError):
+        await g._resolve_image_ref("/static/generated/p7/a.png", prefer_https=True)

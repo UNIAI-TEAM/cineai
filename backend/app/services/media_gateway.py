@@ -804,6 +804,12 @@ class MediaGateway:
                 public = storage.republish_url(raw, sync=True)
                 if public and str(public).startswith("https://"):
                     return str(public)
+                # Không bật OSS: nếu site có domain https công khai (PUBLIC_BASE_URL) thì Ark tải thẳng /static qua đó
+                site_url = storage.to_public_url(raw) if raw.startswith("/static/") else raw
+                site_host = (urlparse(site_url).hostname or "").lower()
+                if site_url.startswith("https://") and site_host not in {"localhost", "127.0.0.1", "::1"} \
+                        and not site_host.startswith(("192.168.", "10.")):
+                    return site_url
                 raise UpstreamError(
                     "Seedance 需要公网可访问的图片 URL（请启用 OSS 并确保参考图已上传），"
                     "本地 /static 图无法被方舟拉取"
