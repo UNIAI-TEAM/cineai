@@ -13,7 +13,7 @@ type FragmentPlanSkillModalProps = {
   message: string
   confirmText?: string
   onCancel: () => void
-  /** targetSec：弹窗内选定的本集目标时长（未传 initialTargetSec 时为 undefined） */
+  /** targetSec：用户改动后的本集目标时长；未改动或未传 initialTargetSec 时为 undefined（沿用分集→项目设置） */
   onConfirm: (skillIds: number[], targetSec?: EpisodeTargetSec) => void
   /** 传入则显示「目标时长」选择，默认选中该值 */
   initialTargetSec?: EpisodeTargetSec
@@ -70,7 +70,8 @@ export function FragmentPlanSkillModal({
         aria-labelledby="fragment-plan-skill-title"
         onSubmit={(event) => {
           event.preventDefault()
-          onConfirm(selectedIds, targetSec)
+          // Chỉ gửi khi người dùng đổi thời lượng; giữ nguyên thì để tập tiếp tục theo cài đặt dự án
+          onConfirm(selectedIds, targetSec !== initialTargetRef.current ? targetSec : undefined)
         }}
       >
         <div className="pf-dialog-glow" aria-hidden />

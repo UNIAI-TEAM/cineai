@@ -31,9 +31,12 @@ def _source_text(asset: DramaAsset) -> str:
     return ""
 
 
-async def extract_appearance_fields(asset: DramaAsset, lang: str) -> dict[str, str]:
-    """一次 LLM 调用把外形描述拆成 8 字段；无描述或结果全空 → AppError(drama.appearance_extract_failed)。"""
-    source = _source_text(asset)
+async def extract_appearance_fields(
+    asset: DramaAsset, lang: str, source_text: str | None = None
+) -> dict[str, str]:
+    """一次 LLM 调用把外形描述拆成 8 字段；source_text 优先（前端未保存的描述），否则用已保存描述；
+    无描述或结果全空 → AppError(drama.appearance_extract_failed)。"""
+    source = (source_text or "").strip() or _source_text(asset)
     if not source:
         raise AppError("drama.appearance_extract_failed")
     system = APPEARANCE_EXTRACT_SYSTEM

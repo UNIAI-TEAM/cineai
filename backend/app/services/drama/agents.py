@@ -643,8 +643,10 @@ def auto_missing_episode_numbers(
     total: int,
     *,
     min_chars: int = MIN_EPISODE_CONTENT_CHARS,
+    min_chars_by_number: dict[int, int] | None = None,
 ) -> list[int]:
-    """自动流水线待填集号：跳过手动加集且正文未达标的空集。"""
+    """自动流水线待填集号：跳过手动加集且正文未达标的空集。
+    min_chars_by_number：单集目标时长覆盖后的阈值（集号 → 最少字数），优先于 min_chars。"""
     by_num: dict[int, dict[str, Any]] = {}
     for item in existing:
         if not isinstance(item, dict):
@@ -663,7 +665,7 @@ def auto_missing_episode_numbers(
             missing.append(number)
             continue
         body = str(item.get("body") or item.get("content") or "")
-        if _content_char_len(body) >= min_chars:
+        if _content_char_len(body) >= (min_chars_by_number or {}).get(number, min_chars):
             continue
         if str(item.get("origin") or "") == MANUAL_EPISODE_ORIGIN:
             continue
@@ -711,8 +713,9 @@ def count_completed_episodes(
     total: int,
     *,
     min_chars: int = MIN_EPISODE_CONTENT_CHARS,
+    min_chars_by_number: dict[int, int] | None = None,
 ) -> int:
-    # 统计 1..total 中正文达到质量阈值（min_chars，随项目目标时长）的集数
+    # 统计 1..total 中正文达到质量阈值（min_chars，随项目目标时长；min_chars_by_number 为单集覆盖）的集数
     done = 0
     for item in episodes:
         try:
@@ -720,7 +723,8 @@ def count_completed_episodes(
         except (TypeError, ValueError):
             continue
         body = str(item.get("body") or "").strip()
-        if 1 <= number <= total and _content_char_len(body) >= min_chars:
+        threshold = (min_chars_by_number or {}).get(number, min_chars)
+        if 1 <= number <= total and _content_char_len(body) >= threshold:
             done += 1
     return done
 

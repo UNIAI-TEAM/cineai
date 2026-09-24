@@ -26,6 +26,15 @@ def test_auto_missing_fills_gap_without_row():
     assert auto_missing_episode_numbers(existing, 3) == [2, 3]
 
 
+def test_auto_missing_respects_per_episode_min_chars():
+    # 单集设为 30s（阈值 150）时，已写好的短正文不应被整剧批量当作缺失重写
+    existing = [
+        {"episodeNumber": 1, "title": "开篇", "body": "甲" * 200},
+        {"episodeNumber": 2, "title": "续", "body": "乙" * 200},
+    ]
+    assert auto_missing_episode_numbers(existing, 2, min_chars=450, min_chars_by_number={1: 150}) == [2]
+
+
 def test_merge_preserves_manual_origin():
     existing = [
         {

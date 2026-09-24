@@ -19,6 +19,7 @@ from app.models import User
 from app.models_drama import DramaAsset, DramaProject
 from app.schemas_drama import (
     DramaActivateImageVersionRequest,
+    DramaAppearanceExtractRequest,
     DramaAssetCreate,
     DramaAssetOut,
     DramaAssetUpdate,
@@ -188,10 +189,11 @@ async def update_asset(
 @router.post("/assets/{asset_id}/appearance/extract")
 async def extract_asset_appearance(
     asset_id: int,
+    req: DramaAppearanceExtractRequest | None = None,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    """AI 把角色旧的外形描述拆成 8 个字段并写入 params.appearance（不改 visualPrompt）。"""
+    """AI 把角色外形描述拆成 8 个字段并返回，不写库：前端填入表单草稿，用户确认后经 PATCH 保存（届时才重拼 prompt）。"""
     asset = await db.get(DramaAsset, asset_id)
     if not asset:
         raise AppError("drama.asset_not_found")
@@ -201,7 +203,7 @@ async def extract_asset_appearance(
     lang = project_content_lang(project)
 
     async def _do_extract() -> dict[str, str]:
-        appearance = await extract_appearance_fields(asset, lang)
+        appearance = await extract_appearance_fields(asset, lang, req.source_text if req else None)
         await record_llm_chat_line(db, user_id=user.id, domain="drama", drama_project_id=project.id)
         return appearance
 
@@ -220,10 +222,6 @@ async def extract_asset_appearance(
     except ValueError as exc:
         raise http_exception_for_value_error(exc) from exc
 
-    # Đọc lại params mới nhất trước khi ghép appearance, tránh đè các thay đổi đồng thời trong lúc gọi AI
-    await db.refresh(asset)
-    asset.params = {**(asset.params or {}), "appearance": appearance}
-    await db.commit()
     logger.info("外形字段已拆分 project_id=%s asset_id=%s task_id=%s", project.id, asset.id, task.id)
     return {"ok": True, "appearance": appearance, "task_id": task.id}
 

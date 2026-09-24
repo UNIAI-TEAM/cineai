@@ -68,7 +68,7 @@
 **Nhân vật cũ — "AI tách trường"**:
 
 - `POST /api/drama/assets/{id}/appearance/extract` (chỉ nhân vật, chủ sở hữu dự án).
-- Một lượt LLM tách `visualPrompt` (hoặc `visualImage`) hiện có thành 8 trường, trả JSON; lưu vào `params.appearance`, **không** đổi `visualPrompt` (người dùng xem form rồi mới lưu).
+- Một lượt LLM tách mô tả (ưu tiên `source_text` trong body — nội dung ô prompt đang gõ; nếu trống thì dùng `visualPrompt`/`visualImage` đã lưu) thành 8 trường, trả JSON. **Không ghi DB**: kết quả chỉ điền vào form, người dùng xem rồi bấm Lưu (PATCH) thì mới lưu `appearance` và ghép lại prompt.
 - Tính phí qua `run_billed_ephemeral(domain="drama", task_type="appearance_extract")`; đăng ký `("drama", "appearance_extract")` là `_noop_ephemeral` trong `tasks/handlers.py`; function id dùng slot text của drama giống `voice_prompt`.
 
 **Ghép prompt — chỉ ở backend** (`services/drama/appearance_prompt.py`, file mới):

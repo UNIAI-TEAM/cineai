@@ -32,7 +32,12 @@ from app.services.drama.build_fragments import (
     split_episode_content_into_scenes,
 )
 from app.services.drama.access import detach_task_fragment_refs
-from app.services.drama.appearance_prompt import has_field_composed_prompt
+from app.services.drama.appearance_prompt import (
+    appearance_is_empty,
+    apply_appearance_to_params,
+    has_field_composed_prompt,
+    normalize_appearance,
+)
 from app.services.drama.agents import MIN_EPISODE_CONTENT_CHARS
 from app.services.content_lang import is_zh, project_content_lang
 from app.services.drama.naming import default_episode_title
@@ -520,10 +525,15 @@ async def seed_assets_from_script(
             name = str(ch.get("name") or "").strip()
             asset = existing_by_key.get(_asset_dedupe_key("character", name))
             if asset:
-                asset.params = _merge_preserved_asset_params(
-                    dict(asset.params or {}),
-                    build_character_params(ch, lang),
-                )
+                old_params = dict(asset.params or {})
+                merged = _merge_preserved_asset_params(old_params, build_character_params(ch, lang))
+                # 摘要未带外形字段时保留用户已填/已拆分的 appearance，并按其重新拼 prompt
+                old_appearance = normalize_appearance(old_params.get("appearance"))
+                if "appearance" not in merged and not appearance_is_empty(old_appearance):
+                    merged["appearance"] = old_appearance
+                    merged["promptManual"] = old_params.get("promptManual") is True
+                    merged = apply_appearance_to_params(merged, lang)
+                asset.params = merged
 
     # Extract scene names from episode bodies
     bodies = _episode_bodies(script.episode_content)
@@ -1094,6 +1104,26 @@ async def load_episode_params_by_number(
         except (TypeError, ValueError):
             continue
     return None
+
+
+async def load_episode_min_chars_overrides(
+    db: AsyncSession, project_id: int, project_params: dict[str, Any] | None
+) -> dict[int, int]:
+    # 已建分集行中设置了单集目标时长的：集号 → 正文最少字数（整剧批量生成的完成判定用）
+    rows = (
+        await db.execute(select(DramaEpisode.params).where(DramaEpisode.project_id == project_id))
+    ).scalars().all()
+    out: dict[int, int] = {}
+    for params in rows:
+        if not isinstance(params, dict) or params.get("episodeTargetSec") is None:
+            continue
+        try:
+            number = int(params.get("episodeNumber") or 0)
+        except (TypeError, ValueError):
+            continue
+        if number >= 1:
+            out[number] = episode_min_content_chars(project_params, params)
+    return out
 
 
 def _episode_keep_score(episode: DramaEpisode) -> tuple[int, int, int]:

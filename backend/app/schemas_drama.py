@@ -264,6 +264,11 @@ class DramaVoiceGenerateRequest(BaseModel):
     speaker_locked: bool = Field(default=False, description="用户手选音色：锁定 speaker，配音时不按描述性别改换")
 
 
+class DramaAppearanceExtractRequest(BaseModel):
+    # source_text 前端输入框中尚未保存的外形描述；为空则用资产已保存的 visualPrompt / visualImage
+    source_text: str | None = Field(default=None, max_length=4000)
+
+
 class DramaFragmentSaveItem(BaseModel):
     id: int | None = None
     sort_order: int = 0

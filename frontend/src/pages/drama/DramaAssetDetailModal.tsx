@@ -104,7 +104,7 @@ export function DramaAssetDetailModal({
   const wasManual = readPromptManual(asset)
   const dirty = promptDirty || appearanceDirty
   const imageVersions = readAssetImageVersions(asset)
-  const actionBusy = busy || saving || uploading || Boolean(restoringVersionId)
+  const actionBusy = busy || saving || uploading || extracting || Boolean(restoringVersionId)
   // Tạo ảnh được khi có prompt, hoặc nhân vật đã điền trường ngoại hình (backend ghép prompt khi lưu)
   const canGenerate = Boolean(promptDraft.trim()) || (isCharacter && !appearanceIsEmpty(appearanceDraft))
   // Có mô tả nguồn để AI tách trường: ô prompt đang gõ hoặc mô tả đã lưu
@@ -114,12 +114,28 @@ export function DramaAssetDetailModal({
     Boolean(String(assetParams.visualPrompt ?? '').trim()) ||
     Boolean(String(assetParams.visualImage ?? '').trim())
 
+  // Tư liệu lần gần nhất đã đồng bộ vào bản nháp (null = cần nạp lại toàn bộ)
+  const syncedAssetRef = useRef<DramaAsset | null>(null)
   useEffect(() => {
-    if (!open) return
-    setPromptDraft(readVisualPrompt(asset))
-    setAppearanceDraft(readAppearance(asset))
-    setLightboxSrc(null)
-    setRestoringVersionId(null)
+    if (!open) {
+      syncedAssetRef.current = null
+      return
+    }
+    const prev = syncedAssetRef.current
+    syncedAssetRef.current = asset
+    if (!prev || prev.id !== asset.id) {
+      // Mở modal hoặc đổi sang tư liệu khác: nạp lại toàn bộ
+      setPromptDraft(readVisualPrompt(asset))
+      setAppearanceDraft(readAppearance(asset))
+      setLightboxSrc(null)
+      setRestoringVersionId(null)
+      return
+    }
+    // Cùng tư liệu nhưng danh sách tải lại / gắn giọng…: chỉ cập nhật phần nháp người dùng chưa sửa
+    const prevPrompt = readVisualPrompt(prev)
+    const prevAppearance = readAppearance(prev)
+    setPromptDraft((draft) => (draft.trim() === prevPrompt.trim() ? readVisualPrompt(asset) : draft))
+    setAppearanceDraft((draft) => (appearanceEqual(draft, prevAppearance) ? readAppearance(asset) : draft))
   }, [open, asset])
 
   // Params gửi PATCH khi lưu: nhân vật đi qua buildAppearanceSave, tư liệu khác giữ buildPromptParams cũ
@@ -150,8 +166,10 @@ export function DramaAssetDetailModal({
       const updated = await dramaApi.updateAsset(asset.id, {
         params: buildSaveParams(),
       })
+      syncedAssetRef.current = updated
       onUpdated(updated)
       setPromptDraft(readVisualPrompt(updated))
+      setAppearanceDraft(readAppearance(updated))
     } catch (err) {
       onError(err instanceof Error ? err.message : t('dramaAssets.detail.savePromptFailed'))
     } finally {
@@ -174,8 +192,10 @@ export function DramaAssetDetailModal({
         const updated = await dramaApi.updateAsset(asset.id, {
           params: buildSaveParams(),
         })
+        syncedAssetRef.current = updated
         onUpdated(updated)
         setPromptDraft(readVisualPrompt(updated))
+        setAppearanceDraft(readAppearance(updated))
         // Lưu xong mà vẫn không có prompt (vd. chỉnh tay đang để trống) thì không xếp hàng tạo ảnh
         if (!readVisualPrompt(updated).trim()) {
           onError(t('dramaAssets.detail.promptRequired'))
@@ -200,7 +220,8 @@ export function DramaAssetDetailModal({
   async function handleExtract() {
     setExtracting(true)
     try {
-      const result = await dramaApi.extractAppearance(asset.id)
+      // Gửi kèm mô tả đang gõ (kể cả chưa lưu) để AI tách đúng nội dung người dùng thấy
+      const result = await dramaApi.extractAppearance(asset.id, promptDraft.trim())
       setAppearanceDraft(readAppearance({ params: { appearance: result.appearance } }))
     } catch (err) {
       onError(err instanceof Error ? err.message : t('dramaAssets.appearance.extractFailed'))
@@ -216,8 +237,10 @@ export function DramaAssetDetailModal({
       const updated = await dramaApi.updateAsset(asset.id, {
         params: { appearance: appearanceDraft, promptManual: false },
       })
+      syncedAssetRef.current = updated
       onUpdated(updated)
       setPromptDraft(readVisualPrompt(updated))
+      setAppearanceDraft(readAppearance(updated))
     } catch (err) {
       onError(err instanceof Error ? err.message : t('dramaAssets.detail.savePromptFailed'))
     } finally {

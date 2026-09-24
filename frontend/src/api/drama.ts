@@ -599,10 +599,11 @@ export const dramaApi = {
     ),
 
   /** AI tách mô tả nhân vật hiện có thành 8 trường ngoại hình */
-  extractAppearance: (assetId: number) =>
+  /** sourceText：输入框中未保存的外形描述（优先于已保存描述）；结果只回填表单，不写库 */
+  extractAppearance: (assetId: number, sourceText?: string) =>
     request<{ ok: boolean; appearance: Record<string, string>; task_id: number }>(
       `/api/drama/assets/${assetId}/appearance/extract`,
-      { method: 'POST' },
+      { method: 'POST', body: JSON.stringify({ source_text: sourceText || null }) },
     ),
 
   getCanvas: (projectId: number) =>
