@@ -140,6 +140,25 @@ async def test_dub_failure_keeps_source_and_records_nothing(wired, monkeypatch):
     assert frag.video == "/static/generated/p1/shot_9.mp4" and wired["usage"] == []
 
 
+async def test_redub_failure_keeps_previous_dubbed_video(wired, monkeypatch):
+    """Lồng lại lỗi: giữ bản đã lồng trước đó (video + url/sourceVideo), không rơi về video thô mất giọng."""
+
+    async def boom(text, voice, **kw):
+        raise RuntimeError("tts down")
+
+    monkeypatch.setattr(fragment_dub, "get_ark", lambda: SimpleNamespace(tts=boom))
+    old_dub = "/static/generated/p1/shot_9_old_dub.mp4"
+    raw = "/static/generated/p1/shot_9_raw.mp4"
+    frag = _frag("【对白】Lan：Lần hai.", video=old_dub,
+                 params={"voice_mode": "dub", "dub": {"status": "done", "url": old_dub, "sourceVideo": raw}})
+    with pytest.raises(RuntimeError):
+        await fragment_dub.dub_fragment(_Db(), USER, PROJECT, frag)
+    assert frag.video == old_dub
+    assert frag.params["dub"]["status"] == "failed"
+    assert frag.params["dub"]["url"] == old_dub and frag.params["dub"]["sourceVideo"] == raw
+    assert fragment_dub.dub_source_video(frag) == raw
+
+
 async def test_dub_mid_flow_error_rolls_back_and_marks_failed(wired, monkeypatch):
     """Lỗi giữa chừng (vd. transaction DB aborted khi load_dub_voices) phải rollback trước khi ghi lại failed,
     không được để commit tiếp raise che mất lỗi gốc hoặc âm thầm bỏ qua."""

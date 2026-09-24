@@ -209,8 +209,11 @@ async def dub_fragment(
         dub = _write_dub(fresh, {"status": "skipped", "url": None, "sourceVideo": source, "lines": []})
         await db.commit()
         return dub
+    # Trạng thái trước lượt này: lồng lại mà lỗi thì trả về đúng bản đã lồng cũ, không rơi về video thô mất giọng
+    prev_video = fresh.video
+    prev_dub = _without_errors(_dub_params(fresh))
     # Ghi "running" nhưng bỏ dấu vết lỗi của lần chạy trước (nếu có), tránh mang error_code cũ sang lần này
-    _write_dub(fresh, {**_without_errors(_dub_params(fresh)), "status": "running"})
+    _write_dub(fresh, {**prev_dub, "status": "running"})
     await db.commit()
     clip_paths: list[Path] = []
     try:
@@ -275,9 +278,9 @@ async def dub_fragment(
             fresh = await _reload_locked(db, fragment)
             if fresh is not None:
                 if _still_same_source(fresh, source):
-                    fresh.video = source
+                    fresh.video = prev_video
                     _write_dub(fresh, with_error_code(
-                        {"status": "failed", "url": None, "sourceVideo": source, "error": str(exc)[:300]},
+                        {"url": None, **prev_dub, "status": "failed", "sourceVideo": source, "error": str(exc)[:300]},
                         code or "drama.dub_failed",
                         params,
                     ))
