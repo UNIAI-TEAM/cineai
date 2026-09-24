@@ -11,6 +11,14 @@ import {
 } from '../../lib/dramaAssetImageVersions'
 import { readAssetVoiceBinding } from './CharacterVoiceBindModal'
 import { DramaImageLightbox } from './DramaImageLightbox'
+import { CharacterAppearanceForm } from './CharacterAppearanceForm'
+import {
+  appearanceEqual,
+  buildAppearanceSave,
+  readAppearance,
+  readPromptManual,
+  type Appearance,
+} from '../../lib/dramaAppearance'
 import { useI18n } from '../../i18n/context'
 import { displayDramaAssetName } from '../../lib/dramaLibraryAssets'
 
@@ -56,12 +64,16 @@ export function DramaAssetDetailModal({
 }: Props) {
   /*
    * promptDraft 提示词草稿
+   * appearanceDraft 外形字段草稿
+   * extracting AI 拆分中
    * saving 保存中
    * uploading 上传图片中
    * restoringVersionId 正在还原的版本
    * lightboxSrc 放大预览图 URL
    */
   const [promptDraft, setPromptDraft] = useState('')
+  const [appearanceDraft, setAppearanceDraft] = useState<Appearance>(() => readAppearance(asset))
+  const [extracting, setExtracting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [restoringVersionId, setRestoringVersionId] = useState<string | null>(null)
@@ -86,30 +98,51 @@ export function DramaAssetDetailModal({
       ? t('dramaAssets.detail.deleteProp')
       : t('dramaAssets.detail.deleteCharacter')
   const canDelete = Boolean(onDelete) && (isCharacter || isScene || isProp)
-  const dirty = promptDraft.trim() !== readVisualPrompt(asset).trim()
+  const promptDirty = promptDraft.trim() !== readVisualPrompt(asset).trim()
+  const appearanceDirty = isCharacter && !appearanceEqual(appearanceDraft, readAppearance(asset))
+  const wasManual = readPromptManual(asset)
+  const dirty = promptDirty || appearanceDirty
   const imageVersions = readAssetImageVersions(asset)
   const actionBusy = busy || saving || uploading || Boolean(restoringVersionId)
 
   useEffect(() => {
     if (!open) return
     setPromptDraft(readVisualPrompt(asset))
+    setAppearanceDraft(readAppearance(asset))
     setLightboxSrc(null)
     setRestoringVersionId(null)
   }, [open, asset])
 
+  // Params gửi PATCH khi lưu: nhân vật đi qua buildAppearanceSave, tư liệu khác giữ buildPromptParams cũ
+  function buildSaveParams(): Record<string, unknown> {
+    if (!isCharacter) return buildPromptParams(asset, promptDraft.trim())
+    return (
+      buildAppearanceSave({
+        appearance: appearanceDraft,
+        appearanceDirty,
+        promptText: promptDraft,
+        promptDirty,
+        wasManual,
+      }) || {}
+    )
+  }
+
   // 保存提示词到资产 params
   async function savePrompt() {
-    const text = promptDraft.trim()
-    if (!text) {
-      onError(t('dramaAssets.detail.promptRequired'))
-      return
+    if (!isCharacter || promptDirty) {
+      const text = promptDraft.trim()
+      if (!text) {
+        onError(t('dramaAssets.detail.promptRequired'))
+        return
+      }
     }
     setSaving(true)
     try {
       const updated = await dramaApi.updateAsset(asset.id, {
-        params: buildPromptParams(asset, text),
+        params: buildSaveParams(),
       })
       onUpdated(updated)
+      setPromptDraft(readVisualPrompt(updated))
     } catch (err) {
       onError(err instanceof Error ? err.message : t('dramaAssets.detail.savePromptFailed'))
     } finally {
@@ -120,17 +153,20 @@ export function DramaAssetDetailModal({
   // 先保存脏提示词再触发生图
   async function handleGenerate() {
     if (dirty) {
-      const text = promptDraft.trim()
-      if (!text) {
-        onError(t('dramaAssets.detail.promptRequired'))
-        return
+      if (!isCharacter || promptDirty) {
+        const text = promptDraft.trim()
+        if (!text) {
+          onError(t('dramaAssets.detail.promptRequired'))
+          return
+        }
       }
       setSaving(true)
       try {
         const updated = await dramaApi.updateAsset(asset.id, {
-          params: buildPromptParams(asset, text),
+          params: buildSaveParams(),
         })
         onUpdated(updated)
+        setPromptDraft(readVisualPrompt(updated))
         onGenerate(updated)
       } catch (err) {
         onError(err instanceof Error ? err.message : t('dramaAssets.detail.savePromptFailed'))
@@ -140,6 +176,35 @@ export function DramaAssetDetailModal({
       return
     }
     onGenerate(asset)
+  }
+
+  // AI tách mô tả hiện có thành 8 trường (chỉ điền form, người dùng xem rồi mới lưu)
+  async function handleExtract() {
+    setExtracting(true)
+    try {
+      const result = await dramaApi.extractAppearance(asset.id)
+      setAppearanceDraft(readAppearance({ params: { appearance: result.appearance } }))
+    } catch (err) {
+      onError(err instanceof Error ? err.message : t('dramaAssets.appearance.extractFailed'))
+    } finally {
+      setExtracting(false)
+    }
+  }
+
+  // Bỏ chế độ chỉnh tay: backend ghép lại prompt từ các trường
+  async function handleRecompose() {
+    setSaving(true)
+    try {
+      const updated = await dramaApi.updateAsset(asset.id, {
+        params: { appearance: appearanceDraft, promptManual: false },
+      })
+      onUpdated(updated)
+      setPromptDraft(readVisualPrompt(updated))
+    } catch (err) {
+      onError(err instanceof Error ? err.message : t('dramaAssets.detail.savePromptFailed'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   // 本地上传图片，视为已出图
@@ -316,6 +381,25 @@ export function DramaAssetDetailModal({
                 })}
               </ul>
             </section>
+          ) : null}
+
+          {isCharacter ? (
+            <CharacterAppearanceForm
+              value={appearanceDraft}
+              onChange={setAppearanceDraft}
+              onExtract={() => void handleExtract()}
+              extracting={extracting}
+              disabled={actionBusy || saving}
+            />
+          ) : null}
+          {isCharacter && wasManual ? (
+            <div className="drama-prompt-manual">
+              <span className="pf-badge">{t('dramaAssets.appearance.manualBadge')}</span>
+              <span className="drama-muted">{t('dramaAssets.appearance.manualHint')}</span>
+              <button type="button" className="pf-btn pf-btn-sm" disabled={saving || actionBusy} onClick={() => void handleRecompose()}>
+                {t('dramaAssets.appearance.recompose')}
+              </button>
+            </div>
           ) : null}
 
           <label className="drama-field">

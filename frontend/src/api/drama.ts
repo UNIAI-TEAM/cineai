@@ -580,6 +580,13 @@ export const dramaApi = {
       body: JSON.stringify(body),
     }),
 
+  /** AI tách mô tả nhân vật hiện có thành 8 trường ngoại hình */
+  extractAppearance: (assetId: number) =>
+    request<{ ok: boolean; appearance: Record<string, string>; task_id: number }>(
+      `/api/drama/assets/${assetId}/appearance/extract`,
+      { method: 'POST' },
+    ),
+
   getCanvas: (projectId: number) =>
     request<{ project_id: number; nodes: unknown[]; edges: unknown[] }>(
       `/api/drama/canvas/${projectId}`,
