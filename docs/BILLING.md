@@ -70,6 +70,34 @@ charge_fen = cost_fen
 
 管理端返回 `unpriced_models`：已分配（provider 已启用且有 key）但没有任何价目行匹配的模型（如自定义 `ep-…` 接入点），这些模型会按 token 兜底价结算，请补价目行。BytePlus Seed Speech（`volc_tts`）目前没有默认价目行，会一直出现在这份列表里，直到有人为它补一条价——这是有意保留的提醒，不做隐藏。
 
+### 漫剧配音（`fragment_dub`）计费
+
+`dub` 语音模式（vi/en 项目默认，见 `docs/SEEDANCE_2_5.md` §4.3）下，分镜口播由后期 Seed Speech TTS 合成，
+与镜头视频彻底拆开计费，走独立的 `TaskRun("drama", "fragment_dub")`（`services/drama/fragment_dub.py`）：
+
+- **预扣**：按分镜台词行数 `payload.line_count`（`enqueue_fragment_dub()` 用 `extract_dub_lines()` 数出来，
+  至少 1）估算，`estimates.py::estimate_task_fen` 对 `task_type == "fragment_dub"` 走
+  `_tts_fen("drama.tts", units=line_count)`——即 `BILLING_EST_TTS_TOKENS × line_count` 个估算 token，按
+  `drama.tts` 槽位当前最贵模型的价目折算再乘缓冲（`BILLING_ESTIMATE_BUFFER`）。
+- **`fragment_video` 不再包含任何 TTS 预扣**：`estimates.py` 里 `asset_video`/`fragment_video` 只按视频时长
+  计价，`fragment_video` 额外只加一笔与配音无关的小额缓冲；配音的钱完全由 `fragment_dub` 任务自己冻结、自己
+  结算，两个任务的计费/失败回滚互不影响。
+- **触发方式都只是入队，不内联执行**：视频生成完成后台自动补配音走
+  `enqueue_fragment_dub_after_video()`；用户点「Lồng tiếng lại」调用
+  `POST /api/drama/fragments/{id}/dub`（`dub_fragment_video`）手动重配，两者都只创建/复用一个
+  `fragment_dub` TaskRun（`dedupe_key=drama:fragment_dub:fragment:{id}`）并立刻返回 `task_id`；真正调用
+  Seed Speech 与混音在任务执行器里异步跑（`run_fragment_dub_job` → `dub_fragment`）。
+- **结算按实际字符数，不是估算时的固定 token**：`dub_fragment()` 在合成成功后调用
+  `record_line(billing_key="tts", tokens=sum(len(每句台词文本)), domain="drama", task_run_id=...)`——
+  `tokens` 是这次实际读出的**字符总数**，跟随台词长度浮动；结算仍按上文「结算顺序」走 provider_rates /
+  token 兜底价，只是这里的“token”单位是字符（配合下面 `per_m_chars` 价目）。
+- **价目行仍缺失**：默认 `provider_rates` 没有 `seed-tts-2.0`（BytePlus Seed Speech）这一行（上一段
+  `unpriced_models` 已提到）。要按真实字符单价结算，需要管理员在
+  `PUT /api/admin/settings/billing/model-rates` 手动加一行 `{"pattern": "seed-tts-2.0*", "unit":
+  "per_m_chars", "usd": <按 BytePlus 官方价填写，本文档不代填>}`。补价之前，`fragment_dub` 的用量行拿不到
+  `cost_fen`，结算退回到 token 兜底价 `BILLING_TTS_PER_M`（元/百万 token，默认 2，见上文「默认成本价」
+  表），即按字符数当 token 数套用这个兜底价，不是免费。
+
 ## TaskRun 计费流程
 
 每个 `TaskRun` 独立走「预扣 → 记录用量 → 结算」：

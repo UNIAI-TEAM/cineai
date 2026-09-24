@@ -298,7 +298,51 @@ Nguồn (kiểm tra 2026-09-23):
 
 Lời thoại do Seedance tự đọc (phim ngắn, `generate_audio=true`) không dùng danh mục này: dự án vi/en được
 khai báo ngôn ngữ trước lời thoại theo `docs/SEEDANCE_2_5.md` §4.3 (`seedance_segments.declare_spoken_language`,
-chỉ ở bước gửi, dữ liệu phân cảnh không đổi).
+chỉ ở bước gửi, dữ liệu phân cảnh không đổi) — **chỉ khi dự án ở chế độ tiếng `native`**. Chế độ `dub` (mặc
+định cho dự án vi/en, xem `docs/SEEDANCE_2_5.md` mục "后期配音模式" ngay sau §4.3) không khai báo ngôn ngữ
+này: Seedance chỉ ra tiếng môi trường, lời thoại thật lấy từ Seed Speech qua `fragment_dub` bên dưới.
+
+### Seed Speech (TTS 2.0): endpoint, header, cắt văn bản dài, mã lỗi
+
+`VolcTtsAdapter.tts()` (`backend/app/services/providers/volc_tts_adapter.py`) gọi endpoint v3
+**unidirectional** (`POST .../api/v3/tts/unidirectional`, xem URL mặc định ở mục "Nâng cấp từ bản TokenFree"
+bên dưới) với các header:
+
+- `Content-Type: application/json`
+- `X-Api-Resource-Id` — suy theo speaker (`resource_id_for_speaker()`): giọng clone `S_*` → `seed-icl-2.0`;
+  giọng `*_uranus_bigtts` / `saturn_*` → giá trị cấu hình (mặc định `seed-tts-2.0`); còn lại → `seed-tts-1.0`.
+- `X-Api-App-Key: aGjiRDfUWi` — **cố định**, hardcode trong adapter (`BYTEPLUS_APP_KEY`), không cấu hình
+  được qua admin; khác với key xác thực của provider (`X-Api-Key` theo channel, hoặc cặp
+  `X-Api-App-Id`/`X-Api-Access-Key` cho credential toàn cục kiểu cũ khi channel không có `api_key` riêng).
+
+`req_params.additions` (chuỗi JSON, chỉ gửi khi có nội dung, `build_tts_additions()`):
+
+- `explicit_language` — tự gửi `vi` / `en` theo ngôn ngữ nội dung dự án hoặc tiền tố speaker (`vi_*`/`en_*`
+  → suy ra tương ứng); `zh` để trống (mặc định openspeech tự đọc lẫn Trung-Anh).
+- `context_texts` — câu gợi ý cảm xúc (tính năng riêng của TTS 2.0), viết theo ngôn ngữ nội dung: mẫu
+  `"Hãy đọc với giọng {hint}"` (vi) / `"Read this in a {hint} tone"` (en) / `用「{hint}」的语气朗读` (zh).
+
+Văn bản dài hơn `MAX_TTS_CHUNK_CHARS = 300` ký tự bị `split_tts_text()` cắt theo ranh giới câu thành nhiều
+request rồi nối các đoạn MP3 kết quả lại — tránh mã lỗi vượt giới hạn ký tự một request.
+
+Mã lỗi openspeech đáng chú ý (`OpenspeechError.code` / HTTP status):
+
+| Mã / điều kiện | Ý nghĩa | Có failover (tạm thời) không |
+|---|---|---|
+| `40402003` | Vượt giới hạn ký tự một request (TTSExceededTextLimit) | Không — tránh trước bằng chunking ở trên |
+| `45000000` | Lỗi tham số/nghiệp vụ khác | Không |
+| `55000000` | Lỗi tạm thời phía server | **Có** |
+| HTTP 429, HTTP ≥ 500, hoặc message chứa `"quota exceeded"` | Vượt quota đồng thời (concurrency) | **Có** |
+
+Chỉ hai trường hợp cuối được `VolcTtsAdapter.is_transient_error()` coi là tạm thời — `MediaGateway` mới thử
+model/kênh kế tiếp trong slot; các mã còn lại là lỗi vĩnh viễn, request đó thất bại ngay.
+
+**Checklist cấu hình kênh Seed Speech:** admin → **系统设置** → tab "Mô hình" → "+ Thêm nhà cung cấp" → chọn
+mẫu **"BytePlus Seed Speech"** (protocol `volc_tts`) → nhập **API key riêng của console Speech** (khác hẳn
+key ModelArk dùng cho ảnh/video Seedream/Seedance) → **Lưu** → gán vào slot **Giọng đọc**, hoặc ghi đè riêng
+`kepu.tts` / `drama.tts` (mục 3). Thiếu bước này thì không có channel `volc_tts` nào khả dụng trong slot/
+override, cascade của `tts_service.py` (mock → model trong slot → edge-tts) rơi thẳng xuống **edge-tts** —
+lời dẫn tiếng Việt vẫn ra tiếng nhưng không phải giọng Seed Speech đã chọn.
 
 ## 4. Giới hạn cần biết
 
