@@ -9,7 +9,7 @@ import {
   readAssetImageVersions,
   resolveAssetImageVersionUrl,
 } from '../../lib/dramaAssetImageVersions'
-import { readAssetVoiceBinding } from './CharacterVoiceBindModal'
+import { readAssetVoiceBinding } from '../../lib/dramaVoiceBinding'
 import { DramaImageLightbox } from './DramaImageLightbox'
 import { CharacterAppearanceForm } from './CharacterAppearanceForm'
 import {

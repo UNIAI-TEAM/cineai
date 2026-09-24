@@ -1,6 +1,6 @@
 /** 按角色设定 AI 生成音色并绑定到 voiceAudio（无弹窗，供卡片一键生成） */
 import { dramaApi, type DramaAsset } from '../api/drama'
-import { buildBoundParams } from '../pages/drama/CharacterVoiceBindModal'
+import { buildBoundParams } from './dramaVoiceBinding'
 import { getActiveLocale } from '../i18n/detect'
 import { interpolate } from '../i18n/lookup'
 import { messages } from '../i18n/messages'

@@ -5,16 +5,10 @@ import Modal from '../../components/ui/Modal'
 import { useI18n } from '../../i18n/context'
 import { translate } from '../../i18n/translate'
 import { displayDramaAssetName } from '../../lib/dramaLibraryAssets'
+import { buildBoundParams, readAssetVoiceBinding, readVoicePrompt } from '../../lib/dramaVoiceBinding'
 import { speakerForPrompt } from '../../lib/voiceLang'
 import { useVoiceCatalog } from './useVoiceCatalog'
 import { VoiceCatalogPicker } from './VoiceCatalogPicker'
-
-export type VoiceBinding = {
-  sourceAssetId: number
-  url: string
-  label: string
-  voicePrompt?: string
-}
 
 type Props = {
   asset: DramaAsset
@@ -29,79 +23,6 @@ type Props = {
 function readVoiceSpeaker(asset: DramaAsset): string {
   const params = (asset.params || {}) as Record<string, unknown>
   return typeof params.speaker === 'string' ? params.speaker.trim() : ''
-}
-
-// 读取 voice 资产的音色描述
-export function readVoicePrompt(asset: DramaAsset): string {
-  const params = (asset.params || {}) as Record<string, unknown>
-  return typeof params.voicePrompt === 'string' ? params.voicePrompt.trim() : ''
-}
-
-// 从角色资产 params 读取已绑定音色（label 已转为展示名：旧的中文默认名按界面语言显示）
-export function readAssetVoiceBinding(asset: DramaAsset): VoiceBinding | null {
-  const params = (asset.params || {}) as Record<string, unknown>
-  const raw = params.voiceAudio
-  if (raw && typeof raw === 'object') {
-    const data = raw as Record<string, unknown>
-    const sourceAssetId =
-      typeof data.sourceAssetId === 'number'
-        ? data.sourceAssetId
-        : typeof data.voiceId === 'string'
-          ? Number.NaN
-          : null
-    const url =
-      typeof data.url === 'string'
-        ? data.url
-        : typeof data.previewUrl === 'string'
-          ? data.previewUrl
-          : ''
-    if (typeof sourceAssetId === 'number' && sourceAssetId > 0 && url) {
-      return {
-        sourceAssetId,
-        url,
-        label: typeof data.label === 'string' ? displayDramaAssetName(data.label) : translate('dramaAssets.common.voice'),
-        voicePrompt: typeof data.voicePrompt === 'string' ? data.voicePrompt : undefined,
-      }
-    }
-  }
-  const canvas = params.canvas
-  if (canvas && typeof canvas === 'object') {
-    const voiceAudio = (canvas as Record<string, unknown>).voiceAudio
-    if (voiceAudio && typeof voiceAudio === 'object') {
-      const data = voiceAudio as Record<string, unknown>
-      const sourceAssetId = typeof data.sourceAssetId === 'number' ? data.sourceAssetId : null
-      const url = typeof data.url === 'string' ? data.url : ''
-      if (sourceAssetId && url) {
-        return { sourceAssetId, url, label: translate('dramaAssets.common.voice') }
-      }
-    }
-  }
-  return null
-}
-
-// 构建绑定后的 params（同时写 voiceAudio 与 canvas.voiceAudio）
-export function buildBoundParams(asset: DramaAsset, voice: DramaAsset): Record<string, unknown> {
-  const url = voice.url || ''
-  const binding: VoiceBinding = {
-    sourceAssetId: voice.id,
-    url,
-    // 无名称时按当前界面语言写入默认标签（用户数据，展示时 displayDramaAssetName 兼容旧的中文值）
-    label: voice.name || translate('dramaAssets.common.voice'),
-    voicePrompt: readVoicePrompt(voice) || undefined,
-  }
-  const prev = (asset.params || {}) as Record<string, unknown>
-  const prevCanvas =
-    prev.canvas && typeof prev.canvas === 'object'
-      ? (prev.canvas as Record<string, unknown>)
-      : {}
-  return {
-    ...prev,
-    voiceAudio: binding,
-    canvas: {
-      ...prevCanvas,
-      voiceAudio: { sourceAssetId: voice.id, url },
-    },
-  }
 }
 
 // 渲染角色音色绑定弹窗

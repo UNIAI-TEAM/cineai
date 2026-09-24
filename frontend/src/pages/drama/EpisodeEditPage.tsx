@@ -91,10 +91,8 @@ import {
   readEffectiveCharacterIntroMode,
   readEffectiveSubtitleMode,
 } from '../../lib/dramaProjectGlobalSettings'
-import {
-  CharacterVoiceBindModal,
-  readAssetVoiceBinding,
-} from './CharacterVoiceBindModal'
+import { CharacterVoiceBindModal } from './CharacterVoiceBindModal'
+import { readAssetVoiceBinding } from '../../lib/dramaVoiceBinding'
 import { DramaAssetDetailModal } from './DramaAssetDetailModal'
 import { buildEpisodeDirItems, DramaEpisodeDir } from './DramaEpisodeDir'
 import RequireAuth from './RequireAuth'

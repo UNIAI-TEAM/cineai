@@ -1,8 +1,7 @@
 /** 分集编辑：左侧资产栏（本集/全集 + 分类卡片） */
 import { resolveDramaAssetPreviewUrl, type DramaAsset } from '../../api/drama'
 import { CharacterVoicePreviewButton } from '../../components/drama/CharacterVoicePreviewButton'
-import { readAssetVoiceBinding } from './CharacterVoiceBindModal'
-import { DRAMA_VOICE_BINDING_ENABLED } from '../../lib/dramaVoiceBinding'
+import { DRAMA_VOICE_BINDING_ENABLED, readAssetVoiceBinding } from '../../lib/dramaVoiceBinding'
 import { useI18n, type TFunction } from '../../i18n/context'
 import {
   ASSET_TABS,

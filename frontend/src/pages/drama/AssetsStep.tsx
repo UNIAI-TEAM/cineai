@@ -12,11 +12,8 @@ import {
 } from '../../lib/dramaGenerationOptions'
 import { getImageStyleId } from './dramaWorkspaceUtils'
 import { DramaImageGenOptionsBar } from './canvas/nodes/DramaImageGenOptionsBar'
-import {
-  CharacterVoiceBindModal,
-  readAssetVoiceBinding,
-  readVoicePrompt,
-} from './CharacterVoiceBindModal'
+import { CharacterVoiceBindModal } from './CharacterVoiceBindModal'
+import { readAssetVoiceBinding, readVoicePrompt } from '../../lib/dramaVoiceBinding'
 import { CharacterVoicePreviewButton } from '../../components/drama/CharacterVoicePreviewButton'
 import { generateAndBindCharacterVoice } from '../../lib/characterVoiceGenerate'
 import { NarratorVoiceBindModal } from './NarratorVoiceBindModal'

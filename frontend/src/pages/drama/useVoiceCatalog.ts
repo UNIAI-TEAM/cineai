@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { dramaApi, type CatalogVoice, type DramaAsset } from '../../api/drama'
 import { useI18n } from '../../i18n/context'
 import { translate } from '../../i18n/translate'
-import { buildBoundParams } from './CharacterVoiceBindModal'
+import { buildBoundParams } from '../../lib/dramaVoiceBinding'
 
 type Options = {
   open: boolean

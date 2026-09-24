@@ -3,7 +3,7 @@ import type { Edge, Node } from '@xyflow/react'
 import { resolveDramaMediaUrl, type DramaAsset } from '../../../api/drama'
 import { readEditableVisualPrompt } from '../../../lib/dramaVisualPrompt'
 import { readVideoGenerationOptions } from '../../../lib/dramaVideoGenerationOptions'
-import { readAssetVoiceBinding } from '../CharacterVoiceBindModal'
+import { readAssetVoiceBinding } from '../../../lib/dramaVoiceBinding'
 import {
   CANVAS_NODE_DEFAULT_LABEL,
   CANVAS_NODE_SIZE,
