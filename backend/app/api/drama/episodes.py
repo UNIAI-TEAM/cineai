@@ -37,7 +37,11 @@ from app.services.agent.compose import parse_skill_ids
 from app.services.billing import run_billed_ephemeral
 from app.services.billing.http import http_exception_for_value_error
 from app.services.drama.job_errors import clear_job_error, gen_progress
-from app.services.drama.fragment_dub import assert_fragment_dubbable, enqueue_fragment_dub
+from app.services.drama.fragment_dub import (
+    assert_fragment_dubbable,
+    enqueue_fragment_dub,
+    has_active_fragment_dub_task,
+)
 from app.services.drama.voice_mode import resolve_project_voice_mode
 from app.services.drama.access import (
     count_user_inflight_fragment_video_tasks,
@@ -610,7 +614,8 @@ async def dub_fragment_video(
         raise AppError("drama.fragment_not_found")
     ep = await get_owned_episode(db, fragment.episode_id, user)
     project = await get_owned_drama_project(db, ep.project_id, user)
-    assert_fragment_dubbable(fragment)
+    dub_task_active = await has_active_fragment_dub_task(db, fragment.id)
+    assert_fragment_dubbable(fragment, dub_task_active=dub_task_active)
 
     task = await enqueue_fragment_dub(
         db, user, fragment, drama_project_id=project.id, episode_id=ep.id,

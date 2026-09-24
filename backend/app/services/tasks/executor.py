@@ -184,6 +184,7 @@ async def _fail_task_before_start(
     )
     # 资产生图/视频：同步写回 asset.params.generation，避免前端只看到空的「生图失败」
     await _fail_drama_asset_generation_if_needed(db, task, task.error_message)
+    await _mark_fragment_dub_ended_if_needed(db, task, "failed")
     try:
         await settle_task(db, task.id)
     except Exception:  # noqa: BLE001
@@ -219,7 +220,10 @@ async def _fail_task(db, task, exc: Exception) -> None:
     # 资产生图/视频：同步写回 asset.params.generation，避免前端只看到空的「生图失败」
     await _fail_drama_asset_generation_if_needed(db, task, task.error_message or str(exc))
     registered_code, registered_params = _registered_error_fields(task)
-    if task.fragment_id:
+    # fragment_dub 不生成/替换视频，只配音：不能把分镜的 params.generation（视频生成状态）标失败，
+    # 否则明明视频还在、只是配音没做成，前端却显示「视频生成失败」。lồng tiếng 自己的状态走
+    # params.dub，由下面 _mark_fragment_dub_ended_if_needed 收敛。
+    if task.fragment_id and (task.task_type or "") != "fragment_dub":
         from app.models_drama import DramaEpisodeFragment
         from app.services.drama.generation import build_failed_generation_params
 
@@ -235,6 +239,7 @@ async def _fail_task(db, task, exc: Exception) -> None:
                 error_params=registered_params,
             )
             frag.params = params
+    await _mark_fragment_dub_ended_if_needed(db, task, "failed")
     if task.domain == "kepu" and task.project_id:
         from app.models import Project, ProjectStatus
 
@@ -298,11 +303,25 @@ async def _mark_cancelled(db, task) -> None:
         phase=task.current_step_key,
         message="任务已取消",
     )
+    await _mark_fragment_dub_ended_if_needed(db, task, "cancelled")
     try:
         await settle_task(db, task.id)
     except Exception:  # noqa: BLE001
         logger.exception("settle_task failed task_id=%s", task.id)
     await db.commit()
+
+
+# fragment_dub 失败/取消时把可能treo mãi 的 params.dub.status="running" 收敛掉；hook 失败绝不能拖垮 executor 本身。
+# getattr 兜底：一些老测试用的最小 SimpleNamespace fake 没有 task_type 字段。
+async def _mark_fragment_dub_ended_if_needed(db, task, status: str) -> None:
+    if (getattr(task, "task_type", None) or "") != "fragment_dub":
+        return
+    try:
+        from app.services.drama.fragment_dub import mark_fragment_dub_ended
+
+        await mark_fragment_dub_ended(db, task, status)
+    except Exception:  # noqa: BLE001
+        logger.exception("mark_fragment_dub_ended failed task_id=%s", task.id)
 
 
 def _registered_error_fields(task) -> tuple[str | None, dict | None]:

@@ -30,7 +30,7 @@ from app.services.drama.generation import fragment_generation_status
 from app.services.drama.job_errors import gen_error_fields, with_error_code
 from app.services.drama.voice_synthesis import _drama_tts_model, infer_character_speaker, usable_speaker
 from app.services.dub_mix import run_dub_mix
-from app.services.tasks.service import create_task
+from app.services.tasks.service import ACTIVE_TASK_STATUSES, create_task
 from app.services.voice_lang import default_voice_for_lang
 
 logger = logging.getLogger(__name__)
@@ -203,8 +203,31 @@ async def dub_fragment(
         raise
 
 
-def assert_fragment_dubbable(fragment: Any) -> None:
-    """4 điều kiện lồng tiếng lại: video không đang generate, đúng chế độ dub, đã có video, chưa có lượt dub đang chạy."""
+async def has_active_fragment_dub_task(db: AsyncSession, fragment_id: int) -> bool:
+    """Phân cảnh có TaskRun("drama","fragment_dub") nào CHƯA ở trạng thái kết thúc không.
+
+    Dùng để chặn bấm đúp thay vì đọc params.dub.status: cờ "running" trên params có thể bị treo
+    vĩnh viễn khi task kết thúc bất thường trước khi kịp ghi lại (freeze lỗi / cancel / lỗi ngay
+    đầu dub_fragment) — tra task thật theo ACTIVE_TASK_STATUSES thì không bao giờ khoá cứng.
+    """
+    result = await db.execute(
+        select(TaskRun.id)
+        .where(
+            TaskRun.domain == "drama",
+            TaskRun.task_type == "fragment_dub",
+            TaskRun.fragment_id == fragment_id,
+            TaskRun.status.in_(tuple(ACTIVE_TASK_STATUSES)),
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+def assert_fragment_dubbable(fragment: Any, *, dub_task_active: bool) -> None:
+    """4 điều kiện lồng tiếng lại: video không đang generate, đúng chế độ dub, đã có video, chưa có task fragment_dub nào đang chạy.
+
+    dub_task_active: kết quả has_active_fragment_dub_task của gọi trước đó (endpoint tự truy vấn).
+    """
     status = str(fragment_generation_status(fragment).get("status") or "")
     if status in {"queued", "running", "generating"}:
         raise AppError("drama.dub_fragment_generating")
@@ -212,8 +235,41 @@ def assert_fragment_dubbable(fragment: Any) -> None:
         raise AppError("drama.dub_not_enabled")
     if not (fragment.video or "").strip():
         raise AppError("drama.dub_no_video")
-    if str(_dub_params(fragment).get("status") or "") == "running":
+    if dub_task_active:
         raise AppError("drama.dub_fragment_generating")
+
+
+async def mark_fragment_dub_ended(db: AsyncSession, task: TaskRun, status: str) -> None:
+    """Task fragment_dub thất bại/bị huỷ mà params.dub vẫn "running": đóng lại thành "failed" có error_code.
+
+    Không có mã lỗi task.cancelled riêng trong danh mục hiện tại nên nhánh "cancelled" cũng ghi
+    status="failed" (chỉ khác error_code khi mã đó tồn tại); mục đích chỉ là không để guard 4 của
+    assert_fragment_dubbable/has_active_fragment_dub_task bị đánh lừa bởi cờ params treo mãi.
+    Gọi trong CÙNG session của executor (không mở session riêng) — lỗi tại đây không được raise,
+    caller (executor._fail_task*/_mark_cancelled) tự try/except + log.
+    """
+    if (task.task_type or "") != "fragment_dub" or not task.fragment_id:
+        return
+    fragment = await db.get(DramaEpisodeFragment, int(task.fragment_id))
+    if not fragment:
+        return
+    dub = _dub_params(fragment)
+    if str(dub.get("status") or "") != "running":
+        return
+    from app.errors import ERRORS
+
+    task_error_code = getattr(task, "error_code", None)
+    if status == "cancelled" and "task.cancelled" in ERRORS:
+        code, params = "task.cancelled", None
+    elif task_error_code in ERRORS:
+        code, params = task_error_code, getattr(task, "error_params", None)
+    else:
+        code, params = "drama.dub_failed", None
+    _write_dub(fragment, with_error_code(
+        {"status": "failed", "sourceVideo": fragment.video or dub.get("sourceVideo")},
+        code,
+        params,
+    ))
 
 
 async def enqueue_fragment_dub(
@@ -261,8 +317,10 @@ async def enqueue_fragment_dub_after_video(
 ) -> None:
     """Sau khi video xong: mở phiên RIÊNG (không đụng db/task của finalize) để tự vào hàng đợi lồng tiếng.
 
-    Lỗi (kể cả không đủ số dư) chỉ ghi log + params.dub.status=failed; không bao giờ raise ra ngoài,
-    để một lượt tự động lồng tiếng hỏng không kéo theo việc hoàn tất task video bị ảnh hưởng.
+    Bỏ qua nếu phân cảnh đã có task fragment_dub đang hoạt động (task đó sẽ tự lồng nguồn hiện tại
+    khi chạy, không cần thêm task trùng). Lỗi enqueue (kể cả không đủ số dư) ghi best-effort
+    params.dub.status=failed rồi thôi; không bao giờ raise ra ngoài, để một lượt tự động lồng tiếng
+    hỏng không kéo theo việc hoàn tất task video bị ảnh hưởng.
     """
     async with AsyncSessionLocal() as db:
         try:
@@ -270,23 +328,26 @@ async def enqueue_fragment_dub_after_video(
             user = await db.get(User, user_id)
             if not fragment or not user:
                 return
+            if await has_active_fragment_dub_task(db, fragment_id):
+                return
             await enqueue_fragment_dub(
                 db, user, fragment, drama_project_id=drama_project_id, episode_id=episode_id,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("tự động lồng tiếng: vào hàng đợi lỗi fragment_id=%s err=%s", fragment_id, exc)
             code = exc.code if isinstance(exc, AppError) else None
+            params = getattr(exc, "params", None)
             if not (code and code.startswith("billing.")):
-                return
-            # Không đủ số dư: create_task raise trước khi có TaskRun nào được tạo; rollback rồi ghi failed riêng.
+                code, params = "drama.dub_failed", None
+            # create_task/enqueue có thể raise trước khi kịp commit; rollback rồi ghi failed riêng, best-effort.
             await db.rollback()
             frag = await db.get(DramaEpisodeFragment, fragment_id)
             if not frag:
                 return
             _write_dub(frag, with_error_code(
-                {"status": "failed", "sourceVideo": dub_source_video(frag)},
+                {"status": "failed", "sourceVideo": frag.video},
                 code,
-                getattr(exc, "params", None),
+                params,
             ))
             try:
                 await db.commit()
