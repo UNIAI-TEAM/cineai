@@ -65,3 +65,39 @@ def test_apply_noop_when_appearance_empty():
     params = {"appearance": {}, "visualPrompt": "keep me"}
     out = apply_appearance_to_params(params, "vi")
     assert out["visualPrompt"] == "keep me"
+
+
+from app.services.drama.script_summary_prompt import SCRIPT_SUMMARY_SYSTEM_PROMPT
+from app.services.drama.seed_asset_params import build_character_params
+
+
+def test_summary_prompt_asks_for_appearance_fields():
+    assert '"appearance"' in SCRIPT_SUMMARY_SYSTEM_PROMPT
+    for key in APPEARANCE_KEYS:
+        assert f'"{key}"' in SCRIPT_SUMMARY_SYSTEM_PROMPT
+
+
+def test_build_character_params_uses_appearance_when_present():
+    ch = {
+        "name": "Lan",
+        "roleType": "lead",
+        "visualImage": "long paragraph that should be replaced",
+        "appearance": {"gender": "female", "age": "25", "hair": "ponytail"},
+    }
+    params = build_character_params(ch, "vi")
+    expected = "Gender: female. Age: 25. Hair: ponytail. Role: lead"
+    assert params["visualPrompt"] == expected
+    assert params["visualImage"] == expected
+    assert params["canvas"]["generation"]["prompt"] == expected
+    assert params["appearance"]["hair"] == "ponytail"
+    assert params["promptManual"] is False
+
+
+def test_build_character_params_unchanged_without_appearance():
+    ch = {"name": "Lan", "roleType": "lead", "visualImage": "A young woman in a white ao dai"}
+    for extra in ({}, {"appearance": None}, {"appearance": "text"}, {"appearance": {}}):
+        params = build_character_params({**ch, **extra}, "vi")
+        assert params["visualPrompt"] == "A young woman in a white ao dai. Role: lead"
+        assert params["visualImage"] == "A young woman in a white ao dai"
+        assert "appearance" not in params
+        assert "promptManual" not in params

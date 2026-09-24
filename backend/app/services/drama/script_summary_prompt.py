@@ -24,6 +24,7 @@ SCRIPT_SUMMARY_SYSTEM_PROMPT = """你是专业的短剧/网剧剧本策划，负
 10. synopsis 用一段完整中文叙述故事，从世界观、矛盾、结盟、高潮、结局到余韵，长度 200–400 字
 11. 语言统一使用简体中文，偏影视策划文档风格，避免空泛形容词堆砌
 12. 每人 visualImage 须 100–200 字：写清性别年龄、脸型五官、发型、体型、服饰材质与配色、气质神态、标志性道具或细节；可直接作 AI 定妆照提示词；禁止仅写「英俊」「美丽」等空泛词
+12b. 每人另给 appearance 对象，把 visualImage 拆成 8 个短字段（每个 ≤ 30 字，具体可拍摄，与 visualImage 一致，不适用可为空字符串）：gender 性别、age 年龄感、face 脸型五官、hair 发型发色、build 体型身高、outfit 服饰材质与配色、signature 标志性道具或细节、style_note 气质神态
 13. characters 建议 5–12 人；确有大量具名配角时宁可多列，也不要省略会反复出场的名字
 
 必须输出严格 JSON 对象（不要 markdown、不要代码围栏），字段：
@@ -40,6 +41,16 @@ SCRIPT_SUMMARY_SYSTEM_PROMPT = """你是专业的短剧/网剧剧本策划，负
       "title": string,
       "roleType": string,
       "visualImage": string,
+      "appearance": {
+        "gender": string,
+        "age": string,
+        "face": string,
+        "hair": string,
+        "build": string,
+        "outfit": string,
+        "signature": string,
+        "style_note": string
+      },
       "coreTags": string,
       "identityBackground": string,
       "growthExperience": string,

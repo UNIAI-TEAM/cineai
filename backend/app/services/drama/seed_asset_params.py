@@ -99,9 +99,20 @@ def compose_character_visual_text(character: dict[str, Any], lang: str | None = 
 
 # 组装角色资产 params（形象名 + 生图提示词，对齐 manju buildCharacterParams）
 def build_character_params(character: dict[str, Any], lang: str | None = None) -> dict[str, Any]:
+    # 有 appearance（按字段的外形）时由字段拼 visualImage 正文；否则沿用旧逻辑
+    from app.services.drama.appearance_prompt import (
+        appearance_is_empty,
+        compose_appearance_prompt,
+        normalize_appearance,
+    )
+
+    appearance = normalize_appearance(character.get("appearance"))
+    has_appearance = not appearance_is_empty(appearance)
+    if has_appearance:
+        character = {**character, "visualImage": compose_appearance_prompt(appearance, lang)}
     prompt = manju_join_character_prompt(character, lang)
-    visual = str(character.get("visualImage") or "").strip() or prompt
-    return {
+    visual = prompt if has_appearance else (str(character.get("visualImage") or "").strip() or prompt)
+    params: dict[str, Any] = {
         "visualImage": visual,
         "visualPrompt": prompt,
         "roleType": character.get("roleType"),
@@ -121,6 +132,10 @@ def build_character_params(character: dict[str, Any], lang: str | None = None) -
             "seededFromScript": True,
         },
     }
+    if has_appearance:
+        params["appearance"] = appearance
+        params["promptManual"] = False
+    return params
 
 
 # 组装场景资产 params（对齐 manju buildSceneParams）

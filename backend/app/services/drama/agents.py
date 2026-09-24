@@ -541,7 +541,7 @@ async def run_script_summary(
     if lang is not None and not is_zh(lang):
         # 定妆提示词给生图模型：vi/en 用英文；其余字段按内容语言
         system += (
-            "\n14. characters[].visualImage 是定妆照生图提示词，用英文（English）书写；"
+            "\n14. characters[].visualImage 与 characters[].appearance 的各字段是定妆照生图提示词，用英文（English）书写；"
             f"其余所有字段（含 seriesTitle、name、synopsis）使用{lang_display_name(lang)}"
         )
     data = await drama_chat_json(

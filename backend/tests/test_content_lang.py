@@ -169,7 +169,7 @@ async def test_script_summary_prompt_en(captured):
     assert "语言统一使用简体中文" not in system
     assert "4–16 个汉字" not in system
     assert "英语" in system
-    assert "visualImage 是定妆照生图提示词，用英文" in system
+    assert "visualImage 与 characters[].appearance 的各字段是定妆照生图提示词，用英文" in system
 
 
 async def test_script_batch_retry_hint_localized(captured):
