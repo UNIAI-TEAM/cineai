@@ -67,7 +67,12 @@ SPEAKER_DIALOGUE_RE = re.compile(
     r"(?P<paren>[（(][^）)]+[）)])?"
     r"\s*[：:]\s*(?P<text>.+)$"
 )
-GENERIC_NARRATOR_NAMES = frozenset({"旁白", "解说", "narrator", "旁白a", "旁白b", "vo", "os"})
+GENERIC_NARRATOR_NAMES = frozenset({
+    "旁白", "解说", "narrator", "旁白a", "旁白b", "vo", "os",
+    # 越南语 / 英语项目的旁白声部名（配音拆句时须去掉，不能被 TTS 念出来）
+    "người dẫn chuyện", "người kể chuyện", "lời dẫn", "dẫn chuyện", "dẫn truyện", "thuyết minh",
+    "voice-over", "voiceover", "voice over",
+})
 _TIME_OR_DURATION_PREFIX_RE = re.compile(
     r"^(?:@duration:\d+|\d{2}:\d{2}-\d{2}:\d{2})\s*"
 )
@@ -131,8 +136,17 @@ _PAREN_RE = re.compile(r"[（(][^）)]*[）)]")
 _VO_PAREN_RE = re.compile(r"[（(]\s*(?:vo|os|旁白)", re.IGNORECASE)
 
 
+# 说话人是资产引用 @asset:N（token 自带冒号，须整体当说话人）
+_ASSET_SPEAKER_RE = re.compile(
+    r"^(?P<head>@asset:\d+\s*(?:[（(][^）)]*[）)]\s*)*)[：:]\s*(?P<text>.+)$"
+)
+
+
 def _split_spoken_speaker(cue: str, body: str) -> tuple[str, str]:
     """把口播行拆成（说话人段, 台词）；旁白行只有旁白名 / 带 vo·os 括号时才拆，避免把句中冒号当说话人。"""
+    asset = _ASSET_SPEAKER_RE.match(body)
+    if asset:
+        return asset.group("head").strip(), asset.group("text").strip()
     m = _SPOKEN_SPEAKER_RE.match(body)
     if not m:
         return "", body
@@ -175,6 +189,51 @@ def declare_spoken_language(script: str, lang: str | None) -> str:
             out.append(raw)
             continue
         out.append(f"{m.group('lead')}{m.group('cue')}{speaker}{marker}{{{text}}}")
+    return "\n".join(out)
+
+
+DUB_SILENT_DIALOGUE_PREFIX = "【画面·角色无声口型】"
+_TIME_RANGE_ONLY_RE = re.compile(r"^\s*\d{2}:\d{2}-\d{2}:\d{2}\s*$")
+_NON_VISUAL_CUE_PREFIXES = ("【字幕", "【BGM", "【配乐")
+
+
+def silence_voice_lines_for_dub(content: str) -> str:
+    """漫剧后期 TTS 配音：口播行改写成不含台词原文的无声表演描述，并去掉字幕 / BGM cue。
+
+    Seedance 看到台词原文就会开口念（强制约束里写「禁止人声」也压不住），所以提交前把
+    【对白】改成「角色无声口型」画面行（保留说话人与情绪括号，按原时间段演口型），
+    【内心独白】改成角色闭口的神情戏，【旁白】改成延续上一画面的环境音段；台词只留给后期 TTS。
+    """
+    last_visual = "保持上一画面主体稳定"
+    out: list[str] = []
+    for raw in (content or "").replace("\r\n", "\n").split("\n"):
+        stripped = raw.strip()
+        if stripped.startswith(_NON_VISUAL_CUE_PREFIXES):
+            continue
+        m = _SPOKEN_VOICE_LINE_RE.match(raw)
+        if not m or not m.group("body"):
+            if stripped and not stripped.startswith("@") and not _TIME_RANGE_ONLY_RE.match(stripped):
+                visual = re.sub(r"^(?:\d{2}:\d{2}-\d{2}:\d{2}\s*)?(?:【[^】]*】\s*)*", "", stripped).strip()
+                if visual:
+                    last_visual = visual
+            out.append(raw.rstrip())
+            continue
+        cue, lead = m.group("cue"), m.group("lead")
+        head, _ = _split_spoken_speaker(cue, m.group("body"))
+        base = _PAREN_RE.sub("", head).strip()
+        if cue.startswith("【旁白") and (not base or base.lower() in GENERIC_NARRATOR_NAMES):
+            out.append(f"{lead}{VISUAL_PREFIX}{last_visual}；仅环境音与动作音效，无任何人声")
+        elif cue.startswith("【内心独白") or _VO_PAREN_RE.search(head):
+            who = head or "画面中的角色"
+            out.append(
+                f"{lead}{VISUAL_PREFIX}{who}沉默不语、嘴唇闭合，神情流露内心活动；仅环境音与动作音效，无任何人声"
+            )
+        else:
+            who = head or "画面中说话的角色"
+            out.append(
+                f"{lead}{DUB_SILENT_DIALOGUE_PREFIX}{who}开口说一句台词：嘴唇随台词自然开合，"
+                "表情与手势到位，全程不发出任何声音（台词由后期配音）"
+            )
     return "\n".join(out)
 
 
@@ -278,7 +337,11 @@ def rewrite_character_vo_voice_lines(content: str) -> str:
         if not line or line.startswith("@duration:") or is_production_meta_line(line):
             out.append(raw)
             continue
-        if line.startswith("【画面") or line.startswith("【空镜"):
+        # 行首时间段（00:00-00:04）先拆出来，否则「00:」会被当成说话人
+        timed = re.match(r"^\d{2}:\d{2}-\d{2}:\d{2}\s*", line)
+        lead = timed.group(0) if timed else ""
+        line = line[len(lead) :]
+        if not line or line.startswith("【画面") or line.startswith("【空镜"):
             out.append(raw)
             continue
         match = VOICE_CUE_PREFIX_RE.match(line)
@@ -289,17 +352,17 @@ def rewrite_character_vo_voice_lines(content: str) -> str:
             if prefix.startswith("【画面"):
                 out.append(raw)
             else:
-                out.append(f"{VISUAL_PREFIX}{body}")
+                out.append(f"{lead}{VISUAL_PREFIX}{body}")
             continue
         if kind == "dialogue" and not prefix.startswith("【对白"):
-            out.append(f"{_dialogue_prefix_like(prefix)}{body}")
+            out.append(f"{lead}{_dialogue_prefix_like(prefix)}{body}")
             continue
         if kind == "inner" and not prefix.startswith("【内心独白"):
             inner = "【内心独白·同步字幕】" if "同步字幕" in prefix else "【内心独白】"
-            out.append(f"{inner}{body}")
+            out.append(f"{lead}{inner}{body}")
             continue
         if kind == "narration" and not prefix.startswith("【旁白"):
-            out.append(f"【旁白·慢速清晰】{body}")
+            out.append(f"{lead}【旁白·慢速清晰】{body}")
             continue
         out.append(raw)
     return "\n".join(out)
@@ -587,20 +650,14 @@ def build_seedance_production_section(
     )
 
     if dub_voice:
+        # 正文口播行已由 silence_voice_lines_for_dub 改成无台词的表演描述；字幕由后期按配音时间轴叠加
         lines = [
-            "1. 配音：本镜全部【旁白·…】【对白·…】【内心独白·…】台词由后期外部 TTS 配音；"
-            "视频内禁止生成任何人声（对白、旁白、独白、哼唱、呼喊、说话声）。",
-            "2. 表演：【对白·…】段落里说话的角色照常开口说台词——口型随台词自然开合，表情与手势到位，"
-            "节奏按台词长度与时间段，只是不出声；旁白与内心独白段落角色不开口。",
-            (
-                f"3. 字幕：{no_burn}"
-                if not burn_subtitles
-                else (
-                    f"3. 字幕：仅【旁白·…】【对白·…】台词烧录{sub_lang}字幕，底部居中；"
-                    "同一时刻只显示一句，随台词节奏逐句轮换，与台词逐字一致。"
-                )
-            ),
-            f"4. 背景音乐：{bgm_mood}；BGM 音量低于后期人声约 30%。",
+            "1. 人声：本镜所有台词、旁白、内心独白均由后期外部 TTS 配音；视频音轨内禁止出现任何人声"
+            "（说话、对白、旁白、独白、耳语、哼唱、呼喊、笑声、叹气、拟声念白），也禁止自行编造台词。",
+            f"2. 表演：{DUB_SILENT_DIALOGUE_PREFIX}段落里的角色按该时间段开口说话——口型自然开合、表情与手势到位，"
+            "但完全无声；其余段落角色不开口。",
+            "3. 字幕：禁止在画面内烧录任何字幕、台词文字、标题、水印或字卡（字幕由后期按配音时间轴叠加）。",
+            "4. 背景音乐：禁止任何 BGM、配乐、旋律或哼唱垫乐（音轨只保留环境音与动作音效）。",
             "5. 音效：必须生成与画面同步的环境音与动作音效（按场景：脚步、风声、雨声、人群底噪、器物碰撞、开关门等），"
             "层次清楚、音量克制，为后期人声留出空间。",
         ]

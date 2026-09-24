@@ -47,7 +47,12 @@ from app.services.drama.seedream_options import (
 )
 from app.services.drama.visual_prompt import resolve_visual_prompt_for_asset
 from app.services.content_lang import project_content_lang
-from app.services.seedance_segments import build_seedance_production_section, declare_spoken_language
+from app.services.seedance_segments import (
+    build_seedance_production_section,
+    declare_spoken_language,
+    silence_voice_lines_for_dub,
+    strip_model_burn_subtitle_cues,
+)
 from app.services.drama.job_errors import gen_progress, with_error_code
 from app.services.drama.naming import default_asset_name
 from app.services.drama.voice_synthesis import build_voice_sample_text, synthesize_voice_asset
@@ -1702,17 +1707,19 @@ async def prepare_fragment_video_for_submit(
     lang = project_content_lang(project)
     i2v_prompt = declare_spoken_language(prompt, None if dub else lang)
     if dub:
-        # i2v không có khối ràng buộc âm thanh: thêm luật "chỉ diễn khẩu hình, không phát giọng"
+        # i2v không có khối ràng buộc âm thanh: thêm luật "chỉ diễn khẩu hình, không phát giọng";
+        # thân prompt bỏ hẳn chữ thoại (còn chữ là Seedance đọc) và cue phụ đề/BGM
+        silent = silence_voice_lines_for_dub(strip_model_burn_subtitle_cues(prompt))
         i2v_prompt = (
             build_seedance_production_section(
-                prompt,
+                silent,
                 dub_voice=True,
-                burn_subtitles=resolve_episode_burn_subtitles(episode.params if episode else None),
+                burn_subtitles=False,
                 character_intro=resolve_episode_character_intro(episode.params if episode else None),
                 spoken_lang=lang,
             )
             + "\n\n"
-            + i2v_prompt
+            + silent
         )
     return FragmentVideoPrepared(
         submit_mode="i2v",

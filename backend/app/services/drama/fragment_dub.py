@@ -23,7 +23,10 @@ from app.services import storage
 from app.services.ark import get_ark
 from app.services.billing import record_line
 from app.services.content_lang import project_content_lang
-from app.services.drama.build_seedance_generate_body import resolve_character_prompt_name
+from app.services.drama.build_seedance_generate_body import (
+    resolve_character_prompt_name,
+    resolve_episode_burn_subtitles,
+)
 from app.services.drama.dub_lines import extract_dub_lines
 from app.services.drama.dub_voices import CharacterVoice, resolve_line_speaker, voice_source_asset_id
 from app.services.drama.generation import fragment_generation_status
@@ -192,8 +195,11 @@ async def dub_fragment(
     fragment: DramaEpisodeFragment,
     *,
     task_run_id: int | None = None,
+    burn_subtitles: bool = False,
 ) -> dict[str, Any]:
     """Lồng tiếng phân cảnh; thành công/skip trả params.dub, lỗi thì ghi failed (giữ video gốc) rồi raise lại.
+
+    burn_subtitles: tập bật "phụ đề do mô hình" → đốt phụ đề khớp đúng lúc giọng TTS đọc từng câu.
 
     Mọi lần ghi đều đọc lại dòng phân cảnh có khoá và chỉ trộn khoá "dub" vào params mới nhất; nếu trong
     lúc TTS/FFmpeg người dùng đã tạo lại video hoặc đổi phiên bản thì bỏ kết quả (skipped/stale), không đụng video.
@@ -225,7 +231,7 @@ async def dub_fragment(
     try:
         characters, narrator = await load_dub_voices(db, project, lang)
         stamp = int(time.time())
-        clips: list[tuple[Path, float | None]] = []
+        clips: list[tuple[Path, float | None, float | None]] = []
         meta: list[dict[str, Any]] = []
         for idx, line in enumerate(lines):
             speaker = resolve_line_speaker(line, characters, lang=lang, narrator=narrator)
@@ -242,11 +248,15 @@ async def dub_fragment(
             if path is None or not path.exists():
                 raise AppError("drama.dub_failed")
             clip_paths.append(path)
-            clips.append((path, line.start_sec))
+            clips.append((path, line.start_sec, line.end_sec))
             meta.append({"kind": line.kind, "name": line.speaker, "speaker": speaker, "text": line.text})
         video_local = await _ensure_local_video(source)
         dest = storage.project_dir(project.id) / f"shot_{fragment.id}_{stamp}_dub.mp4"
-        plan = await asyncio.to_thread(run_dub_mix, video_local, clips, dest)
+        # Tập bật "phụ đề do mô hình": ở chế độ lồng tiếng model không đốt chữ nữa, phụ đề đốt ở đây khớp giọng TTS
+        subtitles = [m["text"] for m in meta] if burn_subtitles else None
+        plan = await asyncio.to_thread(run_dub_mix, video_local, clips, dest, subtitles=subtitles)
+        for m, at, rate in zip(meta, plan.starts, plan.tempos):
+            m["at"], m["tempo"] = at, rate
         rel = storage.rel_static_url(dest)
         dubbed = storage.republish_url(rel, sync=True) or rel
         fresh = await _reload_locked(db, fragment)
@@ -497,5 +507,9 @@ async def run_fragment_dub_job(task_run_id: int, fragment_id: int, user_id: int)
         user = await db.get(User, user_id)
         if user is None:
             raise RuntimeError(f"user không tồn tại: {user_id}")
-        dub = await dub_fragment(db, user, project, fragment, task_run_id=task_run_id)
+        dub = await dub_fragment(
+            db, user, project, fragment,
+            task_run_id=task_run_id,
+            burn_subtitles=resolve_episode_burn_subtitles(episode.params),
+        )
         return {"ok": True, "status": dub.get("status")}

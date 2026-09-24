@@ -410,6 +410,9 @@ def _split_dialogue_action_line(line: str) -> list[str]:
         if match:
             dialogue_prefix = match.group(1)
             body = match.group(2).strip()
+    elif trimmed.startswith("【"):
+        # 旁白/内心独白/画面等已打标行：括号是情绪或 vo/os，不拆（否则会把「【内心独白】角色」当成说话人）
+        return [trimmed]
     action_match = DIALOGUE_WITH_ACTION_BODY_RE.match(body)
     if not action_match:
         return [trimmed]
