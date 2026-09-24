@@ -139,6 +139,10 @@ class TtsRequest:
     text: str
     voice: str
     emotion_hint: str | None = None
+    # Ngôn ngữ nội dung zh|vi|en (None = để adapter tự suy theo speaker)
+    lang: str | None = None
+    # Tốc độ đọc BytePlus [-50, 100]; 0 = mặc định
+    speech_rate: int = 0
 
 
 class ProviderAdapter(Protocol):
